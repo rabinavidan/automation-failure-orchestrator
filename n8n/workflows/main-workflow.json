@@ -1,0 +1,321 @@
+{
+  "name": "Bug-Aware Test Failure Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-results",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "Receive Test Results",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "test-results-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate payload structure\nconst body = $input.first().json;\n\nconst required = ['schemaVersion', 'runId', 'repository', 'branch', 'commitSha', 'environment', 'triggeredBy', 'startedAt', 'finishedAt', 'summary', 'tests'];\nconst missing = required.filter(k => !body[k]);\n\nif (missing.length > 0) {\n  throw new Error(`Invalid payload: missing fields: ${missing.join(', ')}`);\n}\n\nif (!Array.isArray(body.tests)) {\n  throw new Error('Invalid payload: tests must be an array');\n}\n\nconsole.log(`[Workflow] Received run ${body.runId} with ${body.tests.length} tests`);\n\nreturn [{ json: body }];"
+      },
+      "id": "node-validate",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "tests",
+        "options": {}
+      },
+      "id": "node-split",
+      "name": "Split Tests",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter to only failed tests\nconst test = $input.first().json;\n\nif (test.status !== 'failed') {\n  return [];\n}\n\nconsole.log(`[Workflow] Processing failed test: ${test.title}`);\nreturn [{ json: test }];"
+      },
+      "id": "node-filter-failed",
+      "name": "Filter Failed Tests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate fingerprint for the test\nconst test = $input.first().json;\n\n// Normalize error message (strip dynamic values)\nfunction normalizeMessage(msg) {\n  if (!msg) return '';\n  return msg\n    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<UUID>')\n    .replace(/\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})?/g, '<TIMESTAMP>')\n    .replace(/\\b(?:req|sess)-[a-z0-9]+\\b/gi, '<REQ_ID>')\n    .replace(/\\/tmp\\/[^\\s/]+/g, '/tmp/<TEMP>')\n    .replace(/:([\\d]+)\\//g, ':<PORT>/')\n    .trim();\n}\n\n// Simple SHA-256 using Web Crypto\nasync function sha256(text) {\n  const encoder = new TextEncoder();\n  const data = encoder.encode(text);\n  const hashBuffer = await crypto.subtle.digest('SHA-256', data);\n  const hashArray = Array.from(new Uint8Array(hashBuffer));\n  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');\n}\n\nconst errorName = test.error?.name ?? 'Error';\nconst errorMsg = test.error?.message ?? 'Unknown error';\nconst service = test.metadata?.service ?? '';\nconst endpoint = test.metadata?.endpoint ?? '';\n\nconst normalized = [\n  test.testId,\n  service,\n  errorName,\n  normalizeMessage(errorMsg),\n  endpoint\n].join('|').toLowerCase();\n\nconst fingerprint = await sha256(normalized);\nconst label = `automation-fingerprint-${fingerprint.slice(0, 12)}`;\n\nreturn [{ json: { ...test, _fingerprint: fingerprint, _label: label } }];"
+      },
+      "id": "node-fingerprint",
+      "name": "Generate Fingerprint",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=http://mock-integrations:3002/jira/rest/api/2/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "jql",
+              "value": "={{ `labels = \"${$json._label}\"` }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-jira-search",
+      "name": "Search Jira for Fingerprint",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Classify the failure based on error patterns and Jira lookup\nconst test = $('Generate Fingerprint').first().json;\nconst jiraResult = $input.first().json;\n\nconst existingIssues = jiraResult.issues ?? [];\nconst hasExistingIssue = existingIssues.length > 0;\nconst existingJiraKey = hasExistingIssue ? existingIssues[0].key : null;\n\nconst errorText = [\n  test.error?.message ?? '',\n  test.error?.name ?? '',\n  test.error?.stack ?? ''\n].join(' ');\n\nfunction isInfrastructure(text) {\n  return /ECONNREFUSED|ENOTFOUND|\\bDNS\\b|connection refused|gateway timeout|\\b502\\b|\\b503\\b|\\b504\\b|browser.*launch|chromium.*not found|playwright.*browser|ETIMEDOUT|timeout.*connect|pod.*unavailable|service.*unavailable|ECONNRESET/i.test(text);\n}\n\nfunction isAutomation(text) {\n  return /locator.*strict mode|strict mode violation|waiting for.*selector|no element found|element not found|fixture.*not found|unknown fixture|Cannot find module|SyntaxError|TypeError.*import|test.*setup.*failed|beforeAll.*failed|reporter.*error/i.test(text);\n}\n\nlet classification;\nif (hasExistingIssue) {\n  classification = 'known_bug';\n} else if (isInfrastructure(errorText)) {\n  classification = 'infrastructure';\n} else if (isAutomation(errorText)) {\n  classification = 'automation_failure';\n} else if (test.retry > 0) {\n  classification = 'flaky';\n} else {\n  classification = 'new_regression';\n}\n\nconsole.log(`[Workflow] Test: ${test.title} => ${classification}`);\n\nreturn [{\n  json: {\n    ...test,\n    _classification: classification,\n    _jiraKey: existingJiraKey\n  }\n}];"
+      },
+      "id": "node-classify",
+      "name": "Classify Failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._classification }}",
+                    "rightValue": "new_regression",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "new_regression"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._classification }}",
+                    "rightValue": "known_bug",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "known_bug"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json._classification }}",
+                    "rightValue": "infrastructure",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "infrastructure"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-switch",
+      "name": "Route by Classification",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://mock-integrations:3002/jira/rest/api/2/issue",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ fields: { summary: `[AUTO] ${$json.suite}: ${$json.title}`, description: `Test failure detected\\n\\nTest: ${$json.title}\\nFingerprint: ${$json._fingerprint}\\nError: ${$json.error?.message ?? 'Unknown'}`, issuetype: { name: 'Bug' }, project: { key: 'AUTO' }, labels: [$json._label, 'automated-test'] } }) }}",
+        "options": {}
+      },
+      "id": "node-create-jira",
+      "name": "Create Jira Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 160]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ `http://mock-integrations:3002/jira/rest/api/2/issue/${$json._jiraKey}/comment` }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ body: `Test failure recurred\\n\\nFingerprint: ${$json._fingerprint}\\nError: ${$json.error?.message ?? 'Unknown'}` }) }}",
+        "options": {}
+      },
+      "id": "node-add-comment",
+      "name": "Add Jira Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://mock-integrations:3002/slack/services/T00/B00/xxx",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: `*[${$json._classification?.toUpperCase()}]* ${$json.title}\\nFingerprint: \\`${$json._fingerprint?.slice(0,12)}\\`` }) }}",
+        "options": {}
+      },
+      "id": "node-slack",
+      "name": "Send Slack Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://ingestion-service:3001/api/runs",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Validate Payload').first().json) }}",
+        "options": {}
+      },
+      "id": "node-persist",
+      "name": "Persist to Ingestion Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2440, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, runId: $('Validate Payload').first().json.runId, message: 'Workflow completed successfully' }) }}",
+        "options": {}
+      },
+      "id": "node-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2660, 300]
+    }
+  ],
+  "connections": {
+    "Receive Test Results": {
+      "main": [
+        [{ "node": "Validate Payload", "type": "main", "index": 0 }]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [{ "node": "Split Tests", "type": "main", "index": 0 }]
+      ]
+    },
+    "Split Tests": {
+      "main": [
+        [{ "node": "Filter Failed Tests", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filter Failed Tests": {
+      "main": [
+        [{ "node": "Generate Fingerprint", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate Fingerprint": {
+      "main": [
+        [{ "node": "Search Jira for Fingerprint", "type": "main", "index": 0 }]
+      ]
+    },
+    "Search Jira for Fingerprint": {
+      "main": [
+        [{ "node": "Classify Failure", "type": "main", "index": 0 }]
+      ]
+    },
+    "Classify Failure": {
+      "main": [
+        [{ "node": "Route by Classification", "type": "main", "index": 0 }]
+      ]
+    },
+    "Route by Classification": {
+      "main": [
+        [{ "node": "Create Jira Issue", "type": "main", "index": 0 }],
+        [{ "node": "Add Jira Comment", "type": "main", "index": 0 }],
+        [{ "node": "Send Slack Notification", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Jira Issue": {
+      "main": [
+        [{ "node": "Send Slack Notification", "type": "main", "index": 0 }]
+      ]
+    },
+    "Add Jira Comment": {
+      "main": [
+        [{ "node": "Send Slack Notification", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Slack Notification": {
+      "main": [
+        [{ "node": "Persist to Ingestion Service", "type": "main", "index": 0 }]
+      ]
+    },
+    "Persist to Ingestion Service": {
+      "main": [
+        [{ "node": "Respond to Webhook", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "automation-failure-orchestrator"
+  },
+  "id": "main-workflow",
+  "tags": ["automation", "testing", "orchestration"]
+}

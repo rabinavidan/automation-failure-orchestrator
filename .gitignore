@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Environment — never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Test output
+test-results/
+playwright-report/
+allure-results/
+allure-report/
+
+# Coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Docker volumes (local data)
+postgres-data/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# n8n local data (auto-generated, not source)
+n8n/data/
+
+# Temp
+tmp/

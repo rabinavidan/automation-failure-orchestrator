@@ -1,0 +1,94 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: orchestrator-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: orchestrator
+      POSTGRES_PASSWORD: orchestrator
+      POSTGRES_DB: orchestrator
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U orchestrator -d orchestrator']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  mock-integrations:
+    build:
+      context: .
+      dockerfile: apps/mock-integrations/Dockerfile
+    container_name: orchestrator-mock
+    restart: unless-stopped
+    ports:
+      - '3002:3002'
+    environment:
+      MOCK_PORT: '3002'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3002/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  ingestion-service:
+    build:
+      context: .
+      dockerfile: apps/ingestion-service/Dockerfile
+    container_name: orchestrator-ingestion
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    environment:
+      PORT: '3001'
+      DATABASE_URL: postgresql://orchestrator:orchestrator@postgres:5432/orchestrator
+      INTEGRATION_MODE: mock
+      JIRA_BASE_URL: http://mock-integrations:3002
+      JIRA_PROJECT_KEY: AUTO
+      JIRA_EMAIL: test@example.com
+      JIRA_API_TOKEN: mock-token
+      SLACK_WEBHOOK_URL: http://mock-integrations:3002/slack/services/T00/B00/xxx
+      WEBHOOK_SECRET: local-dev-secret
+      RECOVERY_PASS_THRESHOLD: '3'
+      FLAKY_HISTORY_WINDOW: '5'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-integrations:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3001/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: orchestrator-n8n
+    restart: unless-stopped
+    ports:
+      - '5678:5678'
+    environment:
+      N8N_BASIC_AUTH_ACTIVE: 'true'
+      N8N_BASIC_AUTH_USER: ${N8N_USER:-admin}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_PASSWORD:-change-me-in-production}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-change-me-in-production}
+      WEBHOOK_URL: http://localhost:5678
+      GENERIC_TIMEZONE: UTC
+      N8N_LOG_LEVEL: info
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/home/node/.n8n/workflows:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    name: orchestrator_postgres_data
+  n8n_data:
+    name: orchestrator_n8n_data

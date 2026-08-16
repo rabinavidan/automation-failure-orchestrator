@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Run Prettier check
+        run: npx prettier --check .
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build packages
+        run: npm run build --workspaces --if-present
+
+      - name: Run unit tests (fingerprint-engine)
+        run: npm run test --workspace=packages/fingerprint-engine
+
+      - name: Run unit tests (failure-classifier)
+        run: npm run test --workspace=packages/failure-classifier
+
+  playwright-tests:
+    name: Playwright Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/test-suite
+
+      - name: Run Playwright tests
+        run: npm run test --workspace=apps/test-suite
+        env:
+          CI: 'true'
+          ENVIRONMENT: ci
+          BRANCH_NAME: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: apps/test-suite/test-results/
+          retention-days: 30
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: apps/test-suite/playwright-report/
+          retention-days: 30
+
+      - name: Upload Allure results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-results
+          path: apps/test-suite/allure-results/
+          retention-days: 30
+
+  send-to-n8n:
+    name: Send Results to n8n
+    runs-on: ubuntu-latest
+    needs: playwright-tests
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+
+      - name: Send results to n8n webhook
+        if: ${{ secrets.N8N_WEBHOOK_URL != '' }}
+        run: |
+          if [ -f "test-results/normalized-results.json" ]; then
+            echo "Sending results to n8n..."
+            curl -s -X POST "${{ secrets.N8N_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -H "x-webhook-secret: ${{ secrets.WEBHOOK_SECRET }}" \
+              -d @test-results/normalized-results.json \
+              --max-time 30 \
+              -w "\nHTTP Status: %{http_code}" \
+              || echo "Warning: Failed to send to n8n (non-fatal)"
+          else
+            echo "No normalized-results.json found, skipping n8n notification"
+          fi

@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "paths": {
+      "@orchestrator/shared-types": ["./packages/shared-types/src/index.ts"],
+      "@orchestrator/fingerprint-engine": ["./packages/fingerprint-engine/src/index.ts"],
+      "@orchestrator/failure-classifier": ["./packages/failure-classifier/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,31 @@
+{
+  "name": "automation-failure-orchestrator",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "demo:new-regression": "tsx scripts/demo-new-regression.ts",
+    "demo:known-bug": "tsx scripts/demo-known-bug.ts",
+    "demo:flaky-test": "tsx scripts/demo-flaky-test.ts",
+    "demo:infrastructure-failure": "tsx scripts/demo-infra-failure.ts",
+    "demo:automation-failure": "tsx scripts/demo-automation-failure.ts",
+    "demo:recovered-bug": "tsx scripts/demo-recovered-bug.ts",
+    "demo:duplicate-delivery": "tsx scripts/demo-duplicate-delivery.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.11.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.11.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.10"
+  }
+}
