@@ -5,6 +5,7 @@ import { classify } from '@orchestrator/failure-classifier';
 import { query } from '../db/client';
 import { searchByLabel, createIssue, addComment } from './jira-adapter';
 import { sendSlackNotification } from './slack-adapter';
+import { investigateFailure } from './failure-investigation-agent';
 
 const RECOVERY_THRESHOLD = parseInt(process.env.RECOVERY_PASS_THRESHOLD ?? '3', 10);
 
@@ -106,6 +107,17 @@ async function processTest(
     existingJiraIssue: existingIssue?.key,
   });
 
+  // The agent may gather evidence and recommend an action, but deterministic
+  // classification remains the policy guardrail for side effects.
+  const agentInvestigation = await investigateFailure({
+    test,
+    run: payload,
+    fingerprint: fp,
+    deterministicClassification: classification,
+    history,
+    existingIssue,
+  });
+
   let jiraKey: string | undefined;
   let slackSent = false;
 
@@ -123,6 +135,8 @@ async function processTest(
         branch: payload.branch,
         environment: payload.environment,
         errorMessage: test.error?.message,
+        agentSummary: agentInvestigation?.explanation,
+        agentConfidence: agentInvestigation?.confidence,
       });
       break;
     }
@@ -142,6 +156,8 @@ async function processTest(
         branch: payload.branch,
         environment: payload.environment,
         errorMessage: test.error?.message,
+        agentSummary: agentInvestigation?.explanation,
+        agentConfidence: agentInvestigation?.confidence,
       });
       break;
     }
@@ -157,6 +173,8 @@ async function processTest(
         branch: payload.branch,
         environment: payload.environment,
         errorMessage: test.error?.message,
+        agentSummary: agentInvestigation?.explanation,
+        agentConfidence: agentInvestigation?.confidence,
       });
       break;
     }
@@ -175,6 +193,7 @@ async function processTest(
     classification,
     jiraKey,
     slackSent,
+    agentInvestigation,
   });
 }
 

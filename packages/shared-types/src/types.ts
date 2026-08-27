@@ -39,6 +39,17 @@ export interface FailureSummary {
   classification: FailureClassification;
   jiraKey?: string;
   slackSent?: boolean;
+  agentInvestigation?: AgentInvestigation;
+}
+
+export interface AgentInvestigation {
+  suspectedRootCause: string;
+  evidence: string[];
+  recommendedAction: 'create_issue' | 'update_issue' | 'notify_only' | 'human_review';
+  confidence: number;
+  explanation: string;
+  toolsUsed: string[];
+  model: string;
 }
 
 export interface FingerprintInput {

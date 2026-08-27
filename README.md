@@ -41,6 +41,37 @@ A portfolio-ready system that intelligently processes CI test failures, classifi
 
 ---
 
+### Agentic AI with Ollama
+
+The optional investigation agent runs through a local Ollama server. For every failed test it can choose to inspect exact fingerprint history and the matching Jira issue, then produces a schema-validated investigation containing:
+
+- suspected root cause and supporting evidence
+- recommended action (`create_issue`, `update_issue`, `notify_only`, or `human_review`)
+- confidence score and a concise explanation
+- an audit trail of the tools it used
+
+The agent enriches API results and Slack notifications. Existing deterministic rules still authorize Jira and Slack side effects, providing a reliable guardrail around model reasoning. If Ollama is disabled or unreachable, processing continues normally.
+
+To enable it:
+
+```bash
+# Install Ollama first, then download the default tool-capable local model
+ollama pull qwen3:4b
+
+# Add or update these values in .env
+AI_ENABLED=true
+OLLAMA_MODEL=qwen3:4b
+OLLAMA_HOST=http://host.docker.internal:11434
+OLLAMA_TIMEOUT_MS=30000
+
+# Rebuild the ingestion service with the Ollama JavaScript dependency
+docker compose up --build -d ingestion-service
+```
+
+When running the ingestion service directly rather than through Docker, use `OLLAMA_HOST=http://localhost:11434`.
+
+---
+
 ## Architecture
 
 ```

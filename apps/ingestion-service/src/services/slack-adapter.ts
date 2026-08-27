@@ -18,6 +18,8 @@ export interface NotifyParams {
   branch: string;
   environment: string;
   errorMessage?: string;
+  agentSummary?: string;
+  agentConfidence?: number;
 }
 
 function classificationEmoji(c: FailureClassification): string {
@@ -48,6 +50,9 @@ export async function sendSlackNotification(params: NotifyParams): Promise<boole
   const errorSnippet = params.errorMessage
     ? `\n> \`${params.errorMessage.slice(0, 150)}\``
     : '';
+  const agentSnippet = params.agentSummary
+    ? `\n*AI investigation (${Math.round((params.agentConfidence ?? 0) * 100)}%):* ${params.agentSummary.slice(0, 300)}`
+    : '';
 
   const message: SlackMessage = {
     text: `${emoji} *[${params.classification.toUpperCase()}]* ${params.testTitle}`,
@@ -64,6 +69,7 @@ export async function sendSlackNotification(params: NotifyParams): Promise<boole
             `*Run ID:* \`${params.runId.slice(0, 8)}\``,
             `*Fingerprint:* \`${params.fingerprint.slice(0, 12)}\`${jiraLink}`,
             errorSnippet,
+            agentSnippet,
           ]
             .filter(Boolean)
             .join('\n'),

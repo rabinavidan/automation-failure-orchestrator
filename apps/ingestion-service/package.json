@@ -16,6 +16,7 @@
     "@orchestrator/fingerprint-engine": "*",
     "@orchestrator/shared-types": "*",
     "express": "^4.21.0",
+    "ollama": "^0.6.3",
     "pg": "^8.13.0",
     "zod": "^3.23.0"
   },
