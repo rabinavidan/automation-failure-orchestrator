@@ -63,7 +63,7 @@ IMPORT_RESP=$(echo "$CLEAN_WORKFLOW" | curl -s -X POST "$N8N_URL/rest/workflows"
   -H "Cookie: n8n-auth=$TOKEN" \
   -d @-)
 
-WORKFLOW_ID=$(echo "$IMPORT_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log(r.data?.id||''); } catch(e){} })")
+WORKFLOW_ID=$(echo "$IMPORT_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log((r.data&&r.data.id)||''); } catch(e){} })")
 
 if [ -z "$WORKFLOW_ID" ]; then
   # Workflow already exists — update it instead
@@ -74,7 +74,7 @@ if [ -z "$WORKFLOW_ID" ]; then
       -H "Content-Type: application/json" \
       -H "Cookie: n8n-auth=$TOKEN" \
       -d @-)
-    WORKFLOW_ID=$(echo "$UPDATE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log(r.data?.id||'main-workflow'); } catch(e){ console.log('main-workflow'); } })")
+    WORKFLOW_ID=$(echo "$UPDATE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log((r.data&&r.data.id)||'main-workflow'); } catch(e){ console.log('main-workflow'); } })")
   else
     echo "ERROR: Workflow import failed. Response: $IMPORT_RESP"
     exit 1
@@ -88,7 +88,7 @@ ACT_RESP=$(curl -s -X PATCH "$N8N_URL/rest/workflows/$WORKFLOW_ID" \
   -H "Cookie: n8n-auth=$TOKEN" \
   -d '{"active":true}')
 
-ACTIVE=$(echo "$ACT_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log(r.data?.active); } catch(e){} })")
+ACTIVE=$(echo "$ACT_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log(r.data&&r.data.active); } catch(e){} })")
 
 if [ "$ACTIVE" = "true" ]; then
   echo "    Workflow is active."
