@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BarChart3,
   Bot,
+  BookOpen,
   BrainCircuit,
   Bug,
   CheckCircle2,
@@ -26,7 +27,7 @@ import {
   Zap,
 } from 'lucide-react';
 
-type View = 'overview' | 'approvals' | 'investigations' | 'jira' | 'slack';
+type View = 'overview' | 'approvals' | 'knowledge' | 'investigations' | 'jira' | 'slack';
 
 type AgentInvestigation = {
   suspectedRootCause: string;
@@ -36,6 +37,7 @@ type AgentInvestigation = {
   explanation: string;
   toolsUsed: string[];
   model: string;
+  sources?: Array<{ path: string; chunk: number; score: number }>;
 };
 
 type AgentExecution = {
@@ -112,19 +114,28 @@ type ApprovalRequest = {
   created_at: string;
 };
 
+type KnowledgeMatch = { sourcePath: string; chunkIndex: number; content: string; score: number };
+type KnowledgeStatus = {
+  chunkCount: number;
+  sourceCount: number;
+  latestRun?: { status: string; embedding_model: string; finished_at?: string };
+};
+
 type DashboardData = {
   runs: Run[];
   failures: Failure[];
   issues: JiraIssue[];
   messages: SlackMessage[];
   approvals: ApprovalRequest[];
+  knowledge: KnowledgeStatus;
 };
 
-const emptyData: DashboardData = { runs: [], failures: [], issues: [], messages: [], approvals: [] };
+const emptyData: DashboardData = { runs: [], failures: [], issues: [], messages: [], approvals: [], knowledge: { chunkCount: 0, sourceCount: 0 } };
 
 const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: 'overview', label: 'Command center', icon: LayoutDashboard },
   { id: 'approvals', label: 'Approval queue', icon: ShieldCheck },
+  { id: 'knowledge', label: 'Knowledge RAG', icon: BookOpen },
   { id: 'investigations', label: 'AI investigations', icon: BrainCircuit },
   { id: 'jira', label: 'Jira activity', icon: TicketCheck },
   { id: 'slack', label: 'Slack signal', icon: MessageSquare },
@@ -286,6 +297,9 @@ function App() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [reviewer, setReviewer] = useState('local-operator');
   const [decidingThread, setDecidingThread] = useState<string>();
+  const [knowledgeQuery, setKnowledgeQuery] = useState('How are webhook payloads validated?');
+  const [knowledgeMatches, setKnowledgeMatches] = useState<KnowledgeMatch[]>([]);
+  const [knowledgeBusy, setKnowledgeBusy] = useState(false);
 
   useEffect(() => {
     if (!selectedFailure) return;
@@ -315,10 +329,11 @@ function App() {
         fetch('/api/mock/jira/issues'),
         fetch('/api/mock/slack/messages'),
         fetch('/api/ingestion/api/approvals?status=pending'),
+        fetch('/api/ingestion/api/knowledge/status'),
       ]);
       if (responses.some((response) => !response.ok))
         throw new Error('One or more services are unavailable');
-      const [runs, failures, issues, messages, approvals] = await Promise.all(
+      const [runs, failures, issues, messages, approvals, knowledge] = await Promise.all(
         responses.map((response) => response.json())
       );
       setData({
@@ -327,6 +342,7 @@ function App() {
         issues: issues.issues ?? [],
         messages: messages.messages ?? [],
         approvals: approvals.approvals ?? [],
+        knowledge,
       });
       setError(undefined);
       setLastRefresh(new Date());
@@ -374,6 +390,7 @@ function App() {
   const navCount: Record<View, number | undefined> = {
     overview: undefined,
     approvals: data.approvals.length,
+    knowledge: data.knowledge.chunkCount,
     investigations: investigations.length,
     jira: data.issues.length,
     slack: data.messages.length,
@@ -396,6 +413,38 @@ function App() {
       setError(decisionError instanceof Error ? decisionError.message : 'Approval decision failed');
     } finally {
       setDecidingThread(undefined);
+    }
+  };
+
+  const searchKnowledge = async () => {
+    if (knowledgeQuery.trim().length < 3) return;
+    setKnowledgeBusy(true);
+    try {
+      const response = await fetch('/api/ingestion/api/knowledge/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: knowledgeQuery, topK: 5 }),
+      });
+      if (!response.ok) throw new Error('Knowledge search failed');
+      const payload = (await response.json()) as { matches?: KnowledgeMatch[] };
+      setKnowledgeMatches(payload.matches ?? []);
+    } catch (searchError) {
+      setError(searchError instanceof Error ? searchError.message : 'Knowledge search failed');
+    } finally {
+      setKnowledgeBusy(false);
+    }
+  };
+
+  const reindexKnowledge = async () => {
+    setKnowledgeBusy(true);
+    try {
+      const response = await fetch('/api/ingestion/api/knowledge/reindex', { method: 'POST' });
+      if (!response.ok) throw new Error('Knowledge reindex failed');
+      await loadData();
+    } catch (reindexError) {
+      setError(reindexError instanceof Error ? reindexError.message : 'Knowledge reindex failed');
+    } finally {
+      setKnowledgeBusy(false);
     }
   };
   const filteredFailures = data.failures.filter((failure) =>
@@ -747,6 +796,15 @@ function App() {
                         {agent.model}
                       </span>
                     </div>
+                    {agent.sources && agent.sources.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {agent.sources.map((source) => (
+                          <span key={`${source.path}-${source.chunk}`} className="border border-cyan/50 bg-cyan/10 px-2 py-1 font-mono text-[9px] text-cyan-900">
+                            {source.path}#{source.chunk} · {Math.round(source.score * 100)}%
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </article>
                 );
               })
@@ -812,6 +870,46 @@ function App() {
                         Approve &amp; resume
                       </button>
                     </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {!initialLoading && view === 'knowledge' && (
+          <section className="page-enter space-y-6 py-7">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Metric label="Indexed chunks" value={data.knowledge.chunkCount} note="LlamaIndex sentence chunks" icon={Database} accent="bg-signal" />
+              <Metric label="Sources" value={data.knowledge.sourceCount} note="Allowlisted repository files" icon={BookOpen} accent="bg-cyan" />
+              <Metric label="Embedding" value={data.knowledge.latestRun?.status ?? 'not indexed'} note={data.knowledge.latestRun?.embedding_model ?? 'nomic-embed-text'} icon={BrainCircuit} accent="bg-violet-500" />
+            </div>
+            <div className="border border-ink/10 bg-white p-5 shadow-panel">
+              <div className="flex flex-col gap-4 lg:flex-row">
+                <input
+                  value={knowledgeQuery}
+                  onChange={(event) => setKnowledgeQuery(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter') void searchKnowledge(); }}
+                  className="min-w-0 flex-1 border border-slate-300 px-4 py-3 text-sm outline-none focus:border-ink"
+                  placeholder="Search repository knowledge"
+                />
+                <button onClick={() => void searchKnowledge()} disabled={knowledgeBusy} className="bg-ink px-5 py-3 text-xs font-bold text-signal disabled:opacity-50">
+                  Semantic search
+                </button>
+                <button onClick={() => void reindexKnowledge()} disabled={knowledgeBusy} className="border border-ink px-5 py-3 text-xs font-bold disabled:opacity-50">
+                  Reindex repository
+                </button>
+              </div>
+            </div>
+            {knowledgeMatches.length > 0 && (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {knowledgeMatches.map((match) => (
+                  <article key={`${match.sourcePath}-${match.chunkIndex}`} className="border border-ink/10 bg-white p-5 shadow-panel">
+                    <div className="flex items-center justify-between gap-3 font-mono text-[9px]">
+                      <span className="truncate font-bold text-cyan-800">{match.sourcePath}#{match.chunkIndex}</span>
+                      <span className="shrink-0 bg-signal px-2 py-1 text-ink">{Math.round(match.score * 100)}%</span>
+                    </div>
+                    <p className="mt-4 line-clamp-6 whitespace-pre-wrap text-xs leading-5 text-slate-600">{match.content}</p>
                   </article>
                 ))}
               </div>
@@ -991,6 +1089,18 @@ function App() {
                     />
                   </div>
                 </div>
+                {selectedFailure.agent_investigation.sources && selectedFailure.agent_investigation.sources.length > 0 && (
+                  <div className="mt-5">
+                    <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500">Retrieved sources</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {selectedFailure.agent_investigation.sources.map((source) => (
+                        <span key={`${source.path}-${source.chunk}`} className="border border-cyan/50 bg-cyan/10 px-2 py-1 font-mono text-[9px] text-cyan-900">
+                          {source.path}#{source.chunk} · {Math.round(source.score * 100)}%
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-8 border border-dashed border-slate-300 p-5 text-sm text-slate-500">

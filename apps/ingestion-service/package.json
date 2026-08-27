@@ -15,10 +15,12 @@
     "@langchain/core": "^1.2.9",
     "@langchain/langgraph": "^1.4.13",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.5",
+    "@llamaindex/ollama": "^0.1.23",
     "@orchestrator/failure-classifier": "*",
     "@orchestrator/fingerprint-engine": "*",
     "@orchestrator/shared-types": "*",
     "express": "^4.21.0",
+    "llamaindex": "^0.12.1",
     "ollama": "^0.6.3",
     "pg": "^8.13.0",
     "zod": "^3.23.0"

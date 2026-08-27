@@ -1,7 +1,7 @@
 import { Annotation, Command, END, START, StateGraph, interrupt, isInterrupted } from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { Ollama } from 'ollama';
-import type { Message, ToolCall } from 'ollama';
+import type { Message, Tool, ToolCall } from 'ollama';
 import { z } from 'zod';
 import type { AgentInvestigation, FailureHistory, TestResult, WebhookPayload } from '@orchestrator/shared-types';
 import type { JiraIssue } from './jira-adapter';
@@ -12,8 +12,9 @@ import {
   startAgentExecution,
 } from './agent-execution-audit';
 import type { AgentAuditSink } from './agent-execution-audit';
+import { searchRepositoryKnowledge } from './repository-knowledge';
 
-const MAX_REASONING_STEPS = 3;
+const MAX_REASONING_STEPS = 4;
 
 const InvestigationSchema = z.object({
   suspectedRootCause: z.string().min(1),
@@ -32,9 +33,10 @@ export interface InvestigationContext {
   existingIssue: JiraIssue | null;
 }
 
-const tools = [
-  { type: 'function' as const, function: { name: 'get_failure_history', description: 'Get prior outcomes and recurrence information for this exact failure fingerprint.', parameters: { type: 'object', properties: {}, additionalProperties: false } } },
-  { type: 'function' as const, function: { name: 'get_related_jira_issue', description: 'Get the Jira issue already associated with this exact failure fingerprint, if one exists.', parameters: { type: 'object', properties: {}, additionalProperties: false } } },
+const tools: Tool[] = [
+  { type: 'function', function: { name: 'get_failure_history', description: 'Get prior outcomes and recurrence information for this exact failure fingerprint.', parameters: { type: 'object', properties: {} } } },
+  { type: 'function', function: { name: 'get_related_jira_issue', description: 'Get the Jira issue already associated with this exact failure fingerprint, if one exists.', parameters: { type: 'object', properties: {} } } },
+  { type: 'function', function: { name: 'search_repository_context', description: 'Semantically search indexed repository code and documentation for evidence relevant to this failure. Results include source paths and chunk identifiers.', parameters: { type: 'object', properties: { query: { type: 'string', description: 'A focused technical search query derived from the failure.' } }, required: ['query'] } } },
 ];
 
 const outputFormat = {
@@ -50,7 +52,7 @@ const outputFormat = {
 } as const;
 
 export interface InvestigationModel {
-  chat(input: { model: string; messages: Message[]; tools: typeof tools; format: typeof outputFormat; stream: false }): Promise<{ message: Message }>;
+  chat(input: { model: string; messages: Message[]; tools?: typeof tools; format: typeof outputFormat; stream: false }): Promise<{ message: Message }>;
 }
 
 export interface InvestigationGraphOptions {
@@ -58,6 +60,7 @@ export interface InvestigationGraphOptions {
   threadId?: string;
   audit?: AgentAuditSink;
   requireApproval?: boolean;
+  knowledgeSearch?: typeof searchRepositoryKnowledge;
 }
 
 export interface FailureInvestigationOutcome {
@@ -75,6 +78,7 @@ const InvestigationState = Annotation.Root({
   reasoningSteps: Annotation<number>(),
   result: Annotation<AgentInvestigation | undefined>(),
   approvalStatus: Annotation<'not_required' | 'pending' | 'approved' | 'rejected'>(),
+  ragSources: Annotation<Array<{ path: string; chunk: number; score: number }>>(),
 });
 
 function initialMessages(context: InvestigationContext): Message[] {
@@ -84,6 +88,8 @@ function initialMessages(context: InvestigationContext): Message[] {
       content: [
         'You are a guarded test-failure investigation agent.',
         'Use the available tools when historical or Jira evidence is relevant.',
+        'When repository knowledge is enabled, you must use search_repository_context at least once before returning a final investigation.',
+        'Call only tools from the provided schema and preserve their names exactly.',
         'Do not invent logs, code, history, or issue data.',
         'The deterministic classification is a safety signal; explain disagreements and recommend human_review when evidence is insufficient.',
         'Return only JSON matching the requested schema.',
@@ -118,13 +124,31 @@ export function createFailureInvestigationGraph(
     const response = await client.chat({ model: state.model, messages: state.messages, tools, format: outputFormat, stream: false });
     const calls = response.message.tool_calls ?? [];
     if (calls.length === 0) {
+      if (process.env.RAG_ENABLED === 'true' && !state.toolsUsed.includes('search_repository_context')) {
+        const query = [
+          state.context.test.title,
+          state.context.test.file,
+          state.context.test.error?.name,
+          state.context.test.error?.message,
+          state.context.test.metadata?.service,
+        ].filter(Boolean).join(' ');
+        const requiredRagCall: ToolCall = {
+          function: { name: 'search_repository_context', arguments: { query } },
+        };
+        await options.audit?.record({
+          node: 'reason',
+          status: 'completed',
+          details: { step: state.reasoningSteps + 1, requestedTools: ['search_repository_context'], policyEnforced: true },
+        });
+        return { pendingCalls: [requiredRagCall], reasoningSteps: state.reasoningSteps + 1 };
+      }
       const parsed = InvestigationSchema.parse(JSON.parse(response.message.content));
       await options.audit?.record({
         node: 'reason',
         status: 'completed',
         details: { step: state.reasoningSteps + 1, confidence: parsed.confidence },
       });
-      return { pendingCalls: [], reasoningSteps: state.reasoningSteps + 1, result: { ...parsed, toolsUsed: state.toolsUsed, model: state.model } };
+      return { pendingCalls: [], reasoningSteps: state.reasoningSteps + 1, result: { ...parsed, toolsUsed: state.toolsUsed, model: state.model, sources: state.ragSources } };
     }
     await options.audit?.record({
       node: 'reason',
@@ -137,12 +161,34 @@ export function createFailureInvestigationGraph(
   const executeTools = async (state: typeof InvestigationState.State) => {
     const toolMessages: Message[] = [];
     const used = [...state.toolsUsed];
+    const ragSources = [...state.ragSources];
     for (const call of state.pendingCalls) {
       const name = call.function.name;
       used.push(name);
       let result: unknown;
       if (name === 'get_failure_history') result = state.context.history ?? { found: false };
       else if (name === 'get_related_jira_issue') result = state.context.existingIssue ?? { found: false };
+      else if (name === 'search_repository_context') {
+        if (process.env.RAG_ENABLED !== 'true') result = { available: false, reason: 'RAG is disabled' };
+        else {
+          try {
+            const requestedQuery = String(call.function.arguments?.query ?? '').trim();
+            const searchText = requestedQuery || [
+              state.context.test.title,
+              state.context.test.error?.name,
+              state.context.test.error?.message,
+              state.context.test.metadata?.service,
+            ].filter(Boolean).join(' ');
+            const matches = await (options.knowledgeSearch ?? searchRepositoryKnowledge)(searchText, 4);
+            for (const match of matches) {
+              ragSources.push({ path: match.sourcePath, chunk: match.chunkIndex, score: match.score });
+            }
+            result = { available: true, matches };
+          } catch (error) {
+            result = { available: false, reason: error instanceof Error ? error.message : 'Search failed' };
+          }
+        }
+      }
       else result = { error: `Unknown tool: ${name}` };
       toolMessages.push({ role: 'tool', tool_name: name, content: JSON.stringify(result) });
     }
@@ -151,7 +197,32 @@ export function createFailureInvestigationGraph(
       status: 'completed',
       details: { tools: state.pendingCalls.map((call) => call.function.name) },
     });
-    return { messages: [...state.messages, ...toolMessages], pendingCalls: [], toolsUsed: used };
+    return { messages: [...state.messages, ...toolMessages], pendingCalls: [], toolsUsed: used, ragSources };
+  };
+
+  const finalize = async (state: typeof InvestigationState.State) => {
+    await options.audit?.record({
+      node: 'finalize',
+      status: 'started',
+      details: { reason: 'tool_budget_exhausted' },
+    });
+    const response = await client.chat({
+      model: state.model,
+      messages: [
+        ...state.messages,
+        { role: 'user', content: 'The tool budget is exhausted. Do not call another tool. Return the final investigation JSON now using only the gathered evidence.' },
+      ],
+      format: outputFormat,
+      stream: false,
+    });
+    try {
+      const parsed = InvestigationSchema.parse(JSON.parse(response.message.content));
+      await options.audit?.record({ node: 'finalize', status: 'completed', details: { confidence: parsed.confidence } });
+      return { result: { ...parsed, toolsUsed: state.toolsUsed, model: state.model, sources: state.ragSources } };
+    } catch {
+      await options.audit?.record({ node: 'finalize', status: 'bounded', details: { reason: 'invalid_final_output' } });
+      return {};
+    }
   };
 
   const requestApproval = async (state: typeof InvestigationState.State) => {
@@ -176,21 +247,28 @@ export function createFailureInvestigationGraph(
   const builder = new StateGraph(InvestigationState)
     .addNode('reason', reason)
     .addNode('execute_tools', executeTools)
+    .addNode('finalize', finalize)
     .addNode('request_approval', requestApproval)
     .addEdge(START, 'reason')
     .addConditionalEdges('reason', (state) => {
       if (!state.result && state.reasoningSteps < MAX_REASONING_STEPS) return 'execute_tools';
+      if (!state.result) return 'finalize';
       if (options.requireApproval && state.result?.recommendedAction === 'human_review') return 'request_approval';
       return END;
     })
     .addEdge('execute_tools', 'reason')
+    .addConditionalEdges('finalize', (state) =>
+      options.requireApproval && state.result?.recommendedAction === 'human_review'
+        ? 'request_approval'
+        : END
+    )
     .addEdge('request_approval', END);
   return builder.compile({ checkpointer: options.checkpointer });
 }
 
 export async function runFailureInvestigationGraph(context: InvestigationContext, client: InvestigationModel, model: string, options: InvestigationGraphOptions = {}): Promise<AgentInvestigation | undefined> {
   const finalState = await createFailureInvestigationGraph(client, options).invoke({
-    context, model, messages: initialMessages(context), pendingCalls: [], toolsUsed: [], reasoningSteps: 0, result: undefined, approvalStatus: 'not_required',
+    context, model, messages: initialMessages(context), pendingCalls: [], toolsUsed: [], reasoningSteps: 0, result: undefined, approvalStatus: 'not_required', ragSources: [],
   }, options.threadId ? { configurable: { thread_id: options.threadId } } : undefined);
   if (!finalState.result) {
     await options.audit?.record({
@@ -240,6 +318,7 @@ export async function investigateFailure(context: InvestigationContext): Promise
       reasoningSteps: 0,
       result: undefined,
       approvalStatus: 'not_required',
+      ragSources: [],
     }, { configurable: { thread_id: threadId } });
     const approvalPending = isInterrupted(finalState);
     await finishAgentExecution(

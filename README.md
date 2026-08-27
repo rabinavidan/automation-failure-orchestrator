@@ -142,6 +142,7 @@ Investigate one failed test, identify the most plausible root cause, and recomme
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `get_failure_history`    | Retrieves recurrence counts, recent statuses, consecutive passes, and the linked Jira key for the exact fingerprint |
 | `get_related_jira_issue` | Retrieves the Jira issue associated with the exact fingerprint, if present                                          |
+| `search_repository_context` | Uses local embeddings to retrieve cited code and documentation chunks from the allowlisted repository knowledge base |
 
 ### Structured decision contract
 
@@ -237,6 +238,7 @@ The first 12 fingerprint characters become a Jira label such as `automation-fing
 | Concern           | Technology                           | Engineering rationale                                                                |
 | ----------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
 | Agentic reasoning | LangGraph.js + Ollama                | Explicit state graph, bounded tool loops, local inference, and structured output      |
+| Retrieval         | LlamaIndex TS + nomic-embed-text     | Local semantic chunking and embeddings with cited repository evidence                 |
 | Domain language   | TypeScript 5                         | Shared contracts and strict typing across packages and services                      |
 | API               | Node.js 24 + Express                 | Explicit service boundary with native `fetch` support                                |
 | Validation        | Zod                                  | Runtime validation aligned with TypeScript types                                     |
@@ -301,6 +303,7 @@ Install Ollama, then pull a tool-capable model:
 
 ```bash
 ollama pull qwen3:4b
+ollama pull nomic-embed-text
 ```
 
 Set these values in `.env` when the ingestion service runs in Docker:
@@ -310,6 +313,8 @@ AI_ENABLED=true
 OLLAMA_HOST=http://host.docker.internal:11434
 OLLAMA_MODEL=qwen3:4b
 OLLAMA_TIMEOUT_MS=30000
+RAG_ENABLED=true
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
 ```
 
 For a larger local model such as `gemma4:26b`, increase the timeout:
@@ -323,6 +328,12 @@ Recreate the service so Compose applies the environment:
 
 ```bash
 docker compose up --build -d ingestion-service
+```
+
+Build or refresh the allowlisted repository knowledge index:
+
+```bash
+curl -X POST http://localhost:3001/api/knowledge/reindex
 ```
 
 When running directly on the host, use `OLLAMA_HOST=http://localhost:11434`.
@@ -380,6 +391,7 @@ Open [http://localhost:4173](http://localhost:4173) after `docker compose up --b
 - searchable failure intelligence with status-transition history
 - persisted Agent root cause, evidence, confidence, action, model, and tool audit trail
 - checkpoint-backed LangGraph execution timelines with node status and tool transitions
+- a local RAG control plane with index status, reindexing, semantic search, scores, and citations
 - Jira issue cards and an operator-friendly Slack message stream
 - drill-down failure dossiers instead of raw JSON as the primary UI
 
@@ -515,6 +527,8 @@ GitHub Actions performs linting, formatting checks, workspace builds, unit tests
 | `OLLAMA_HOST`             | `localhost:11434` outside Docker | Ollama server                          |
 | `OLLAMA_MODEL`            | `qwen3:4b`                       | Tool-capable model                     |
 | `OLLAMA_TIMEOUT_MS`       | `30000`                          | Per-request AI timeout                 |
+| `RAG_ENABLED`             | `true`                           | Enable bounded repository retrieval    |
+| `OLLAMA_EMBEDDING_MODEL`  | `nomic-embed-text`               | Local semantic embedding model         |
 | `PORT`                    | `3001`                           | Ingestion port                         |
 | `MOCK_PORT`               | `3002`                           | Mock service port                      |
 
@@ -541,7 +555,7 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 ## Current limitations and roadmap
 
 - Agent investigations, execution events, and LangGraph checkpoints are persisted; prompt/version lineage and token-level telemetry are not yet captured.
-- The agent cannot yet search source code, Git diffs, distributed traces, or centralized logs.
+- Repository code and documentation are searchable; Git diffs, distributed traces, and centralized logs are not yet indexed.
 - Approval decisions are local-operator controls; production identity, RBAC, and signed audit identity are not yet implemented.
 - Mock Jira and Slack state is in memory.
 - Rule logic exists in both n8n and the ingestion path; production should consolidate the source of truth.
@@ -551,7 +565,7 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 Planned evolution:
 
 1. Add prompt/version lineage, latency, token, and model-quality telemetry to persisted agent decisions.
-2. Add repository, Git diff, log, and trace tools through local RAG.
+2. Extend local RAG with Git diff, log, and trace ingestion.
 3. Build evaluations for hallucination, tool selection, policy agreement, and unsafe actions.
 4. Add semantic clustering after exact fingerprint matching.
 5. Add OpenTelemetry, operational metrics, retries, circuit breakers, and an action outbox.

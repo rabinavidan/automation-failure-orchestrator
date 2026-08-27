@@ -54,6 +54,11 @@ export interface AgentInvestigation {
   explanation: string;
   toolsUsed: string[];
   model: string;
+  sources?: Array<{
+    path: string;
+    chunk: number;
+    score: number;
+  }>;
 }
 
 export interface FingerprintInput {

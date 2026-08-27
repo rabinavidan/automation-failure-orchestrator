@@ -14,6 +14,8 @@ COPY packages/failure-classifier ./packages/failure-classifier/
 # Copy app and migrations
 COPY apps/ingestion-service ./apps/ingestion-service/
 COPY database ./database/
+COPY README.md ./README.md
+COPY docs ./docs/
 
 # Install all dependencies
 RUN npm install --legacy-peer-deps
@@ -38,7 +40,13 @@ COPY --from=builder /app/packages/failure-classifier/dist ./packages/failure-cla
 COPY --from=builder /app/packages/failure-classifier/package.json ./packages/failure-classifier/
 COPY --from=builder /app/apps/ingestion-service/dist ./apps/ingestion-service/dist
 COPY --from=builder /app/apps/ingestion-service/package.json ./apps/ingestion-service/
+COPY --from=builder /app/apps/ingestion-service/src ./apps/ingestion-service/src
+COPY --from=builder /app/packages/shared-types/src ./packages/shared-types/src
+COPY --from=builder /app/packages/fingerprint-engine/src ./packages/fingerprint-engine/src
+COPY --from=builder /app/packages/failure-classifier/src ./packages/failure-classifier/src
 COPY --from=builder /app/database ./database
+COPY --from=builder /app/README.md ./README.md
+COPY --from=builder /app/docs ./docs
 
 EXPOSE 3001
 

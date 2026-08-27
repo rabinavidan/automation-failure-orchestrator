@@ -4,6 +4,7 @@ import healthRouter from './routes/health';
 import runsRouter from './routes/runs';
 import failuresRouter from './routes/failures';
 import approvalsRouter from './routes/approvals';
+import knowledgeRouter from './routes/knowledge';
 
 const app = express();
 
@@ -19,6 +20,7 @@ app.use('/', healthRouter);
 app.use('/api/runs', runsRouter);
 app.use('/api/failures', failuresRouter);
 app.use('/api/approvals', approvalsRouter);
+app.use('/api/knowledge', knowledgeRouter);
 
 // 404 handler
 app.use((_req, res) => {

@@ -34,12 +34,31 @@ describe('failure investigation LangGraph', () => {
     expect(result?.recommendedAction).toBe('notify_only');
   });
 
+  it('adds cited repository sources returned by the bounded RAG tool', async () => {
+    const previousRagEnabled = process.env.RAG_ENABLED;
+    process.env.RAG_ENABLED = 'true';
+    const responses: Message[] = [
+      { role: 'assistant', content: '', tool_calls: [{ function: { name: 'search_repository_context', arguments: { query: 'webhook validation' } } }] },
+      finalMessage,
+    ];
+    const client: InvestigationModel = { async chat() { return { message: responses.shift()! }; } };
+    try {
+      const result = await runFailureInvestigationGraph(context, client, 'test-model', {
+        knowledgeSearch: async () => [{ sourcePath: 'docs/api.md', chunkIndex: 2, content: 'Webhook payloads are validated with Zod.', score: 0.91 }],
+      });
+      expect(result?.toolsUsed).toEqual(['search_repository_context']);
+      expect(result?.sources).toEqual([{ path: 'docs/api.md', chunk: 2, score: 0.91 }]);
+    } finally {
+      process.env.RAG_ENABLED = previousRagEnabled;
+    }
+  });
+
   it('stops after the bounded number of reasoning steps', async () => {
     let calls = 0;
     const client: InvestigationModel = { async chat() { calls += 1; return { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'get_related_jira_issue', arguments: {} } }] } }; } };
     const result = await runFailureInvestigationGraph(context, client, 'test-model');
     expect(result).toBeUndefined();
-    expect(calls).toBe(3);
+    expect(calls).toBe(5);
   });
 
   it('persists graph checkpoints and emits an auditable node timeline', async () => {
