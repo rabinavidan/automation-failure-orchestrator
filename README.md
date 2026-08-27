@@ -1,617 +1,565 @@
-# Bug-Aware Test Failure Orchestrator
+# Agentic Test Failure Orchestrator
 
-A portfolio-ready system that intelligently processes CI test failures, classifies them using deterministic rules, and routes notifications to Jira and Slack — reducing alert fatigue by distinguishing new regressions from known bugs, flaky tests, and infrastructure failures.
+> A guarded, local-first Agentic AI platform that turns noisy CI test failures into evidence-backed engineering actions.
 
-## Table of Contents
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Ollama](https://img.shields.io/badge/Agentic_AI-Ollama-black)](https://ollama.com/)
+[![n8n](https://img.shields.io/badge/Orchestration-n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Runtime-Docker_Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
-- [Features](#features)
-- [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [n8n Setup](#n8n-setup)
-- [Running Demo Scenarios](#running-demo-scenarios)
-- [Viewing Results](#viewing-results)
-- [Running Tests](#running-tests)
-- [Running Playwright Tests](#running-playwright-tests)
-- [Environment Variables](#environment-variables)
-- [How Fingerprinting Works](#how-fingerprinting-works)
-- [How Classification Works](#how-classification-works)
-- [Mock vs Real Integrations](#mock-vs-real-integrations)
-- [Project Structure](#project-structure)
-- [API Reference](#api-reference)
-- [Troubleshooting](#troubleshooting)
-- [Known Limitations](#known-limitations)
+## Why this project exists
 
----
+CI pipelines detect failures, but they do not decide what those failures mean. A red build can represent a new product regression, an existing bug, an unstable test, broken automation, or a temporary infrastructure problem. Treating every failure the same creates duplicate tickets, alert fatigue, and wasted investigation time.
 
-## Features
+This project demonstrates a different operating model:
 
-- **SHA-256 Fingerprinting** — Normalizes error messages (strips UUIDs, timestamps, request IDs, temp paths) so the same logical failure always produces the same fingerprint across runs
-- **Deterministic Classification** — Rules-based with no ML required:
-  - `new_regression` — Unknown failure → creates Jira issue
-  - `known_bug` — Fingerprint matches open Jira issue → adds comment
-  - `flaky` — Retry-based or history-based detection → Slack only
-  - `infrastructure` — ECONNREFUSED, DNS, gateway errors → Slack only
-  - `automation_failure` — Missing selector, strict mode, bad fixture → Slack only
-  - `possibly_fixed` — Consecutive passes after known bug → Jira comment + Slack
-- **Idempotency** — Duplicate run IDs are detected and skipped; same fingerprint never creates two Jira issues
-- **n8n Workflow** — Visual orchestration: webhook → fingerprint → classify → Jira/Slack/DB
-- **Custom Playwright Reporter** — Outputs normalized JSON matching the webhook schema exactly
-- **Mock Integrations** — Full local development without any paid services
-
----
-
-### Agentic AI with Ollama
-
-The optional investigation agent runs through a local Ollama server. For every failed test it can choose to inspect exact fingerprint history and the matching Jira issue, then produces a schema-validated investigation containing:
-
-- suspected root cause and supporting evidence
-- recommended action (`create_issue`, `update_issue`, `notify_only`, or `human_review`)
-- confidence score and a concise explanation
-- an audit trail of the tools it used
-
-The agent enriches API results and Slack notifications. Existing deterministic rules still authorize Jira and Slack side effects, providing a reliable guardrail around model reasoning. If Ollama is disabled or unreachable, processing continues normally.
-
-To enable it:
-
-```bash
-# Install Ollama first, then download the default tool-capable local model
-ollama pull qwen3:4b
-
-# Add or update these values in .env
-AI_ENABLED=true
-OLLAMA_MODEL=qwen3:4b
-OLLAMA_HOST=http://host.docker.internal:11434
-OLLAMA_TIMEOUT_MS=30000
-
-# Rebuild the ingestion service with the Ollama JavaScript dependency
-docker compose up --build -d ingestion-service
+```text
+"A test failed"
+       |
+       v
+Validate -> Fingerprint -> Classify -> Investigate -> Apply policy -> Act
+       |          |            |              |              |
+       |          |            |              |              +-> Jira / Slack
+       |          |            |              +-> deterministic guardrails
+       |          |            +-> Ollama agent + bounded tools
+       |          +-> history-aware rules
+       +-> Zod contract
 ```
 
-When running the ingestion service directly rather than through Docker, use `OLLAMA_HOST=http://localhost:11434`.
+The result is a portfolio-grade example of **AI automation as a complete system**, not an isolated LLM prompt: event ingestion, deterministic decisioning, agentic tool use, structured outputs, state, orchestration, integrations, testing, and safe degradation.
 
----
+## What makes it technically interesting
+
+- **Real agentic behavior**: a local Ollama model autonomously decides whether to call failure-history and Jira-context tools before returning its diagnosis.
+- **Evidence-backed structured output**: every investigation contains a root-cause hypothesis, evidence, a recommended action, confidence, explanation, tools used, and model identity.
+- **Guarded autonomy**: the model advises; deterministic policy controls Jira and Slack side effects. AI uncertainty or downtime cannot bypass operational rules.
+- **Stable failure identity**: SHA-256 fingerprints are generated after removing UUIDs, timestamps, request IDs, numeric IDs, temporary paths, and dynamic ports.
+- **Stateful classification**: PostgreSQL history enables recurrence detection, flaky-test detection, deduplication, and recovery signals across runs.
+- **Idempotent processing**: duplicate `runId` deliveries are skipped, while fingerprint labels prevent duplicate Jira issues for the same logical failure.
+- **Multi-system orchestration**: CI, Playwright, n8n, an Express API, PostgreSQL, Ollama, Jira, and Slack participate in one end-to-end workflow.
+- **Local-first development**: the complete platform runs in Docker with mock Jira and Slack services; Ollama keeps inference local and avoids a mandatory paid model API.
+- **Production-minded fallback**: if AI is disabled, unavailable, malformed, or exceeds its timeout, deterministic processing continues.
+
+## Demonstrated agent outcome
+
+The checkout failure scenario produced this real local-agent result:
+
+```json
+{
+  "classification": "flaky",
+  "slackSent": true,
+  "agentInvestigation": {
+    "suspectedRootCause": "External dependency failure (Payment Gateway)",
+    "evidence": [
+      "The server error reports that the payment gateway is unavailable.",
+      "Recent pass/fail transitions indicate intermittent behavior.",
+      "The HTTP 500 is consistent with dependency unavailability."
+    ],
+    "recommendedAction": "notify_only",
+    "confidence": 0.9,
+    "explanation": "The evidence supports a transient external dependency failure.",
+    "toolsUsed": ["get_failure_history", "get_related_jira_issue"],
+    "model": "gemma4:26b"
+  }
+}
+```
+
+The important part is not the prose. The agent selected tools, consumed state from other systems, produced a validated decision object, and operated inside an explicit safety boundary.
 
 ## Architecture
 
+```text
+                          +-----------------------+
+                          | CI / GitHub Actions   |
+                          | Playwright reporter   |
+                          +-----------+-----------+
+                                      |
+                     normalized test-run contract
+                                      |
+                    +-----------------+-----------------+
+                    |                                   |
+                    v                                   v
+          +-------------------+               +-------------------+
+          | n8n webhook       |               | Ingestion API     |
+          | visual workflow   |               | Express + Zod     |
+          +---------+---------+               +---------+---------+
+                    |                                   |
+                    |                         +---------+----------+
+                    |                         | fingerprint engine |
+                    |                         | rules classifier   |
+                    |                         | idempotency        |
+                    |                         +---------+----------+
+                    |                                   |
+                    |                         +---------v----------+
+                    |                         | Ollama agent       |
+                    |                         | bounded tools      |
+                    |                         | structured output |
+                    |                         +---------+----------+
+                    |                                   |
+                    +-----------------+-----------------+
+                                      |
+                           deterministic policy gate
+                                      |
+             +------------------------+------------------------+
+             |                        |                        |
+             v                        v                        v
+      +-------------+          +-------------+          +-------------+
+      | PostgreSQL  |          | Jira adapter|          |Slack adapter|
+      | run/history |          | create/update          | notify      |
+      +-------------+          +------+------+          +------+------+
+                                     |                        |
+                                     +-----------+------------+
+                                                 |
+                                      +----------v-----------+
+                                      | local mock services  |
+                                      | or real integrations |
+                                      +----------------------+
 ```
-CI / Demo Script
-      │
-      │  POST /api/runs
-      ▼
-┌─────────────────────┐
-│  Ingestion Service  │  :3001
-│  - Validate (Zod)   │
-│  - Fingerprint      │
-│  - Classify         │
-│  - Persist (PG)     │
-└────────┬────────────┘
-         │
-    ┌────┴────┐
-    │         │
-    ▼         ▼
-┌───────┐  ┌─────────────────┐
-│  n8n  │  │  PostgreSQL      │
-│ :5678 │  │  test_runs       │
-│       │  │  test_results    │
-│  ┌────┤  │  failure_history │
-│  │ Jira│  └─────────────────┘
-│  │ Slack│
-│  └────┤
-└───────┘
-    │
-    ▼
-┌────────────────────┐
-│ Mock Integrations  │  :3002
-│ /jira/issues       │
-│ /slack/messages    │
-└────────────────────┘
+
+### Two integration paths
+
+The repository deliberately supports two entry points:
+
+1. **Direct API path**: demos and other producers send a full test-run contract to `POST /api/runs`. This executes validation, persistence, deterministic classification, agent investigation, and integration actions.
+2. **Visual orchestration path**: CI can send results to the n8n webhook. The workflow exposes validation, splitting, fingerprinting, routing, Jira/Slack calls, and persistence as an inspectable automation graph.
+
+This demonstrates both code-first orchestration and low-code workflow automation. In a production consolidation, n8n would normally remain the external orchestrator while the ingestion service owns domain decisions, preventing duplicated business logic.
+
+## Agent design
+
+The Agentic AI layer is intentionally narrow and auditable.
+
+### Agent goal
+
+Investigate one failed test, identify the most plausible root cause, and recommend the safest next action without inventing evidence.
+
+### Available tools
+
+| Tool                     | Purpose                                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `get_failure_history`    | Retrieves recurrence counts, recent statuses, consecutive passes, and the linked Jira key for the exact fingerprint |
+| `get_related_jira_issue` | Retrieves the Jira issue associated with the exact fingerprint, if present                                          |
+
+### Structured decision contract
+
+The model response is parsed and validated with Zod:
+
+```ts
+type AgentInvestigation = {
+  suspectedRootCause: string;
+  evidence: string[];
+  recommendedAction: 'create_issue' | 'update_issue' | 'notify_only' | 'human_review';
+  confidence: number; // 0..1
+  explanation: string;
+  toolsUsed: string[];
+  model: string;
+};
 ```
 
-See [docs/architecture.md](docs/architecture.md) for full details.
+### Safety model
 
----
+```text
+LLM recommendation
+       |
+       v
+schema validation ---- invalid/timeout ----> deterministic fallback
+       |
+       v
+policy-owned classification
+       |
+       +-> new regression -> create Jira + notify Slack
+       +-> known bug     -> update Jira + notify Slack
+       +-> flaky/infra   -> notify Slack only
+       +-> automation    -> notify Slack only
+```
 
-## Prerequisites
+The agent currently enriches the decision and notification but does not override deterministic classification. That choice protects side effects while still demonstrating autonomous evidence collection and reasoning.
 
-- **Docker Desktop** (with Compose v2) — `docker compose version`
-- **Node.js 18+** — `node --version`
-- **npm 9+** — `npm --version`
+## Deterministic decision engine
 
-> On Windows, run commands in Git Bash or WSL2, not CMD/PowerShell.
+Rules run in an explicit priority order:
 
----
+| Priority | Classification       | Signal                                                                               | Default action       |
+| -------: | -------------------- | ------------------------------------------------------------------------------------ | -------------------- |
+|        1 | `known_bug`          | Exact fingerprint already has a Jira issue                                           | Add comment + Slack  |
+|        2 | `infrastructure`     | DNS, connection, timeout, gateway, browser, pod, or similar infrastructure signature | Slack only           |
+|        3 | `automation_failure` | Selector, strict-mode, fixture, module, or syntax failure                            | Slack only           |
+|        4 | `flaky`              | Retry occurred or recent history oscillates                                          | Slack only           |
+|        5 | `new_regression`     | No earlier rule matched                                                              | Create Jira + Slack  |
+| Recovery | `possibly_fixed`     | Known failure passes the consecutive-run threshold                                   | Jira comment + Slack |
 
-## Quick Start
+This hybrid design is deliberate: deterministic logic handles repeatable policy; AI handles ambiguous interpretation and explanation.
+
+## Failure fingerprinting
+
+Each logical failure receives a deterministic identity:
+
+```text
+SHA256(testId | service | errorName | normalizedMessage | endpoint)
+```
+
+Normalization replaces runtime-specific noise before hashing:
+
+| Dynamic value               | Normalized representation |
+| --------------------------- | ------------------------- |
+| UUID                        | `<UUID>`                  |
+| ISO timestamp               | `<TIMESTAMP>`             |
+| Request/session identifier  | `<REQ_ID>`                |
+| Long hexadecimal identifier | `<HEX_ID>`                |
+| Temporary path              | `/tmp/<TEMP>`             |
+| Dynamic port in a URL       | `:<PORT>/`                |
+| Large numeric identifier    | `<NUM>`                   |
+
+The first 12 fingerprint characters become a Jira label such as `automation-fingerprint-5e2d4c0e440f`, enabling fast exact-match correlation.
+
+## End-to-end data flow
+
+1. Playwright executes tests.
+2. The custom reporter converts framework output into a versioned JSON contract.
+3. Zod rejects invalid payloads at the service boundary.
+4. A unique `runId` check provides delivery idempotency.
+5. Test runs and individual outcomes are stored in PostgreSQL.
+6. Failed tests receive normalized SHA-256 fingerprints.
+7. The system retrieves Jira context and historical status transitions.
+8. Deterministic rules classify the failure.
+9. When enabled, the Ollama agent chooses investigation tools and returns a structured recommendation.
+10. Policy creates or updates Jira and routes Slack notifications.
+11. Failure history is updated for future flaky and recovery detection.
+
+## Technology choices
+
+| Concern           | Technology                           | Engineering rationale                                                                |
+| ----------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
+| Agentic reasoning | Ollama + official JavaScript library | Local inference, tool calling, structured output, portability, no mandatory paid API |
+| Domain language   | TypeScript 5                         | Shared contracts and strict typing across packages and services                      |
+| API               | Node.js 24 + Express                 | Explicit service boundary with native `fetch` support                                |
+| Validation        | Zod                                  | Runtime validation aligned with TypeScript types                                     |
+| State             | PostgreSQL 16 + JSONB                | Relational integrity plus flexible metadata/history                                  |
+| Orchestration     | n8n                                  | Inspectable event workflow and integration routing                                   |
+| Test ingestion    | Playwright custom reporter           | Framework output normalized at the source                                            |
+| Reliability logic | Rules + SHA-256                      | Explainable classification and correlation                                           |
+| Integrations      | Jira + Slack adapters                | Separation between domain decisions and external APIs                                |
+| Local runtime     | Docker Compose                       | Reproducible multi-service startup and health checks                                 |
+| Quality           | Vitest, Playwright, ESLint, Prettier | Unit, integration, E2E, and static-quality coverage                                  |
+| CI/CD             | GitHub Actions                       | Build, lint, tests, artifacts, and optional n8n delivery                             |
+
+## Repository structure
+
+```text
+automation-failure-orchestrator/
+|-- apps/
+|   |-- ingestion-service/       # API, DB, policy actions, Ollama agent
+|   |-- mock-integrations/       # In-memory Jira and Slack-compatible APIs
+|   `-- test-suite/              # Playwright scenarios and JSON reporter
+|-- packages/
+|   |-- failure-classifier/      # Deterministic classification rules
+|   |-- fingerprint-engine/      # Normalization and SHA-256 identity
+|   `-- shared-types/            # Zod schemas and shared contracts
+|-- database/migrations/         # PostgreSQL schema and indexes
+|-- n8n/workflows/               # Importable visual workflow
+|-- scripts/                     # Repeatable behavioral demos
+|-- docs/                        # Architecture, API, and scenarios
+|-- .github/workflows/ci.yml     # CI pipeline
+`-- docker-compose.yml           # Local multi-service environment
+```
+
+## Quick start
+
+### Prerequisites
+
+- Docker Desktop with Compose v2
+- Node.js 24 and npm
+- Git Bash or WSL2 for `scripts/setup-n8n.sh` on Windows
+- Ollama only when agentic investigation is enabled
+
+### Start the deterministic platform
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Copy environment file — defaults work out of the box for local dev
 cp .env.example .env
-
-# 3. Start all Docker services
 docker compose up --build -d
-
-# 4. Set up n8n (one-time — creates owner account + imports workflow)
-bash scripts/setup-n8n.sh
-
-# 5. Verify everything is healthy
-curl http://localhost:3001/health   # {"status":"ok","database":"connected"}
-curl http://localhost:3002/health   # {"status":"ok","jiraIssues":0,...}
-curl http://localhost:5678          # n8n UI (HTTP 200)
-
-# 6. Run a demo
-npm run demo:new-regression
-```
-
----
-
-## n8n Setup
-
-n8n is the visual orchestration layer. It must be set up once after the first `docker compose up`.
-
-### Automated Setup (recommended)
-
-```bash
 bash scripts/setup-n8n.sh
 ```
 
-This script:
-1. Waits for n8n to be ready
-2. Creates the owner account
-3. Imports `n8n/workflows/main-workflow.json`
-4. Activates the workflow
-
-### Manual Setup (alternative)
-
-If you prefer the browser UI:
-
-1. Open [http://localhost:5678](http://localhost:5678)
-2. Complete the **Setup** wizard:
-   - Email: any email you choose (e.g. `admin@orchestrator.local`)
-   - Password: at least 8 characters (e.g. `Orchestrator123!`)
-3. Go to **Workflows** → **Add Workflow** → **Import from File**
-4. Select `n8n/workflows/main-workflow.json`
-5. Click **Save**, then click the **Active** toggle to enable the workflow
-
-> **Important:** The workflow JSON contains a `tags` field that can cause a constraint error on fresh installs. The automated script strips it automatically. If importing manually via UI and you hit an error, open `n8n/workflows/main-workflow.json`, remove the `"tags": [...]` field, save, and re-import.
-
-### n8n Credentials
-
-After running `setup-n8n.sh`:
-
-| Field | Value |
-|---|---|
-| URL | http://localhost:5678 |
-| Email | `admin@orchestrator.local` |
-| Password | `Orchestrator123!` |
-
-These are local-only dev credentials. Change them for any non-local deployment.
-
-### Webhook URL
-
-Once the workflow is active, it listens at:
-
-```
-POST http://localhost:5678/webhook/test-results
-```
-
-### Verify the Workflow Is Receiving
+Verify the services:
 
 ```bash
-curl -s -X POST http://localhost:5678/webhook/test-results \
-  -H "Content-Type: application/json" \
-  -H "x-webhook-secret: local-dev-secret" \
-  -d '{
-    "schemaVersion":"1.0.0",
-    "runId":"ping-001",
-    "repository":"test",
-    "branch":"main",
-    "commitSha":"abc123",
-    "environment":"local",
-    "triggeredBy":"manual",
-    "startedAt":"2026-01-01T10:00:00Z",
-    "finishedAt":"2026-01-01T10:01:00Z",
-    "summary":{"total":1,"passed":1,"failed":0,"skipped":0},
-    "tests":[]
-  }'
+curl http://localhost:3001/health
+curl http://localhost:3002/health
+curl http://localhost:5678
 ```
 
-An execution should appear at [http://localhost:5678](http://localhost:5678) → **Executions**.
+### Enable local Agentic AI
 
----
-
-## Running Demo Scenarios
-
-All demos send payloads to the ingestion service (`http://localhost:3001/api/runs`). Make sure all services are running first.
-
-### Demo 1 — New Regression
+Install Ollama, then pull a tool-capable model:
 
 ```bash
+ollama pull qwen3:4b
+```
+
+Set these values in `.env` when the ingestion service runs in Docker:
+
+```env
+AI_ENABLED=true
+OLLAMA_HOST=http://host.docker.internal:11434
+OLLAMA_MODEL=qwen3:4b
+OLLAMA_TIMEOUT_MS=30000
+```
+
+For a larger local model such as `gemma4:26b`, increase the timeout:
+
+```env
+OLLAMA_MODEL=gemma4:26b
+OLLAMA_TIMEOUT_MS=120000
+```
+
+Recreate the service so Compose applies the environment:
+
+```bash
+docker compose up --build -d ingestion-service
+```
+
+When running directly on the host, use `OLLAMA_HOST=http://localhost:11434`.
+
+## Portfolio demo
+
+Run these scenarios during an interview:
+
+```bash
+# New fingerprint: create Jira + Slack + AI investigation
 npm run demo:new-regression
-```
 
-A previously unseen failure. Expected result:
-- `classification: "new_regression"`
-- Mock Jira issue created (e.g. `MOCK-1`)
-- Slack notification sent
-
-### Demo 2 — Known Bug
-
-```bash
+# Same logical failure: correlate instead of duplicating Jira
 npm run demo:known-bug
-```
 
-Same fingerprint as demo 1, sent twice. Expected result:
-- Both runs: `classification: "known_bug"`, `jiraKey: "MOCK-1"`
-- No duplicate Jira issue created
-- Comment added to existing issue
-
-### Demo 3 — Flaky Test
-
-```bash
+# Retry/history signal: suppress ticket noise
 npm run demo:flaky-test
-```
 
-A test with `retry: 1` (failed on first attempt, retried). Expected result:
-- `classification: "flaky"`
-- No Jira action
-- Slack notification only
-
-### Demo 4 — Infrastructure Failure
-
-```bash
+# Network signature: infrastructure rather than product bug
 npm run demo:infrastructure-failure
-```
 
-`ECONNREFUSED` / DNS error pattern. Expected result:
-- `classification: "infrastructure"`
-- No Jira action
-- Slack notification only
-
-### Demo 5 — Automation Failure
-
-```bash
+# Test-code signature: automation failure
 npm run demo:automation-failure
-```
 
-Playwright `strict mode violation` (test code bug, not app regression). Expected result:
-- `classification: "automation_failure"`
-- No Jira action
-- Slack notification only
-
-### Demo 6 — Recovered Bug
-
-```bash
-# First establish a known bug
-npm run demo:new-regression
-
-# Then send 3 consecutive passes for the same fingerprint
+# Consecutive passes: possibly fixed
 npm run demo:recovered-bug
-```
 
-Expected result after 3 passes:
-- `classification: "possibly_fixed"`
-- Jira comment added asking for verification
-- Slack notification
-
-### Demo 7 — Duplicate Delivery
-
-```bash
+# Same runId twice: delivery idempotency
 npm run demo:duplicate-delivery
 ```
 
-Same `runId` sent twice. Expected result:
-- First request: `201` — processed normally
-- Second request: `200` with `duplicateRun: true` — no reprocessing, no duplicate Jira issue
+Inspect results:
 
----
+| System           | URL                                  |
+| ---------------- | ------------------------------------ |
+| Ingestion health | http://localhost:3001/health         |
+| Recent runs      | http://localhost:3001/api/runs       |
+| Failure history  | http://localhost:3001/api/failures   |
+| n8n executions   | http://localhost:5678                |
+| Mock Jira        | http://localhost:3002/jira/issues    |
+| Mock Slack       | http://localhost:3002/slack/messages |
 
-## Viewing Results
-
-After any demo, inspect results here:
-
-| What to check | Where |
-|---|---|
-| n8n execution history | [http://localhost:5678](http://localhost:5678) → Executions |
-| Mock Jira issues | [http://localhost:3002/jira/issues](http://localhost:3002/jira/issues) |
-| Mock Slack messages | [http://localhost:3002/slack/messages](http://localhost:3002/slack/messages) |
-| All test runs (API) | `GET http://localhost:3001/api/runs` |
-| Failure history (API) | `GET http://localhost:3001/api/failures` |
-
-Reset mock state (clears all mock Jira issues and Slack messages) without restarting:
+Reset only mock integration state:
 
 ```bash
 curl -X POST http://localhost:3002/reset
 ```
 
----
+### What to explain in an interview
 
-## Running Tests
+- Why model reasoning is separated from side-effect authorization.
+- Why exact normalized fingerprints come before semantic similarity.
+- How `runId` idempotency differs from failure deduplication.
+- Why failure history belongs in PostgreSQL rather than prompt context alone.
+- How bounded tools reduce hallucination and data exposure.
+- How processing continues when Ollama is down or slow.
+- Where n8n adds visibility and where code should remain the source of truth.
+- How the architecture can expand to repository search, logs, approvals, and evaluation.
+
+## n8n workflow
+
+The workflow at `n8n/workflows/main-workflow.json` contains:
+
+```text
+Webhook -> Validate -> Split -> Filter failures -> Fingerprint
+        -> Search Jira -> Classify -> Route
+        -> Jira / Slack -> Persist -> Respond
+```
+
+Automated import:
 
 ```bash
-# All unit tests
+bash scripts/setup-n8n.sh
+```
+
+The script waits for n8n, creates or reuses the local owner, logs in, removes the workflow `tags` field for compatibility, imports or updates the workflow, and attempts activation.
+
+Webhook:
+
+```text
+POST http://localhost:5678/webhook/test-results
+```
+
+Local credentials are development-only:
+
+```text
+URL:      http://localhost:5678
+Email:    admin@orchestrator.local
+Password: Orchestrator123!
+```
+
+Change them outside local development.
+
+## API surface
+
+### Ingestion service (`:3001`)
+
+| Method | Endpoint                                | Purpose                         |
+| ------ | --------------------------------------- | ------------------------------- |
+| `GET`  | `/health`                               | Service and database readiness  |
+| `POST` | `/api/runs`                             | Validate and process a test run |
+| `GET`  | `/api/runs`                             | Paginated run history           |
+| `GET`  | `/api/runs/:runId`                      | Run and individual results      |
+| `GET`  | `/api/failures`                         | Paginated failure aggregates    |
+| `GET`  | `/api/failures/:fingerprint`            | History and recent occurrences  |
+| `POST` | `/api/failures/:fingerprint/reclassify` | Human/manual correction         |
+
+`POST /api/runs` requires:
+
+```text
+Content-Type: application/json
+x-webhook-secret: <WEBHOOK_SECRET>
+```
+
+Detailed examples are in [`docs/api.md`](docs/api.md).
+
+### Mock integration service (`:3002`)
+
+| Area             | Capability                                             |
+| ---------------- | ------------------------------------------------------ |
+| Jira-compatible  | Create issue, search by label, read issue, add comment |
+| Slack-compatible | Receive webhook and list messages                      |
+| Utilities        | Health and state reset                                 |
+
+Mock mode makes the workflow demonstrable without external accounts. Real Jira and Slack endpoints can be supplied through environment variables.
+
+## Data model
+
+| Table               | Responsibility                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------- |
+| `test_runs`         | One record per delivered CI run; unique `run_id` enforces idempotency              |
+| `test_results`      | Outcomes, errors, artifacts, fingerprint, classification, and Jira link            |
+| `failure_history`   | Counts, recent statuses, consecutive passes, and issue correlation per fingerprint |
+| `schema_migrations` | Applied SQL migration tracking                                                     |
+
+Indexes cover run lookup, branch/time queries, fingerprint correlation, classification, Jira keys, and recent failures.
+
+## Testing and CI
+
+```bash
+# Compile every workspace
+npm run build
+
+# Unit and service tests
 npm test
 
-# Specific packages
+# Targeted packages
 npm test --workspace=packages/fingerprint-engine
 npm test --workspace=packages/failure-classifier
 npm test --workspace=apps/ingestion-service
 ```
 
-Expected output: **52 tests pass** across fingerprint-engine (19), failure-classifier (29), ingestion-service (4).
+The Playwright project intentionally includes successful, failing, flaky, infrastructure, and automation scenarios. Its custom reporter writes:
 
----
-
-## Running Playwright Tests
-
-```bash
-cd apps/test-suite
-
-# Install browser (first time only)
-npx playwright install chromium
-
-# Run tests
-npm test
-
-# The custom reporter writes normalized results to:
-cat test-results/normalized-results.json
-
-# Send those results to the ingestion service:
-curl -X POST http://localhost:3001/api/runs \
-  -H "Content-Type: application/json" \
-  -H "x-webhook-secret: local-dev-secret" \
-  -d @test-results/normalized-results.json
+```text
+apps/test-suite/test-results/normalized-results.json
 ```
 
-The test suite includes intentional failures (product failure, known bug, flaky simulation) to exercise the full classification pipeline.
+GitHub Actions performs linting, formatting checks, workspace builds, unit tests, browser tests, artifact upload, and optional delivery to n8n when secrets are configured.
 
----
+## Configuration
 
-## Environment Variables
+| Variable                  | Default                          | Purpose                                |
+| ------------------------- | -------------------------------- | -------------------------------------- |
+| `DATABASE_URL`            | local PostgreSQL                 | Run and history storage                |
+| `WEBHOOK_SECRET`          | `local-dev-secret`               | Ingestion authentication               |
+| `INTEGRATION_MODE`        | `mock`                           | Mock or real integrations              |
+| `JIRA_BASE_URL`           | mock service URL                 | Jira-compatible API base               |
+| `JIRA_PROJECT_KEY`        | `AUTO`                           | Project for new issues                 |
+| `JIRA_EMAIL`              | local placeholder                | Real Jira identity                     |
+| `JIRA_API_TOKEN`          | local placeholder                | Real Jira credential                   |
+| `SLACK_WEBHOOK_URL`       | mock webhook                     | Slack destination                      |
+| `RECOVERY_PASS_THRESHOLD` | `3`                              | Passes before `possibly_fixed`         |
+| `FLAKY_HISTORY_WINDOW`    | `5`                              | Outcomes considered by flaky detection |
+| `AI_ENABLED`              | `false`                          | Enable Ollama investigation            |
+| `OLLAMA_HOST`             | `localhost:11434` outside Docker | Ollama server                          |
+| `OLLAMA_MODEL`            | `qwen3:4b`                       | Tool-capable model                     |
+| `OLLAMA_TIMEOUT_MS`       | `30000`                          | Per-request AI timeout                 |
+| `PORT`                    | `3001`                           | Ingestion port                         |
+| `MOCK_PORT`               | `3002`                           | Mock service port                      |
 
-Copy `.env.example` to `.env`. All defaults work for local development with mock integrations.
+Never commit production Jira tokens, Slack webhooks, webhook secrets, or n8n encryption keys.
 
-| Variable | Default | Description |
-|---|---|---|
-| `DATABASE_URL` | `postgresql://orchestrator:orchestrator@localhost:5432/orchestrator` | PostgreSQL connection string |
-| `N8N_WEBHOOK_URL` | `http://localhost:5678/webhook/test-results` | n8n webhook endpoint |
-| `N8N_ENCRYPTION_KEY` | `change-me-in-production` | n8n internal encryption key |
-| `N8N_USER` | `admin` | n8n basic auth user (legacy, kept for reference) |
-| `N8N_PASSWORD` | `change-me-in-production` | n8n basic auth password (legacy) |
-| `INTEGRATION_MODE` | `mock` | `mock` uses local mock server; `real` uses live Jira/Slack |
-| `WEBHOOK_SECRET` | `local-dev-secret` | Secret verified in `x-webhook-secret` header |
-| `JIRA_BASE_URL` | `http://localhost:3002` | Jira API base (mock or real) |
-| `JIRA_PROJECT_KEY` | `AUTO` | Jira project key for new issues |
-| `JIRA_EMAIL` | `test@example.com` | Jira account email (real mode only) |
-| `JIRA_API_TOKEN` | `mock-token` | Jira API token (real mode only) |
-| `SLACK_WEBHOOK_URL` | `http://localhost:3002/slack/services/T00/B00/xxx` | Slack webhook URL |
-| `RECOVERY_PASS_THRESHOLD` | `3` | Consecutive passes before marking `possibly_fixed` |
-| `FLAKY_HISTORY_WINDOW` | `5` | Number of recent runs used for flaky detection |
-| `AI_ENABLED` | `false` | Enable optional AI failure summaries |
-| `AI_API_KEY` | _(empty)_ | OpenAI-compatible API key |
-| `AI_MODEL` | `gpt-4o-mini` | Model used for AI summaries |
-| `PORT` | `3001` | Ingestion service port |
-| `MOCK_PORT` | `3002` | Mock integrations port |
+## Engineering trade-offs
 
----
+### Why not let the LLM create tickets directly?
 
-## How Fingerprinting Works
+Ticket creation is a costly side effect. Deterministic authorization makes behavior reproducible and testable while the agent contributes context where probabilistic reasoning is valuable.
 
-Each failure gets a deterministic SHA-256 fingerprint computed from:
+### Why exact fingerprints instead of embeddings first?
 
-```
-fingerprint = SHA256(testId | service | errorName | normalizedMessage | endpoint)
-```
+Exact normalized correlation is cheap, explainable, and resistant to runtime noise. Semantic similarity is a useful future fallback for near-duplicates, not a replacement for exact identity.
 
-Before hashing, the error message is normalized — these patterns are stripped:
+### Why keep n8n and an application service?
 
-| Pattern | Example removed |
-|---|---|
-| UUIDs | `550e8400-e29b-41d4-a716-446655440000` |
-| ISO timestamps | `2026-08-16T10:00:00.000Z` |
-| Request / session IDs | `req-abc123`, `sess-xyz789` |
-| Hex IDs (8+ chars) | `deadbeef`, `0a1b2c3d` |
-| Temp paths | `/tmp/playwright-artifacts-abc` |
-| Dynamic ports | `:54321` → `:<PORT>` |
+n8n provides workflow visibility and integration agility. The TypeScript service provides versioned contracts, tests, stateful domain logic, and a safe home for the agent. Production evolution should keep domain decisions centralized rather than duplicated.
 
-This means the same logical failure (e.g. "checkout returns 500") always produces the same fingerprint regardless of which run, which machine, or which timestamp it came from.
+### Why local Ollama?
 
-The fingerprint is stored as a label on the Jira issue: `automation-fingerprint-<first12chars>`.
+CI failures can contain source paths, stack traces, endpoints, and operational context. Local inference provides privacy, cost control, offline operation, and model portability. The trade-off is hardware-dependent latency and quality.
 
-See [packages/fingerprint-engine](packages/fingerprint-engine/) for implementation and tests.
+## Current limitations and roadmap
 
----
+- Agent investigations are returned and added to Slack, but are not yet persisted as first-class audit records.
+- The agent cannot yet search source code, Git diffs, distributed traces, or centralized logs.
+- AI recommendations do not override policy or trigger a human-approval workflow.
+- Mock Jira and Slack state is in memory.
+- Rule logic exists in both n8n and the ingestion path; production should consolidate the source of truth.
+- Local-model latency depends on model size, hardware, and cold-start state.
+- Real integrations still need production authentication, retries, rate limits, circuit breakers, and secret management.
 
-## How Classification Works
+Planned evolution:
 
-Classification is deterministic — no AI required. Rules are checked in priority order:
+1. Persist agent decisions, tool traces, latency, and model metadata.
+2. Add confidence-based human approval and explicit action policies.
+3. Add repository, Git diff, log, and trace tools.
+4. Build evaluations for hallucination, tool selection, policy agreement, and unsafe actions.
+5. Add semantic clustering after exact fingerprint matching.
+6. Add OpenTelemetry, operational metrics, retries, and circuit breakers.
+7. Add an investigation and approval dashboard.
 
-```
-1. Known Bug       → fingerprint matches an open Jira issue
-2. Infrastructure  → error matches: ECONNREFUSED, ENOTFOUND, gateway timeout,
-                     browser launch failure, pod unavailable, ETIMEDOUT
-3. Automation      → error matches: strict mode violation, missing selector,
-                     unknown fixture, Cannot find module, SyntaxError
-4. Flaky           → retry > 0, OR ≥2 status transitions in last 5 runs
-5. New Regression  → none of the above
-```
+## Professional competencies demonstrated
 
-Recovery detection runs separately for passing tests: when a fingerprint linked to an open Jira issue passes `RECOVERY_PASS_THRESHOLD` consecutive times, it is marked `possibly_fixed`.
+This repository is designed to show more than framework familiarity:
 
-See [packages/failure-classifier](packages/failure-classifier/) for implementation and tests.
+- system decomposition across CI, orchestration, services, state, AI, and integrations
+- safe integration of probabilistic AI into deterministic operational workflows
+- API and event-contract design with runtime validation
+- idempotency, deduplication, recovery, and graceful degradation
+- tool-using agent design with bounded authority and structured outputs
+- relational data modeling and history-aware decisions
+- test automation, custom reporting, CI/CD, and reproducible environments
+- explicit trade-off analysis and an incremental path from prototype to production
 
----
+## Documentation
 
-## Mock vs Real Integrations
+- [`docs/architecture.md`](docs/architecture.md) - component and data-flow details
+- [`docs/api.md`](docs/api.md) - API contracts and examples
+- [`docs/demo-scenarios.md`](docs/demo-scenarios.md) - scenario walkthroughs
+- [`n8n/credentials.example.md`](n8n/credentials.example.md) - credential guidance
 
-Set `INTEGRATION_MODE` in `.env`:
+## License and use
 
-```bash
-INTEGRATION_MODE=mock   # default — uses http://localhost:3002
-INTEGRATION_MODE=real   # uses live Jira and Slack credentials
-```
-
-**Mock mode** — all requests go to the mock-integrations service:
-- Jira: `http://localhost:3002/jira/rest/api/2/`
-- Slack: `http://localhost:3002/slack/services/T00/B00/xxx`
-- View results: `http://localhost:3002/jira/issues` and `http://localhost:3002/slack/messages`
-
-**Real mode** — requires live credentials in `.env`:
-- `JIRA_BASE_URL` — your Atlassian instance (e.g. `https://yourorg.atlassian.net`)
-- `JIRA_EMAIL` — Atlassian account email
-- `JIRA_API_TOKEN` — generate at https://id.atlassian.com/manage-profile/security/api-tokens
-- `SLACK_WEBHOOK_URL` — incoming webhook from https://api.slack.com/apps
-
----
-
-## Project Structure
-
-```
-automation-failure-orchestrator/
-├── apps/
-│   ├── test-suite/           # Playwright tests + custom JSON reporter
-│   ├── ingestion-service/    # Express REST API (port 3001)
-│   └── mock-integrations/    # Mock Jira + Slack server (port 3002)
-├── packages/
-│   ├── shared-types/         # Zod schemas + TypeScript types
-│   ├── fingerprint-engine/   # SHA-256 fingerprinting + normalizer
-│   └── failure-classifier/   # Deterministic classification rules
-├── n8n/
-│   ├── workflows/
-│   │   └── main-workflow.json
-│   └── credentials.example.md
-├── database/
-│   └── migrations/           # 001_test_runs, 002_test_results, 003_failure_history
-├── scripts/
-│   ├── setup-n8n.sh          # One-time n8n setup script
-│   ├── demo-new-regression.ts
-│   ├── demo-known-bug.ts
-│   ├── demo-flaky-test.ts
-│   ├── demo-infra-failure.ts
-│   ├── demo-automation-failure.ts
-│   ├── demo-recovered-bug.ts
-│   └── demo-duplicate-delivery.ts
-├── docs/
-│   ├── architecture.md
-│   ├── demo-scenarios.md
-│   └── api.md
-├── .github/
-│   └── workflows/
-│       └── ci.yml
-├── docker-compose.yml
-├── .env.example
-├── package.json
-└── README.md
-```
-
----
-
-## API Reference
-
-See [docs/api.md](docs/api.md) for full request/response documentation.
-
-Quick reference:
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/health` | Service health + DB status |
-| `POST` | `/api/runs` | Ingest a test run payload |
-| `GET` | `/api/runs` | List all test runs |
-| `GET` | `/api/runs/:runId` | Get a specific run |
-| `GET` | `/api/failures` | List all failure fingerprints |
-| `GET` | `/api/failures/:fingerprint` | Get history for a fingerprint |
-| `POST` | `/api/failures/:fingerprint/reclassify` | Manually reclassify a failure |
-
-All write endpoints require the `x-webhook-secret` header matching `WEBHOOK_SECRET` in `.env`.
-
----
-
-## Troubleshooting
-
-### Port 5678 already in use
-
-n8n fails to start because another container (e.g. a previous n8n instance) is holding the port.
-
-```bash
-# Find and stop the conflicting container
-docker ps | grep 5678
-docker stop <container-name>
-
-# Then restart
-docker compose up -d n8n
-```
-
-### n8n workflow not receiving webhooks
-
-1. Confirm the workflow is **active** — green toggle in the n8n UI, or:
-   ```bash
-   # Check via API (replace TOKEN with your JWT from login)
-   curl -s http://localhost:5678/rest/workflows/main-workflow \
-     -H "Cookie: n8n-auth=<TOKEN>" | grep '"active"'
-   ```
-2. The webhook URL must be `http://localhost:5678/webhook/test-results` (not `/webhook-test/`).
-3. Re-run `bash scripts/setup-n8n.sh` to re-import and re-activate.
-
-### n8n workflow import fails with constraint error
-
-The workflow JSON includes a `tags` field that causes a SQLite constraint error on fresh installs. The `setup-n8n.sh` script strips it automatically. If importing manually, remove `"tags": [...]` from `n8n/workflows/main-workflow.json` before importing.
-
-### Database migration error: value too long
-
-The `schema_migrations.version` column defaults to `VARCHAR(20)` on a fresh install but migration filenames exceed 20 characters. This is auto-fixed on rebuild, or manually:
-
-```bash
-docker exec orchestrator-postgres psql -U orchestrator -d orchestrator \
-  -c "ALTER TABLE schema_migrations ALTER COLUMN version TYPE VARCHAR(255);"
-docker compose restart ingestion-service
-```
-
-### Ingestion service not connecting to database
-
-The service runs migrations on startup and retries if the database isn't ready. If it keeps failing:
-
-```bash
-docker compose logs ingestion-service
-docker compose restart ingestion-service
-```
-
-### demo scripts fail with connection refused
-
-Make sure all services are running:
-
-```bash
-docker compose ps
-# All four should show "Up" and healthy:
-# orchestrator-postgres, orchestrator-n8n, orchestrator-ingestion, orchestrator-mock
-```
-
-If any are down: `docker compose up -d`
-
----
-
-## Known Limitations
-
-- **n8n workflow activation** — The n8n REST API returns `active: false` on PATCH for some workflow configurations. If the automated script reports this, activate manually in the UI at http://localhost:5678.
-- **n8n auth cookie** — n8n sets `Secure` on its auth cookie, which curl drops over HTTP. The setup script works around this by extracting the token from response headers.
-- **No GitHub Actions secrets** — The CI pipeline sends results to `N8N_WEBHOOK_URL` only when the secret is configured in the repo settings.
-- **Mock data is in-memory** — The mock-integrations service loses all issues and messages on container restart. Use `GET /jira/issues` and `GET /slack/messages` to inspect state while running.
-- **AI analysis (Phase 4)** — Not yet implemented. Set `AI_ENABLED=false` (the default).
-
----
-
-## Technology Stack
-
-| Layer | Technology |
-|---|---|
-| Language | TypeScript 5.x, Node.js 24 |
-| Test runner | Playwright Test + custom JSON reporter |
-| Unit tests | Vitest 2.x |
-| Validation | Zod 3.x |
-| REST API | Express 4.x |
-| Database | PostgreSQL 16 + raw SQL migrations |
-| Orchestration | n8n (self-hosted via Docker) |
-| Containerization | Docker Compose v2 |
-| Linting | ESLint 9 (flat config) + Prettier 3 |
+This repository is an engineering portfolio and reference implementation. Review security, authentication, retention, and operational requirements before adapting it for production use.
