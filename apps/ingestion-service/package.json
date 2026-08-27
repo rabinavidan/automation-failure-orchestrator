@@ -15,18 +15,18 @@
     "@langchain/core": "^1.2.9",
     "@langchain/langgraph": "^1.4.13",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.5",
-    "@llamaindex/ollama": "^0.1.23",
+    "@llamaindex/ollama": "^0.1.24",
     "@orchestrator/failure-classifier": "*",
     "@orchestrator/fingerprint-engine": "*",
     "@orchestrator/shared-types": "*",
-    "express": "^4.21.0",
+    "express": "^5.2.1",
     "llamaindex": "^0.12.1",
     "ollama": "^0.6.3",
     "pg": "^8.13.0",
-    "zod": "^3.23.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
+    "@types/express": "^5.0.6",
     "@types/pg": "^8.11.0",
     "@types/supertest": "^7.2.1",
     "supertest": "^7.2.2",
