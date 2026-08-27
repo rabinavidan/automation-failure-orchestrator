@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MemorySaver } from '@langchain/langgraph';
 import type { Message } from 'ollama';
 import { runFailureInvestigationGraph } from '../services/failure-investigation-agent';
 import type { InvestigationContext, InvestigationModel } from '../services/failure-investigation-agent';
@@ -39,5 +40,34 @@ describe('failure investigation LangGraph', () => {
     const result = await runFailureInvestigationGraph(context, client, 'test-model');
     expect(result).toBeUndefined();
     expect(calls).toBe(3);
+  });
+
+  it('persists graph checkpoints and emits an auditable node timeline', async () => {
+    const checkpointer = new MemorySaver();
+    const events: Array<{ node: string; status: string }> = [];
+    const client: InvestigationModel = { async chat() { return { message: finalMessage }; } };
+
+    await runFailureInvestigationGraph(context, client, 'test-model', {
+      checkpointer,
+      threadId: 'run-1:fingerprint-1',
+      audit: {
+        async record(event) {
+          events.push({ node: event.node, status: event.status });
+        },
+      },
+    });
+
+    const checkpoints = [];
+    for await (const checkpoint of checkpointer.list({
+      configurable: { thread_id: 'run-1:fingerprint-1' },
+    })) {
+      checkpoints.push(checkpoint);
+    }
+
+    expect(checkpoints.length).toBeGreaterThanOrEqual(2);
+    expect(events).toEqual([
+      { node: 'reason', status: 'started' },
+      { node: 'reason', status: 'completed' },
+    ]);
   });
 });

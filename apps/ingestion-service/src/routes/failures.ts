@@ -79,6 +79,61 @@ router.get('/:fingerprint', async (req, res) => {
   }
 });
 
+// GET /api/failures/:fingerprint/agent-executions — checkpoint-backed agent audit timeline
+router.get('/:fingerprint/agent-executions', async (req, res) => {
+  const { fingerprint } = req.params;
+
+  try {
+    const executions = await query<{
+      thread_id: string;
+      run_id: string;
+      test_id: string;
+      model: string;
+      status: string;
+      final_result: unknown;
+      started_at: string;
+      finished_at: string | null;
+    }>(
+      `SELECT thread_id, run_id, test_id, model, status, final_result, started_at, finished_at
+       FROM agent_executions
+       WHERE fingerprint = $1
+       ORDER BY started_at DESC
+       LIMIT 20`,
+      [fingerprint]
+    );
+
+    if (executions.length === 0) {
+      res.json({ executions: [] });
+      return;
+    }
+
+    const events = await query<{
+      id: string;
+      thread_id: string;
+      node: string;
+      status: string;
+      details: Record<string, unknown>;
+      created_at: string;
+    }>(
+      `SELECT id, thread_id, node, status, details, created_at
+       FROM agent_execution_events
+       WHERE thread_id = ANY($1::text[])
+       ORDER BY id ASC`,
+      [executions.map((execution) => execution.thread_id)]
+    );
+
+    res.json({
+      executions: executions.map((execution) => ({
+        ...execution,
+        events: events.filter((event) => event.thread_id === execution.thread_id),
+      })),
+    });
+  } catch (err) {
+    console.error('[Failures] Agent execution audit error:', err);
+    res.status(500).json({ error: 'Failed to load agent execution audit' });
+  }
+});
+
 const ReclassifySchema = z.object({
   classification: z.nativeEnum(FailureClassification),
   reason: z.string().optional(),

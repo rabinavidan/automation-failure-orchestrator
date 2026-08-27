@@ -38,6 +38,22 @@ type AgentInvestigation = {
   model: string;
 };
 
+type AgentExecution = {
+  thread_id: string;
+  run_id: string;
+  model: string;
+  status: string;
+  started_at: string;
+  finished_at?: string;
+  events: Array<{
+    id: string;
+    node: string;
+    status: string;
+    details: Record<string, unknown>;
+    created_at: string;
+  }>;
+};
+
 type Failure = {
   fingerprint: string;
   test_id: string;
@@ -252,6 +268,27 @@ function App() {
   const [lastRefresh, setLastRefresh] = useState<Date>();
   const [query, setQuery] = useState('');
   const [selectedFailure, setSelectedFailure] = useState<Failure>();
+  const [agentExecutions, setAgentExecutions] = useState<AgentExecution[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  useEffect(() => {
+    if (!selectedFailure) return;
+    const controller = new AbortController();
+    fetch(`/api/ingestion/api/failures/${selectedFailure.fingerprint}/agent-executions`, {
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error('Failed to load agent audit');
+        return response.json() as Promise<{ executions?: AgentExecution[] }>;
+      })
+      .then((payload) => setAgentExecutions(payload.executions ?? []))
+      .catch((loadError: unknown) => {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
+        setAgentExecutions([]);
+      })
+      .finally(() => setAuditLoading(false));
+    return () => controller.abort();
+  }, [selectedFailure]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -520,7 +557,11 @@ function App() {
                     filteredFailures.map((failure) => (
                       <button
                         key={failure.fingerprint}
-                        onClick={() => setSelectedFailure(failure)}
+                        onClick={() => {
+                          setAgentExecutions([]);
+                          setAuditLoading(true);
+                          setSelectedFailure(failure);
+                        }}
                         className="grid w-full gap-3 border-b border-slate-100 p-4 text-left transition hover:bg-lime-50 sm:grid-cols-[1fr_auto] sm:items-center"
                       >
                         <div className="min-w-0">
@@ -853,6 +894,50 @@ function App() {
                 AI enabled.
               </div>
             )}
+            <div className="mt-8 border-t border-ink pt-6">
+              <div className="flex items-center justify-between">
+                <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest">
+                  <Network size={14} /> LangGraph execution timeline
+                </p>
+                {agentExecutions[0] && (
+                  <span className="border border-emerald-300 bg-emerald-50 px-2 py-1 font-mono text-[9px] uppercase text-emerald-700">
+                    {agentExecutions[0].status}
+                  </span>
+                )}
+              </div>
+              {auditLoading ? (
+                <div className="mt-4 h-24 animate-pulse bg-slate-100" />
+              ) : agentExecutions.length > 0 ? (
+                <div className="mt-5">
+                  <div className="mb-4 flex items-center justify-between text-[10px] text-slate-500">
+                    <span className="font-mono">{agentExecutions[0].model}</span>
+                    <span>{formatTime(agentExecutions[0].started_at)}</span>
+                  </div>
+                  <ol className="relative border-l border-slate-300 pl-5">
+                    {agentExecutions[0].events.map((event) => (
+                      <li key={event.id} className="relative pb-5 last:pb-0">
+                        <span className="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-cyan shadow-sm" />
+                        <div className="flex items-center justify-between gap-4">
+                          <span className="text-xs font-bold">{humanize(event.node)}</span>
+                          <span className="font-mono text-[9px] uppercase text-slate-400">
+                            {event.status}
+                          </span>
+                        </div>
+                        {Object.keys(event.details).length > 0 && (
+                          <p className="mt-1 break-words font-mono text-[9px] leading-4 text-slate-500">
+                            {JSON.stringify(event.details)}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-slate-500">
+                  No checkpoint-backed execution is available for this historical signal yet.
+                </p>
+              )}
+            </div>
           </aside>
         </div>
       )}

@@ -94,9 +94,9 @@ The important part is not the prose. The agent selected tools, consumed state fr
                     |                         +---------+----------+
                     |                                   |
                     |                         +---------v----------+
-                    |                         | Ollama agent       |
+                    |                         | LangGraph + Ollama |
                     |                         | bounded tools      |
-                    |                         | structured output |
+                    |                         | checkpoints/audit  |
                     |                         +---------+----------+
                     |                                   |
                     +-----------------+-----------------+
@@ -226,18 +226,19 @@ The first 12 fingerprint characters become a Jira label such as `automation-fing
 7. The system retrieves Jira context and historical status transitions.
 8. Deterministic rules classify the failure.
 9. When enabled, the Ollama agent chooses investigation tools and returns a structured recommendation.
-10. Policy creates or updates Jira and routes Slack notifications.
-11. Failure history is updated for future flaky and recovery detection.
+10. LangGraph persists node-level checkpoints and a human-readable execution timeline in PostgreSQL.
+11. Policy creates or updates Jira and routes Slack notifications.
+12. Failure history is updated for future flaky and recovery detection.
 
 ## Technology choices
 
 | Concern           | Technology                           | Engineering rationale                                                                |
 | ----------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
-| Agentic reasoning | Ollama + official JavaScript library | Local inference, tool calling, structured output, portability, no mandatory paid API |
+| Agentic reasoning | LangGraph.js + Ollama                | Explicit state graph, bounded tool loops, local inference, and structured output      |
 | Domain language   | TypeScript 5                         | Shared contracts and strict typing across packages and services                      |
 | API               | Node.js 24 + Express                 | Explicit service boundary with native `fetch` support                                |
 | Validation        | Zod                                  | Runtime validation aligned with TypeScript types                                     |
-| State             | PostgreSQL 16 + JSONB                | Relational integrity plus flexible metadata/history                                  |
+| State             | PostgreSQL 16 + LangGraph checkpointer | Durable graph threads, restart-safe checkpoints, relational history, and JSONB audit |
 | Orchestration     | n8n                                  | Inspectable event workflow and integration routing                                   |
 | Test ingestion    | Playwright custom reporter           | Framework output normalized at the source                                            |
 | Reliability logic | Rules + SHA-256                      | Explainable classification and correlation                                           |
@@ -376,6 +377,7 @@ Open [http://localhost:4173](http://localhost:4173) after `docker compose up --b
 - a command center with run, fingerprint, investigation, and confidence metrics
 - searchable failure intelligence with status-transition history
 - persisted Agent root cause, evidence, confidence, action, model, and tool audit trail
+- checkpoint-backed LangGraph execution timelines with node status and tool transitions
 - Jira issue cards and an operator-friendly Slack message stream
 - drill-down failure dossiers instead of raw JSON as the primary UI
 
@@ -536,7 +538,7 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 
 ## Current limitations and roadmap
 
-- Agent investigations are persisted as JSONB audit records; prompt/version lineage and token-level telemetry are not yet captured.
+- Agent investigations, execution events, and LangGraph checkpoints are persisted; prompt/version lineage and token-level telemetry are not yet captured.
 - The agent cannot yet search source code, Git diffs, distributed traces, or centralized logs.
 - AI recommendations do not override policy or trigger a human-approval workflow.
 - Mock Jira and Slack state is in memory.

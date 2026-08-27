@@ -1,6 +1,7 @@
 import app from './app';
 import { runMigrations } from './db/migrations';
 import { closePool } from './db/client';
+import { setupAgentCheckpointer } from './db/agent-checkpointer';
 
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
@@ -8,6 +9,7 @@ async function main(): Promise<void> {
   // Run DB migrations before accepting traffic
   try {
     await runMigrations();
+    if (process.env.AI_ENABLED === 'true') await setupAgentCheckpointer();
   } catch (err) {
     console.warn('[Server] Could not run migrations (DB may not be available):', err);
   }
