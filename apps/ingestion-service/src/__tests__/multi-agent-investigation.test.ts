@@ -35,16 +35,18 @@ describe('multi-agent investigation supervisor', () => {
     const responses = [specialist('Triage report'), specialist('Repository report'), action, final];
     const prompts: Message[][] = [];
     const events: Array<{ node: string; status: string }> = [];
+    const metrics: Array<{ node: string; promptVersion: string; promptTokens: number; completionTokens: number }> = [];
     const client: InvestigationModel = {
       async chat(input) {
         prompts.push(input.messages);
-        return { message: responses.shift()! };
+        return { message: responses.shift()!, prompt_eval_count: 120, eval_count: 40 };
       },
     };
 
     const result = await runMultiAgentInvestigation(context, client, 'qwen-test', {
       knowledgeSearch: async () => [{ sourcePath: 'apps/ingestion-service/src/middleware/webhook-secret.ts', chunkIndex: 0, content: 'timingSafeEqual', score: 0.93 }],
       audit: { async record(event) { events.push({ node: event.node, status: event.status }); } },
+      telemetry: { async recordModelCall(metric) { metrics.push(metric); } },
     });
 
     expect(prompts).toHaveLength(4);
@@ -55,6 +57,10 @@ describe('multi-agent investigation supervisor', () => {
     expect(events.filter((event) => event.status === 'completed').map((event) => event.node)).toEqual([
       'agent:triage', 'agent:repository', 'agent:action', 'supervisor',
     ]);
+    expect(metrics.map((metric) => metric.promptVersion)).toEqual([
+      'triage-v1', 'repository-v1', 'action-policy-v1', 'supervisor-v1',
+    ]);
+    expect(metrics.every((metric) => metric.promptTokens === 120 && metric.completionTokens === 40)).toBe(true);
   });
 
   it('pauses and resumes the supervisor result without rerunning workers', async () => {

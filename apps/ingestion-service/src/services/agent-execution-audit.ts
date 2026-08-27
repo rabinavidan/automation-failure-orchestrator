@@ -29,13 +29,17 @@ export async function startAgentExecution(input: {
   fingerprint: string;
   testId: string;
   model: string;
+  orchestration?: 'single_agent' | 'supervisor';
+  graphVersion?: string;
 }): Promise<void> {
   await query(
-    `INSERT INTO agent_executions (thread_id, run_id, fingerprint, test_id, model)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO agent_executions (thread_id, run_id, fingerprint, test_id, model, orchestration, graph_version)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (thread_id) DO UPDATE SET
-       status = 'running', final_result = NULL, finished_at = NULL`,
-    [input.threadId, input.runId, input.fingerprint, input.testId, input.model]
+       status = 'running', final_result = NULL, finished_at = NULL,
+       orchestration = EXCLUDED.orchestration, graph_version = EXCLUDED.graph_version`,
+    [input.threadId, input.runId, input.fingerprint, input.testId, input.model,
+      input.orchestration ?? 'single_agent', input.graphVersion ?? 'legacy']
   );
 }
 

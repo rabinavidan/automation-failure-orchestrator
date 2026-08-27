@@ -5,6 +5,7 @@ import runsRouter from './routes/runs';
 import failuresRouter from './routes/failures';
 import approvalsRouter from './routes/approvals';
 import knowledgeRouter from './routes/knowledge';
+import observabilityRouter from './routes/observability';
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use('/api/runs', runsRouter);
 app.use('/api/failures', failuresRouter);
 app.use('/api/approvals', approvalsRouter);
 app.use('/api/knowledge', knowledgeRouter);
+app.use('/api/observability', observabilityRouter);
 
 // 404 handler
 app.use((_req, res) => {

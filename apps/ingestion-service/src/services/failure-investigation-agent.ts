@@ -19,6 +19,7 @@ import {
   isInterrupted as isMultiAgentInterrupted,
   resumeMultiAgentInvestigation,
 } from './multi-agent-investigation';
+import { createDatabaseTelemetrySink } from './agent-telemetry';
 
 const MAX_REASONING_STEPS = 4;
 
@@ -58,7 +59,12 @@ const outputFormat = {
 } as const;
 
 export interface InvestigationModel {
-  chat(input: { model: string; messages: Message[]; tools?: Tool[]; format: Record<string, unknown>; stream: false; think?: false }): Promise<{ message: Message }>;
+  chat(input: { model: string; messages: Message[]; tools?: Tool[]; format: Record<string, unknown>; stream: false; think?: false }): Promise<{
+    message: Message;
+    prompt_eval_count?: number;
+    eval_count?: number;
+    total_duration?: number;
+  }>;
 }
 
 export interface InvestigationGraphOptions {
@@ -308,6 +314,8 @@ export async function investigateFailure(context: InvestigationContext): Promise
       fingerprint: context.fingerprint,
       testId: context.test.testId,
       model,
+      orchestration: process.env.MULTI_AGENT_ENABLED === 'true' ? 'supervisor' : 'single_agent',
+      graphVersion: process.env.MULTI_AGENT_ENABLED === 'true' ? 'failure-supervisor-v1' : 'failure-agent-v1',
     });
     const useMultiAgent = process.env.MULTI_AGENT_ENABLED === 'true';
     const graphOptions = {
@@ -315,6 +323,7 @@ export async function investigateFailure(context: InvestigationContext): Promise
       threadId,
       audit: createDatabaseAuditSink(threadId),
       requireApproval: true,
+      telemetry: createDatabaseTelemetrySink(threadId),
     };
     const graph = useMultiAgent
       ? createMultiAgentInvestigationGraph(client, graphOptions)

@@ -5,6 +5,9 @@ import type { AgentInvestigation, AgentSpecialistReport } from '@orchestrator/sh
 import type { InvestigationContext, InvestigationModel } from './failure-investigation-agent';
 import type { AgentAuditSink } from './agent-execution-audit';
 import { searchRepositoryKnowledge } from './repository-knowledge';
+import type { AgentTelemetrySink } from './agent-telemetry';
+
+export const MULTI_AGENT_GRAPH_VERSION = 'failure-supervisor-v1';
 
 const SpecialistSchema = z.object({
   summary: z.string().min(1),
@@ -63,6 +66,7 @@ export interface MultiAgentGraphOptions {
   audit?: AgentAuditSink;
   requireApproval?: boolean;
   knowledgeSearch?: typeof searchRepositoryKnowledge;
+  telemetry?: AgentTelemetrySink;
 }
 
 const MultiAgentState = Annotation.Root({
@@ -108,8 +112,26 @@ export function createMultiAgentInvestigationGraph(
   client: InvestigationModel,
   options: MultiAgentGraphOptions = {}
 ) {
+  const recordModelCall = async (
+    node: string,
+    promptVersion: string,
+    model: string,
+    startedAt: number,
+    response: { prompt_eval_count?: number; eval_count?: number }
+  ) => {
+    await options.telemetry?.recordModelCall({
+      node,
+      promptVersion,
+      model,
+      promptTokens: response.prompt_eval_count ?? 0,
+      completionTokens: response.eval_count ?? 0,
+      durationMs: Date.now() - startedAt,
+    });
+  };
+
   const triageAgent = async (state: typeof MultiAgentState.State) => {
     const report = await recordAgent(options.audit, 'triage', async () => {
+      const startedAt = Date.now();
       const response = await client.chat({
         model: state.model,
         messages: [
@@ -120,6 +142,7 @@ export function createMultiAgentInvestigationGraph(
         stream: false,
         think: false,
       });
+      await recordModelCall('triage', 'triage-v1', state.model, startedAt, response);
       return { agent: 'triage', ...SpecialistSchema.parse(JSON.parse(response.message.content)) };
     });
     return { reports: [...state.reports, report] };
@@ -139,6 +162,7 @@ export function createMultiAgentInvestigationGraph(
     }
     const sources = matches.map((match) => ({ path: match.sourcePath, chunk: match.chunkIndex, score: match.score }));
     const report = await recordAgent(options.audit, 'repository', async () => {
+      const startedAt = Date.now();
       const response = await client.chat({
         model: state.model,
         messages: [
@@ -149,6 +173,7 @@ export function createMultiAgentInvestigationGraph(
         stream: false,
         think: false,
       });
+      await recordModelCall('repository', 'repository-v1', state.model, startedAt, response);
       return { agent: 'repository', ...SpecialistSchema.parse(JSON.parse(response.message.content)) };
     });
     return {
@@ -160,6 +185,7 @@ export function createMultiAgentInvestigationGraph(
 
   const actionAgent = async (state: typeof MultiAgentState.State) => {
     const report = await recordAgent(options.audit, 'action', async () => {
+      const startedAt = Date.now();
       const response = await client.chat({
         model: state.model,
         messages: [
@@ -170,6 +196,7 @@ export function createMultiAgentInvestigationGraph(
         stream: false,
         think: false,
       });
+      await recordModelCall('action', 'action-policy-v1', state.model, startedAt, response);
       const parsed = ActionSchema.parse(JSON.parse(response.message.content));
       return { agent: 'action', ...parsed };
     });
@@ -178,6 +205,7 @@ export function createMultiAgentInvestigationGraph(
 
   const supervisor = async (state: typeof MultiAgentState.State) => {
     await options.audit?.record({ node: 'supervisor', status: 'started' });
+    const startedAt = Date.now();
     const response = await client.chat({
       model: state.model,
       messages: [
@@ -188,6 +216,7 @@ export function createMultiAgentInvestigationGraph(
       stream: false,
       think: false,
     });
+    await recordModelCall('supervisor', 'supervisor-v1', state.model, startedAt, response);
     const parsed = FinalSchema.parse(JSON.parse(response.message.content));
     const result: AgentInvestigation = {
       ...parsed,

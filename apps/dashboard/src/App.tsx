@@ -27,7 +27,7 @@ import {
   Zap,
 } from 'lucide-react';
 
-type View = 'overview' | 'approvals' | 'knowledge' | 'investigations' | 'jira' | 'slack';
+type View = 'overview' | 'observability' | 'approvals' | 'knowledge' | 'investigations' | 'jira' | 'slack';
 
 type AgentInvestigation = {
   suspectedRootCause: string;
@@ -130,6 +130,14 @@ type KnowledgeStatus = {
   latestRun?: { status: string; embedding_model: string; finished_at?: string };
 };
 
+type ObservabilitySummary = {
+  window: string;
+  executions: { total: number; completed: number; failed: number; paused: number; avg_duration_ms: number };
+  modelCalls: { calls: number; prompt_tokens: number; completion_tokens: number; avg_call_duration_ms: number };
+  byNode: Array<{ node: string; calls: number; avg_duration_ms: number; prompt_tokens: number; completion_tokens: number }>;
+  recentCalls: Array<{ id: string; node: string; prompt_version: string; model: string; prompt_tokens: number; completion_tokens: number; duration_ms: number; created_at: string }>;
+};
+
 type DashboardData = {
   runs: Run[];
   failures: Failure[];
@@ -137,12 +145,18 @@ type DashboardData = {
   messages: SlackMessage[];
   approvals: ApprovalRequest[];
   knowledge: KnowledgeStatus;
+  observability: ObservabilitySummary;
 };
 
-const emptyData: DashboardData = { runs: [], failures: [], issues: [], messages: [], approvals: [], knowledge: { chunkCount: 0, sourceCount: 0 } };
+const emptyObservability: ObservabilitySummary = {
+  window: '24h', executions: { total: 0, completed: 0, failed: 0, paused: 0, avg_duration_ms: 0 },
+  modelCalls: { calls: 0, prompt_tokens: 0, completion_tokens: 0, avg_call_duration_ms: 0 }, byNode: [], recentCalls: [],
+};
+const emptyData: DashboardData = { runs: [], failures: [], issues: [], messages: [], approvals: [], knowledge: { chunkCount: 0, sourceCount: 0 }, observability: emptyObservability };
 
 const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: 'overview', label: 'Command center', icon: LayoutDashboard },
+  { id: 'observability', label: 'AI observability', icon: Activity },
   { id: 'approvals', label: 'Approval queue', icon: ShieldCheck },
   { id: 'knowledge', label: 'Knowledge RAG', icon: BookOpen },
   { id: 'investigations', label: 'AI investigations', icon: BrainCircuit },
@@ -339,10 +353,11 @@ function App() {
         fetch('/api/mock/slack/messages'),
         fetch('/api/ingestion/api/approvals?status=pending'),
         fetch('/api/ingestion/api/knowledge/status'),
+        fetch('/api/ingestion/api/observability/summary'),
       ]);
       if (responses.some((response) => !response.ok))
         throw new Error('One or more services are unavailable');
-      const [runs, failures, issues, messages, approvals, knowledge] = await Promise.all(
+      const [runs, failures, issues, messages, approvals, knowledge, observability] = await Promise.all(
         responses.map((response) => response.json())
       );
       setData({
@@ -352,6 +367,7 @@ function App() {
         messages: messages.messages ?? [],
         approvals: approvals.approvals ?? [],
         knowledge,
+        observability,
       });
       setError(undefined);
       setLastRefresh(new Date());
@@ -398,6 +414,7 @@ function App() {
   const initialLoading = loading && !lastRefresh;
   const navCount: Record<View, number | undefined> = {
     overview: undefined,
+    observability: data.observability.modelCalls.calls,
     approvals: data.approvals.length,
     knowledge: data.knowledge.chunkCount,
     investigations: investigations.length,
@@ -896,6 +913,55 @@ function App() {
                 ))}
               </div>
             )}
+          </section>
+        )}
+
+        {!initialLoading && view === 'observability' && (
+          <section className="page-enter space-y-6 py-7">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <Metric label="Agent executions" value={data.observability.executions.total} note={`${data.observability.window} persisted runs`} icon={Network} accent="bg-ink" />
+              <Metric label="Model calls" value={data.observability.modelCalls.calls} note="Specialists + supervisor" icon={BrainCircuit} accent="bg-violet-500" />
+              <Metric label="Total tokens" value={data.observability.modelCalls.prompt_tokens + data.observability.modelCalls.completion_tokens} note={`${data.observability.modelCalls.prompt_tokens} prompt / ${data.observability.modelCalls.completion_tokens} completion`} icon={Sparkles} accent="bg-signal" />
+              <Metric label="Avg call latency" value={`${Math.round(data.observability.modelCalls.avg_call_duration_ms)}ms`} note="Measured wall-clock duration" icon={Clock3} accent="bg-cyan" />
+            </div>
+            <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
+              <article className="border border-ink/10 bg-white p-5 shadow-panel">
+                <h2 className="font-bold">Node performance</h2>
+                <p className="mt-1 text-xs text-slate-500">Prompt lineage, latency, and token consumption by role</p>
+                <div className="mt-5 space-y-3">
+                  {data.observability.byNode.map((node) => (
+                    <div key={node.node} className="border-l-4 border-violet-400 bg-violet-50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-bold uppercase">{node.node}</span>
+                        <span className="font-mono text-[10px]">{Math.round(node.avg_duration_ms)}ms avg</span>
+                      </div>
+                      <p className="mt-2 font-mono text-[9px] text-slate-500">{node.calls} calls · {node.prompt_tokens} prompt · {node.completion_tokens} completion tokens</p>
+                    </div>
+                  ))}
+                  {data.observability.byNode.length === 0 && <p className="text-sm text-slate-500">Run an AI scenario to capture model telemetry.</p>}
+                </div>
+              </article>
+              <article className="overflow-hidden border border-ink/10 bg-white shadow-panel">
+                <div className="border-b border-slate-200 p-5">
+                  <h2 className="font-bold">Recent model calls</h2>
+                  <p className="mt-1 text-xs text-slate-500">Traceable model and prompt versions per graph node</p>
+                </div>
+                <div className="max-h-[430px] overflow-auto">
+                  {data.observability.recentCalls.map((call) => (
+                    <div key={call.id} className="grid grid-cols-[1fr_auto] gap-4 border-b border-slate-100 p-4">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold">{call.node}</p>
+                        <p className="mt-1 font-mono text-[9px] text-violet-700">{call.prompt_version} · {call.model}</p>
+                      </div>
+                      <div className="text-right font-mono text-[9px] text-slate-500">
+                        <p>{call.duration_ms}ms</p>
+                        <p>{call.prompt_tokens + call.completion_tokens} tokens</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </div>
           </section>
         )}
 

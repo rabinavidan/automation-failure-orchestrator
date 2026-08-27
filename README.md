@@ -43,6 +43,8 @@ The result is a portfolio-grade example of **AI automation as a complete system*
 - **Local-first development**: the complete platform runs in Docker with mock Jira and Slack services; Ollama keeps inference local and avoids a mandatory paid model API.
 - **Production-minded fallback**: if AI is disabled, unavailable, malformed, or exceeds its timeout, deterministic processing continues.
 - **Operations dashboard**: a live React console combines CI runs, failure intelligence, persisted Agent investigations, Jira issues, and Slack notifications in one UI.
+- **AI observability**: every specialist call records model, prompt version, token counts, and latency; the dashboard aggregates execution health and node-level performance over a rolling 24-hour window.
+- **Evaluation gates**: deterministic code evaluators reject missing specialist coverage, ungrounded RAG output, invalid confidence, and high-risk automation that bypasses human review.
 
 ## Demonstrated agent outcome
 
@@ -192,6 +194,15 @@ policy-owned classification
 ```
 
 The agent does not override deterministic classification. When it recommends `human_review`, LangGraph persists an interrupt before any Jira or Slack side effect. An operator can approve or reject from the dashboard; the API resumes the exact checkpoint using the same thread ID. This preserves deterministic policy while adding explicit human authority for ambiguous cases.
+
+### Observability and evaluation
+
+Two complementary telemetry levels are persisted:
+
+- `agent_execution_events` captures graph transitions, interrupts, decisions, and worker boundaries.
+- `agent_model_calls` captures the model and prompt version, prompt/completion tokens, and wall-clock latency for every specialist and supervisor call.
+
+`GET /api/observability/summary` exposes rolling 24-hour execution and per-node aggregates to the dashboard. The local evaluation suite follows the same dataset/target/evaluator pattern used by modern LLM evaluation platforms, but uses deterministic code evaluators so it remains free, reproducible, and suitable for CI.
 
 ## Deterministic decision engine
 
@@ -567,7 +578,7 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 
 ## Current limitations and roadmap
 
-- Agent investigations, execution events, and LangGraph checkpoints are persisted; prompt/version lineage and token-level telemetry are not yet captured.
+- Agent investigations, graph events, model-call telemetry, prompt lineage, and LangGraph checkpoints are persisted; distributed trace export is not yet configured.
 - Repository code and documentation are searchable; Git diffs, distributed traces, and centralized logs are not yet indexed.
 - Approval decisions are local-operator controls; production identity, RBAC, and signed audit identity are not yet implemented.
 - Mock Jira and Slack state is in memory.
@@ -577,11 +588,11 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 
 Planned evolution:
 
-1. Add prompt/version lineage, latency, token, and model-quality telemetry to persisted agent decisions.
-2. Extend local RAG with Git diff, log, and trace ingestion.
-3. Build evaluations for hallucination, tool selection, policy agreement, and unsafe actions.
-4. Add semantic clustering after exact fingerprint matching.
-5. Add OpenTelemetry, operational metrics, retries, circuit breakers, and an action outbox.
+1. Extend local RAG with Git diff, log, and trace ingestion.
+2. Add historical and adversarial datasets plus optional local LLM-as-judge evaluation.
+3. Add semantic clustering after exact fingerprint matching.
+4. Export traces and metrics through OpenTelemetry collectors.
+5. Add retries, circuit breakers, and a transactional action outbox.
 6. Add production authentication and role-based approval policies.
 
 ## Professional competencies demonstrated
