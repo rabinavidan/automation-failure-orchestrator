@@ -1,4 +1,4 @@
-import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
+import { Annotation, Command, END, START, StateGraph, interrupt, isInterrupted } from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { Ollama } from 'ollama';
 import type { Message, ToolCall } from 'ollama';
@@ -57,6 +57,13 @@ export interface InvestigationGraphOptions {
   checkpointer?: BaseCheckpointSaver;
   threadId?: string;
   audit?: AgentAuditSink;
+  requireApproval?: boolean;
+}
+
+export interface FailureInvestigationOutcome {
+  investigation?: AgentInvestigation;
+  approvalPending?: boolean;
+  threadId?: string;
 }
 
 const InvestigationState = Annotation.Root({
@@ -67,6 +74,7 @@ const InvestigationState = Annotation.Root({
   toolsUsed: Annotation<string[]>(),
   reasoningSteps: Annotation<number>(),
   result: Annotation<AgentInvestigation | undefined>(),
+  approvalStatus: Annotation<'not_required' | 'pending' | 'approved' | 'rejected'>(),
 });
 
 function initialMessages(context: InvestigationContext): Message[] {
@@ -146,18 +154,43 @@ export function createFailureInvestigationGraph(
     return { messages: [...state.messages, ...toolMessages], pendingCalls: [], toolsUsed: used };
   };
 
+  const requestApproval = async (state: typeof InvestigationState.State) => {
+    const decision = interrupt({
+      type: 'failure_action_approval',
+      fingerprint: state.context.fingerprint,
+      testId: state.context.test.testId,
+      classification: state.context.deterministicClassification,
+      recommendedAction: state.result?.recommendedAction,
+      confidence: state.result?.confidence,
+      explanation: state.result?.explanation,
+    }) as { approved: boolean; reviewer?: string; comment?: string };
+    const approvalStatus = decision.approved ? 'approved' : 'rejected';
+    await options.audit?.record({
+      node: 'request_approval',
+      status: 'completed',
+      details: { decision: approvalStatus, reviewer: decision.reviewer },
+    });
+    return { approvalStatus };
+  };
+
   const builder = new StateGraph(InvestigationState)
     .addNode('reason', reason)
     .addNode('execute_tools', executeTools)
+    .addNode('request_approval', requestApproval)
     .addEdge(START, 'reason')
-    .addConditionalEdges('reason', (state) => state.result || state.reasoningSteps >= MAX_REASONING_STEPS ? END : 'execute_tools')
-    .addEdge('execute_tools', 'reason');
+    .addConditionalEdges('reason', (state) => {
+      if (!state.result && state.reasoningSteps < MAX_REASONING_STEPS) return 'execute_tools';
+      if (options.requireApproval && state.result?.recommendedAction === 'human_review') return 'request_approval';
+      return END;
+    })
+    .addEdge('execute_tools', 'reason')
+    .addEdge('request_approval', END);
   return builder.compile({ checkpointer: options.checkpointer });
 }
 
 export async function runFailureInvestigationGraph(context: InvestigationContext, client: InvestigationModel, model: string, options: InvestigationGraphOptions = {}): Promise<AgentInvestigation | undefined> {
   const finalState = await createFailureInvestigationGraph(client, options).invoke({
-    context, model, messages: initialMessages(context), pendingCalls: [], toolsUsed: [], reasoningSteps: 0, result: undefined,
+    context, model, messages: initialMessages(context), pendingCalls: [], toolsUsed: [], reasoningSteps: 0, result: undefined, approvalStatus: 'not_required',
   }, options.threadId ? { configurable: { thread_id: options.threadId } } : undefined);
   if (!finalState.result) {
     await options.audit?.record({
@@ -169,8 +202,8 @@ export async function runFailureInvestigationGraph(context: InvestigationContext
   return finalState.result;
 }
 
-export async function investigateFailure(context: InvestigationContext): Promise<AgentInvestigation | undefined> {
-  if (process.env.AI_ENABLED !== 'true') return undefined;
+export async function investigateFailure(context: InvestigationContext): Promise<FailureInvestigationOutcome> {
+  if (process.env.AI_ENABLED !== 'true') return {};
   const model = process.env.OLLAMA_MODEL ?? 'qwen3:4b';
   const host = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
   const timeoutMs = Number.parseInt(process.env.OLLAMA_TIMEOUT_MS ?? '30000', 10);
@@ -192,16 +225,62 @@ export async function investigateFailure(context: InvestigationContext): Promise
       testId: context.test.testId,
       model,
     });
-    const result = await runFailureInvestigationGraph(context, client, model, {
+    const graph = createFailureInvestigationGraph(client, {
       checkpointer,
       threadId,
       audit: createDatabaseAuditSink(threadId),
+      requireApproval: true,
     });
-    await finishAgentExecution(threadId, result ? 'completed' : 'bounded', result);
-    return result;
+    const finalState = await graph.invoke({
+      context,
+      model,
+      messages: initialMessages(context),
+      pendingCalls: [],
+      toolsUsed: [],
+      reasoningSteps: 0,
+      result: undefined,
+      approvalStatus: 'not_required',
+    }, { configurable: { thread_id: threadId } });
+    const approvalPending = isInterrupted(finalState);
+    await finishAgentExecution(
+      threadId,
+      approvalPending ? 'paused' : finalState.result ? 'completed' : 'bounded',
+      finalState.result
+    );
+    return { investigation: finalState.result, approvalPending, threadId };
   } catch (error) {
     await finishAgentExecution(threadId, 'failed').catch(() => undefined);
     console.warn('[Agent] Investigation unavailable; continuing with deterministic routing:', error);
-    return undefined;
+    return {};
   }
+}
+
+export async function resumeFailureInvestigation(input: {
+  threadId: string;
+  approved: boolean;
+  reviewer: string;
+  comment?: string;
+}): Promise<{ investigation?: AgentInvestigation; status: 'approved' | 'rejected' }> {
+  const checkpointer = await getAgentCheckpointer();
+  const audit = createDatabaseAuditSink(input.threadId);
+  const client: InvestigationModel = {
+    async chat() {
+      throw new Error('The reasoning node must not run while resuming an approval checkpoint');
+    },
+  };
+  const graph = createFailureInvestigationGraph(client, {
+    checkpointer,
+    threadId: input.threadId,
+    audit,
+    requireApproval: true,
+  });
+  const finalState = await graph.invoke(
+    new Command({
+      resume: { approved: input.approved, reviewer: input.reviewer, comment: input.comment },
+    }),
+    { configurable: { thread_id: input.threadId } }
+  );
+  const status = finalState.approvalStatus === 'approved' ? 'approved' : 'rejected';
+  await finishAgentExecution(input.threadId, status === 'approved' ? 'completed' : 'rejected', finalState.result);
+  return { investigation: finalState.result, status };
 }

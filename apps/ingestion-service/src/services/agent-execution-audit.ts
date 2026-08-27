@@ -41,7 +41,7 @@ export async function startAgentExecution(input: {
 
 export async function finishAgentExecution(
   threadId: string,
-  status: 'completed' | 'bounded' | 'failed',
+  status: 'completed' | 'bounded' | 'failed' | 'paused' | 'rejected',
   result?: AgentInvestigation
 ): Promise<void> {
   await query(

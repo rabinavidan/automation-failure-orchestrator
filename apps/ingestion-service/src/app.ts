@@ -3,6 +3,7 @@ import { requestLogger } from './middleware/request-logger';
 import healthRouter from './routes/health';
 import runsRouter from './routes/runs';
 import failuresRouter from './routes/failures';
+import approvalsRouter from './routes/approvals';
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.use(requestLogger);
 app.use('/', healthRouter);
 app.use('/api/runs', runsRouter);
 app.use('/api/failures', failuresRouter);
+app.use('/api/approvals', approvalsRouter);
 
 // 404 handler
 app.use((_req, res) => {

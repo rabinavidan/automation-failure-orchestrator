@@ -13,6 +13,7 @@ import { query } from '../db/client';
 import { searchByLabel, createIssue, addComment } from './jira-adapter';
 import { sendSlackNotification } from './slack-adapter';
 import { investigateFailure } from './failure-investigation-agent';
+import { createApprovalRequest } from './approval-requests';
 
 const RECOVERY_THRESHOLD = parseInt(process.env.RECOVERY_PASS_THRESHOLD ?? '3', 10);
 
@@ -116,7 +117,7 @@ async function processTest(
 
   // The agent may gather evidence and recommend an action, but deterministic
   // classification remains the policy guardrail for side effects.
-  const agentInvestigation = await investigateFailure({
+  const investigationOutcome = await investigateFailure({
     test,
     run: payload,
     fingerprint: fp,
@@ -124,6 +125,29 @@ async function processTest(
     history,
     existingIssue,
   });
+  const agentInvestigation = investigationOutcome.investigation;
+
+  if (investigationOutcome.approvalPending && investigationOutcome.threadId && agentInvestigation) {
+    await createApprovalRequest({
+      threadId: investigationOutcome.threadId,
+      fingerprint: fp,
+      classification,
+      context: { test, run: payload },
+      investigation: agentInvestigation,
+    });
+    await upsertFailureHistory(fp, test, classification);
+    await persistTestResult(test, payload.runId, fp, classification, null, agentInvestigation);
+    failures.push({
+      testId: test.testId,
+      title: test.title,
+      fingerprint: fp,
+      classification,
+      slackSent: false,
+      agentInvestigation,
+      approval: { threadId: investigationOutcome.threadId, status: 'pending' },
+    });
+    return;
+  }
 
   let jiraKey: string | undefined;
   let slackSent = false;
@@ -421,4 +445,51 @@ async function persistTestResult(
       agentInvestigation ? JSON.stringify(agentInvestigation) : null,
     ]
   );
+}
+
+export async function executeApprovedFailureActions(input: {
+  test: TestResult;
+  payload: WebhookPayload;
+  fingerprint: string;
+  classification: FailureClassification;
+  agentInvestigation: AgentInvestigation;
+}): Promise<{ jiraKey?: string; slackSent: boolean }> {
+  const label = fingerprintLabel(input.fingerprint);
+  const existingIssue = await searchByLabel(label);
+  let jiraKey: string | undefined;
+  let slackSent = false;
+
+  if (input.classification === FailureClassification.NewRegression) {
+    jiraKey = (await handleNewRegression(input.test, input.payload, input.fingerprint, label)) ?? undefined;
+  } else if (input.classification === FailureClassification.KnownBug) {
+    jiraKey = existingIssue?.key;
+    if (jiraKey) await handleKnownBug(input.test, input.payload, jiraKey, input.fingerprint);
+  }
+
+  slackSent = await sendSlackNotification({
+    classification: input.classification,
+    testTitle: input.test.title,
+    suite: input.test.suite,
+    fingerprint: input.fingerprint,
+    jiraKey,
+    runId: input.payload.runId,
+    branch: input.payload.branch,
+    environment: input.payload.environment,
+    errorMessage: input.test.error?.message,
+    agentSummary: input.agentInvestigation.explanation,
+    agentConfidence: input.agentInvestigation.confidence,
+  });
+
+  if (jiraKey) {
+    await query(
+      `UPDATE failure_history SET jira_issue_key = $2 WHERE fingerprint = $1`,
+      [input.fingerprint, jiraKey]
+    );
+    await query(
+      `UPDATE test_results SET jira_issue_key = $3
+       WHERE run_id = $1 AND fingerprint = $2`,
+      [input.payload.runId, input.fingerprint, jiraKey]
+    );
+  }
+  return { jiraKey, slackSent };
 }

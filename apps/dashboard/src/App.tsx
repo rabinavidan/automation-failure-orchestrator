@@ -26,7 +26,7 @@ import {
   Zap,
 } from 'lucide-react';
 
-type View = 'overview' | 'investigations' | 'jira' | 'slack';
+type View = 'overview' | 'approvals' | 'investigations' | 'jira' | 'slack';
 
 type AgentInvestigation = {
   suspectedRootCause: string;
@@ -100,17 +100,31 @@ type SlackMessage = {
   receivedAt: string;
 };
 
+type ApprovalRequest = {
+  id: string;
+  thread_id: string;
+  fingerprint: string;
+  test_id: string;
+  classification: string;
+  requested_action: string;
+  status: string;
+  investigation: AgentInvestigation;
+  created_at: string;
+};
+
 type DashboardData = {
   runs: Run[];
   failures: Failure[];
   issues: JiraIssue[];
   messages: SlackMessage[];
+  approvals: ApprovalRequest[];
 };
 
-const emptyData: DashboardData = { runs: [], failures: [], issues: [], messages: [] };
+const emptyData: DashboardData = { runs: [], failures: [], issues: [], messages: [], approvals: [] };
 
 const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: 'overview', label: 'Command center', icon: LayoutDashboard },
+  { id: 'approvals', label: 'Approval queue', icon: ShieldCheck },
   { id: 'investigations', label: 'AI investigations', icon: BrainCircuit },
   { id: 'jira', label: 'Jira activity', icon: TicketCheck },
   { id: 'slack', label: 'Slack signal', icon: MessageSquare },
@@ -270,6 +284,8 @@ function App() {
   const [selectedFailure, setSelectedFailure] = useState<Failure>();
   const [agentExecutions, setAgentExecutions] = useState<AgentExecution[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+  const [reviewer, setReviewer] = useState('local-operator');
+  const [decidingThread, setDecidingThread] = useState<string>();
 
   useEffect(() => {
     if (!selectedFailure) return;
@@ -298,10 +314,11 @@ function App() {
         fetch('/api/ingestion/api/failures?limit=100'),
         fetch('/api/mock/jira/issues'),
         fetch('/api/mock/slack/messages'),
+        fetch('/api/ingestion/api/approvals?status=pending'),
       ]);
       if (responses.some((response) => !response.ok))
         throw new Error('One or more services are unavailable');
-      const [runs, failures, issues, messages] = await Promise.all(
+      const [runs, failures, issues, messages, approvals] = await Promise.all(
         responses.map((response) => response.json())
       );
       setData({
@@ -309,6 +326,7 @@ function App() {
         failures: failures.failures ?? [],
         issues: issues.issues ?? [],
         messages: messages.messages ?? [],
+        approvals: approvals.approvals ?? [],
       });
       setError(undefined);
       setLastRefresh(new Date());
@@ -355,9 +373,30 @@ function App() {
   const initialLoading = loading && !lastRefresh;
   const navCount: Record<View, number | undefined> = {
     overview: undefined,
+    approvals: data.approvals.length,
     investigations: investigations.length,
     jira: data.issues.length,
     slack: data.messages.length,
+  };
+
+  const decideApproval = async (threadId: string, decision: 'approved' | 'rejected') => {
+    setDecidingThread(threadId);
+    try {
+      const response = await fetch(
+        `/api/ingestion/api/approvals/${encodeURIComponent(threadId)}/decision`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision, reviewer }),
+        }
+      );
+      if (!response.ok) throw new Error('Approval decision failed');
+      await loadData();
+    } catch (decisionError) {
+      setError(decisionError instanceof Error ? decisionError.message : 'Approval decision failed');
+    } finally {
+      setDecidingThread(undefined);
+    }
   };
   const filteredFailures = data.failures.filter((failure) =>
     `${failure.title} ${failure.test_id} ${failure.classification}`
@@ -711,6 +750,71 @@ function App() {
                   </article>
                 );
               })
+            )}
+          </section>
+        )}
+
+        {!initialLoading && view === 'approvals' && (
+          <section className="page-enter py-7">
+            <div className="mb-6 flex flex-col gap-3 border border-ink/10 bg-white p-5 shadow-panel sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-bold">Human control plane</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  Decisions resume the exact persisted LangGraph thread.
+                </p>
+              </div>
+              <label className="flex items-center gap-3 text-xs font-bold">
+                Reviewer
+                <input
+                  value={reviewer}
+                  onChange={(event) => setReviewer(event.target.value)}
+                  className="w-48 border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-ink"
+                />
+              </label>
+            </div>
+            {data.approvals.length === 0 ? (
+              <EmptyState label="pending approvals" />
+            ) : (
+              <div className="grid gap-5 xl:grid-cols-2">
+                {data.approvals.map((approval) => (
+                  <article key={approval.thread_id} className="border border-ink/10 bg-white p-5 shadow-panel">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <Badge value={approval.classification} />
+                        <h2 className="mt-3 text-lg font-extrabold">{approval.test_id}</h2>
+                      </div>
+                      <span className="bg-amber-100 px-2.5 py-1 font-mono text-[9px] uppercase text-amber-800">
+                        awaiting human
+                      </span>
+                    </div>
+                    <div className="mt-5 border-l-4 border-amber-400 bg-amber-50 p-4">
+                      <p className="font-mono text-[9px] uppercase text-slate-500">Agent recommendation</p>
+                      <p className="mt-2 text-sm font-bold">{approval.investigation.suspectedRootCause}</p>
+                      <p className="mt-2 text-xs leading-5 text-slate-600">{approval.investigation.explanation}</p>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between font-mono text-[9px] text-slate-500">
+                      <span>{approval.requested_action}</span>
+                      <span>{Math.round(approval.investigation.confidence * 100)}% confidence</span>
+                    </div>
+                    <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-200 pt-5">
+                      <button
+                        onClick={() => void decideApproval(approval.thread_id, 'rejected')}
+                        disabled={!reviewer.trim() || decidingThread === approval.thread_id}
+                        className="border border-ink px-4 py-2.5 text-xs font-bold disabled:opacity-50"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => void decideApproval(approval.thread_id, 'approved')}
+                        disabled={!reviewer.trim() || decidingThread === approval.thread_id}
+                        className="bg-ink px-4 py-2.5 text-xs font-bold text-signal disabled:opacity-50"
+                      >
+                        Approve &amp; resume
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
             )}
           </section>
         )}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MemorySaver } from '@langchain/langgraph';
+import { Command, MemorySaver, isInterrupted } from '@langchain/langgraph';
 import type { Message } from 'ollama';
-import { runFailureInvestigationGraph } from '../services/failure-investigation-agent';
+import { createFailureInvestigationGraph, runFailureInvestigationGraph } from '../services/failure-investigation-agent';
 import type { InvestigationContext, InvestigationModel } from '../services/failure-investigation-agent';
 
 const context = {
@@ -69,5 +69,53 @@ describe('failure investigation LangGraph', () => {
       { node: 'reason', status: 'started' },
       { node: 'reason', status: 'completed' },
     ]);
+  });
+
+  it.each([
+    [true, 'approved'],
+    [false, 'rejected'],
+  ] as const)('interrupts for human review and resumes as %s', async (approved, expected) => {
+    const checkpointer = new MemorySaver();
+    const humanReviewMessage: Message = {
+      role: 'assistant',
+      content: JSON.stringify({
+        suspectedRootCause: 'Evidence is inconclusive',
+        evidence: ['No matching history'],
+        recommendedAction: 'human_review',
+        confidence: 0.45,
+        explanation: 'A person should validate the proposed action.',
+      }),
+    };
+    let modelCalls = 0;
+    const client: InvestigationModel = {
+      async chat() {
+        modelCalls += 1;
+        return { message: humanReviewMessage };
+      },
+    };
+    const graph = createFailureInvestigationGraph(client, {
+      checkpointer,
+      threadId: `approval-${approved}`,
+      requireApproval: true,
+    });
+    const config = { configurable: { thread_id: `approval-${approved}` } };
+    const paused = await graph.invoke({
+      context,
+      model: 'test-model',
+      messages: [],
+      pendingCalls: [],
+      toolsUsed: [],
+      reasoningSteps: 0,
+      result: undefined,
+      approvalStatus: 'not_required',
+    }, config);
+
+    expect(isInterrupted(paused)).toBe(true);
+    const resumed = await graph.invoke(
+      new Command({ resume: { approved, reviewer: 'vitest' } }),
+      config
+    );
+    expect(resumed.approvalStatus).toBe(expected);
+    expect(modelCalls).toBe(1);
   });
 });

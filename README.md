@@ -170,13 +170,15 @@ schema validation ---- invalid/timeout ----> deterministic fallback
        v
 policy-owned classification
        |
+       +-> human_review -> durable interrupt -> operator approve/reject -> resume thread
+       |
        +-> new regression -> create Jira + notify Slack
        +-> known bug     -> update Jira + notify Slack
        +-> flaky/infra   -> notify Slack only
        +-> automation    -> notify Slack only
 ```
 
-The agent currently enriches the decision and notification but does not override deterministic classification. That choice protects side effects while still demonstrating autonomous evidence collection and reasoning.
+The agent does not override deterministic classification. When it recommends `human_review`, LangGraph persists an interrupt before any Jira or Slack side effect. An operator can approve or reject from the dashboard; the API resumes the exact checkpoint using the same thread ID. This preserves deterministic policy while adding explicit human authority for ambiguous cases.
 
 ## Deterministic decision engine
 
@@ -540,7 +542,7 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 
 - Agent investigations, execution events, and LangGraph checkpoints are persisted; prompt/version lineage and token-level telemetry are not yet captured.
 - The agent cannot yet search source code, Git diffs, distributed traces, or centralized logs.
-- AI recommendations do not override policy or trigger a human-approval workflow.
+- Approval decisions are local-operator controls; production identity, RBAC, and signed audit identity are not yet implemented.
 - Mock Jira and Slack state is in memory.
 - Rule logic exists in both n8n and the ingestion path; production should consolidate the source of truth.
 - Local-model latency depends on model size, hardware, and cold-start state.
@@ -549,12 +551,11 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 Planned evolution:
 
 1. Add prompt/version lineage, latency, token, and model-quality telemetry to persisted agent decisions.
-2. Add confidence-based human approval and explicit action policies.
-3. Add repository, Git diff, log, and trace tools.
-4. Build evaluations for hallucination, tool selection, policy agreement, and unsafe actions.
-5. Add semantic clustering after exact fingerprint matching.
-6. Add OpenTelemetry, operational metrics, retries, and circuit breakers.
-7. Add an investigation and approval dashboard.
+2. Add repository, Git diff, log, and trace tools through local RAG.
+3. Build evaluations for hallucination, tool selection, policy agreement, and unsafe actions.
+4. Add semantic clustering after exact fingerprint matching.
+5. Add OpenTelemetry, operational metrics, retries, circuit breakers, and an action outbox.
+6. Add production authentication and role-based approval policies.
 
 ## Professional competencies demonstrated
 

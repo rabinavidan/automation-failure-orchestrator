@@ -40,6 +40,10 @@ export interface FailureSummary {
   jiraKey?: string;
   slackSent?: boolean;
   agentInvestigation?: AgentInvestigation;
+  approval?: {
+    threadId: string;
+    status: 'pending' | 'approved' | 'rejected';
+  };
 }
 
 export interface AgentInvestigation {
