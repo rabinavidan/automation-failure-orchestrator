@@ -41,6 +41,7 @@ The result is a portfolio-grade example of **AI automation as a complete system*
 - **Multi-system orchestration**: CI, Playwright, n8n, an Express API, PostgreSQL, Ollama, Jira, and Slack participate in one end-to-end workflow.
 - **Local-first development**: the complete platform runs in Docker with mock Jira and Slack services; Ollama keeps inference local and avoids a mandatory paid model API.
 - **Production-minded fallback**: if AI is disabled, unavailable, malformed, or exceeds its timeout, deterministic processing continues.
+- **Operations dashboard**: a live React console combines CI runs, failure intelligence, persisted Agent investigations, Jira issues, and Slack notifications in one UI.
 
 ## Demonstrated agent outcome
 
@@ -354,6 +355,7 @@ Inspect results:
 
 | System           | URL                                  |
 | ---------------- | ------------------------------------ |
+| SignalOps UI     | http://localhost:4173                |
 | Ingestion health | http://localhost:3001/health         |
 | Recent runs      | http://localhost:3001/api/runs       |
 | Failure history  | http://localhost:3001/api/failures   |
@@ -366,6 +368,18 @@ Reset only mock integration state:
 ```bash
 curl -X POST http://localhost:3002/reset
 ```
+
+### SignalOps dashboard
+
+Open [http://localhost:4173](http://localhost:4173) after `docker compose up --build -d`. The dashboard refreshes every 15 seconds and provides:
+
+- a command center with run, fingerprint, investigation, and confidence metrics
+- searchable failure intelligence with status-transition history
+- persisted Agent root cause, evidence, confidence, action, model, and tool audit trail
+- Jira issue cards and an operator-friendly Slack message stream
+- drill-down failure dossiers instead of raw JSON as the primary UI
+
+It uses same-origin Nginx proxies to the ingestion and mock-integration services, avoiding browser CORS coupling while keeping service boundaries explicit.
 
 ### What to explain in an interview
 
@@ -522,7 +536,7 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 
 ## Current limitations and roadmap
 
-- Agent investigations are returned and added to Slack, but are not yet persisted as first-class audit records.
+- Agent investigations are persisted as JSONB audit records; prompt/version lineage and token-level telemetry are not yet captured.
 - The agent cannot yet search source code, Git diffs, distributed traces, or centralized logs.
 - AI recommendations do not override policy or trigger a human-approval workflow.
 - Mock Jira and Slack state is in memory.
@@ -532,7 +546,7 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 
 Planned evolution:
 
-1. Persist agent decisions, tool traces, latency, and model metadata.
+1. Add prompt/version lineage, latency, token, and model-quality telemetry to persisted agent decisions.
 2. Add confidence-based human approval and explicit action policies.
 3. Add repository, Git diff, log, and trace tools.
 4. Build evaluations for hallucination, tool selection, policy agreement, and unsafe actions.

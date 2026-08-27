@@ -91,6 +91,20 @@ services:
       postgres:
         condition: service_healthy
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    container_name: orchestrator-dashboard
+    restart: unless-stopped
+    ports:
+      - '4173:80'
+    depends_on:
+      ingestion-service:
+        condition: service_healthy
+      mock-integrations:
+        condition: service_healthy
+
 volumes:
   postgres_data:
     name: orchestrator_postgres_data

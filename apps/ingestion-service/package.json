@@ -12,6 +12,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@langchain/langgraph": "^1.4.13",
     "@orchestrator/failure-classifier": "*",
     "@orchestrator/fingerprint-engine": "*",
     "@orchestrator/shared-types": "*",

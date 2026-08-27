@@ -1,5 +1,12 @@
 import { FailureClassification } from '@orchestrator/shared-types';
-import type { WebhookPayload, TestResult, FailureHistory, ProcessingResult, FailureSummary } from '@orchestrator/shared-types';
+import type {
+  WebhookPayload,
+  TestResult,
+  FailureHistory,
+  ProcessingResult,
+  FailureSummary,
+  AgentInvestigation,
+} from '@orchestrator/shared-types';
 import { generateFingerprint, fingerprintLabel } from '@orchestrator/fingerprint-engine';
 import { classify } from '@orchestrator/failure-classifier';
 import { query } from '../db/client';
@@ -79,7 +86,7 @@ async function processTest(
   // For passed tests, check recovery
   if (test.status === 'passed') {
     await handlePassedTest(test, payload);
-    await persistTestResult(test, payload.runId, null, null, null);
+    await persistTestResult(test, payload.runId, null, null, null, undefined);
     return;
   }
 
@@ -124,7 +131,7 @@ async function processTest(
   // Take action based on classification
   switch (classification) {
     case FailureClassification.NewRegression: {
-      jiraKey = await handleNewRegression(test, payload, fp, label) ?? undefined;
+      jiraKey = (await handleNewRegression(test, payload, fp, label)) ?? undefined;
       slackSent = await sendSlackNotification({
         classification,
         testTitle: test.title,
@@ -184,7 +191,14 @@ async function processTest(
   await upsertFailureHistory(fp, test, classification, jiraKey);
 
   // Persist test result
-  await persistTestResult(test, payload.runId, fp, classification, jiraKey ?? null);
+  await persistTestResult(
+    test,
+    payload.runId,
+    fp,
+    classification,
+    jiraKey ?? null,
+    agentInvestigation
+  );
 
   failures.push({
     testId: test.testId,
@@ -377,14 +391,15 @@ async function persistTestResult(
   runId: string,
   fingerprint: string | null,
   classification: FailureClassification | null,
-  jiraKey: string | null
+  jiraKey: string | null,
+  agentInvestigation: AgentInvestigation | undefined
 ): Promise<void> {
   await query(
     `INSERT INTO test_results
       (run_id, test_id, title, suite, file, owner, status, duration_ms, retry,
        fingerprint, classification, error_name, error_message, error_stack,
-       metadata, artifacts, jira_issue_key)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+       metadata, artifacts, jira_issue_key, agent_investigation)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
     [
       runId,
       test.testId,
@@ -403,6 +418,7 @@ async function persistTestResult(
       test.metadata ? JSON.stringify(test.metadata) : null,
       test.artifacts ? JSON.stringify(test.artifacts) : null,
       jiraKey,
+      agentInvestigation ? JSON.stringify(agentInvestigation) : null,
     ]
   );
 }

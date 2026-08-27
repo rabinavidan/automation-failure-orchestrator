@@ -13,10 +13,12 @@ router.get('/', async (req, res) => {
 
   try {
     let sql = `
-      SELECT fh.*, tr.classification, tr.jira_issue_key
+      SELECT fh.*, tr.classification, tr.jira_issue_key, tr.agent_investigation,
+             tr.test_result_created_at
       FROM failure_history fh
       LEFT JOIN (
-        SELECT DISTINCT ON (fingerprint) fingerprint, classification, jira_issue_key
+        SELECT DISTINCT ON (fingerprint) fingerprint, classification, jira_issue_key,
+               agent_investigation, created_at AS test_result_created_at
         FROM test_results
         WHERE fingerprint IS NOT NULL
         ORDER BY fingerprint, created_at DESC
@@ -51,10 +53,9 @@ router.get('/:fingerprint', async (req, res) => {
   const { fingerprint } = req.params;
 
   try {
-    const history = await query(
-      'SELECT * FROM failure_history WHERE fingerprint = $1',
-      [fingerprint]
-    );
+    const history = await query('SELECT * FROM failure_history WHERE fingerprint = $1', [
+      fingerprint,
+    ]);
 
     if (history.length === 0) {
       res.status(404).json({ error: 'Failure history not found' });
@@ -62,7 +63,8 @@ router.get('/:fingerprint', async (req, res) => {
     }
 
     const recentResults = await query(
-      `SELECT test_id, title, status, classification, jira_issue_key, created_at
+      `SELECT test_id, title, status, classification, jira_issue_key,
+              agent_investigation, created_at
        FROM test_results
        WHERE fingerprint = $1
        ORDER BY created_at DESC
