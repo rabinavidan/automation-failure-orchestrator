@@ -14,7 +14,7 @@
     "@orchestrator/shared-types": "*"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
-    "vitest": "^2.1.0"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
   }
 }
