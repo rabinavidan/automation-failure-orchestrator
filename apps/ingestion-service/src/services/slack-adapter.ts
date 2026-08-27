@@ -47,9 +47,7 @@ export async function sendSlackNotification(params: NotifyParams): Promise<boole
 
   const emoji = classificationEmoji(params.classification);
   const jiraLink = params.jiraKey ? ` | Jira: *${params.jiraKey}*` : '';
-  const errorSnippet = params.errorMessage
-    ? `\n> \`${params.errorMessage.slice(0, 150)}\``
-    : '';
+  const errorSnippet = params.errorMessage ? `\n> \`${params.errorMessage.slice(0, 150)}\`` : '';
   const agentSnippet = params.agentSummary
     ? `\n*AI investigation (${Math.round((params.agentConfidence ?? 0) * 100)}%):* ${params.agentSummary.slice(0, 300)}`
     : '';

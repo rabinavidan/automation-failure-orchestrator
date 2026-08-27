@@ -1,7 +1,9 @@
-node_modules
-dist
-.next
-coverage
-*.min.js
-*.min.css
-n8n/workflows/*.json
+.claude/
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+allure-results/
+package-lock.json
+n8n/workflows/

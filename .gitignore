@@ -30,6 +30,7 @@ postgres-data/
 # Editor
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 

@@ -5,7 +5,9 @@ let pool: Pool | null = null;
 export function getPool(): Pool {
   if (!pool) {
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL ?? 'postgresql://orchestrator:orchestrator@localhost:5432/orchestrator',
+      connectionString:
+        process.env.DATABASE_URL ??
+        'postgresql://orchestrator:orchestrator@localhost:5432/orchestrator',
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,

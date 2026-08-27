@@ -30,10 +30,9 @@ export async function runMigrations(): Promise<void> {
     const version = file.replace('.sql', '');
 
     // Check if already applied
-    const applied = await pool.query(
-      'SELECT version FROM schema_migrations WHERE version = $1',
-      [version]
-    );
+    const applied = await pool.query('SELECT version FROM schema_migrations WHERE version = $1', [
+      version,
+    ]);
 
     if (applied.rows.length > 0) {
       console.log(`[Migrations] ${version} already applied, skipping`);

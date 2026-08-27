@@ -10,8 +10,5 @@ export function isPossiblyFixed(
   history: FailureHistory,
   threshold: number = DEFAULT_RECOVERY_THRESHOLD
 ): boolean {
-  return (
-    history.jiraIssueKey !== undefined &&
-    history.consecutivePasses >= threshold
-  );
+  return history.jiraIssueKey !== undefined && history.consecutivePasses >= threshold;
 }

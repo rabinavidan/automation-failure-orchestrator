@@ -39,9 +39,14 @@ async function jiraRequest(path: string, options: RequestInit = {}): Promise<unk
 export async function searchByLabel(label: string): Promise<JiraIssue | null> {
   try {
     const jql = `labels = "${label}"`;
-    const result = await jiraRequest(
+    const result = (await jiraRequest(
       `/jira/rest/api/2/search?jql=${encodeURIComponent(jql)}`
-    ) as { issues: Array<{ key: string; fields: { summary: string; status: { name: string }; labels: string[] } }> };
+    )) as {
+      issues: Array<{
+        key: string;
+        fields: { summary: string; status: { name: string }; labels: string[] };
+      }>;
+    };
 
     if (result.issues.length === 0) return null;
 
@@ -71,10 +76,10 @@ export async function createIssue(params: CreateIssueParams): Promise<string | n
       },
     };
 
-    const result = await jiraRequest('/jira/rest/api/2/issue', {
+    const result = (await jiraRequest('/jira/rest/api/2/issue', {
       method: 'POST',
       body: JSON.stringify(body),
-    }) as { key: string };
+    })) as { key: string };
 
     return result.key;
   } catch (err) {

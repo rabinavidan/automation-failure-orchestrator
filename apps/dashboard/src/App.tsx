@@ -27,7 +27,8 @@ import {
   Zap,
 } from 'lucide-react';
 
-type View = 'overview' | 'observability' | 'approvals' | 'knowledge' | 'investigations' | 'jira' | 'slack';
+type View =
+  'overview' | 'observability' | 'approvals' | 'knowledge' | 'investigations' | 'jira' | 'slack';
 
 type AgentInvestigation = {
   suspectedRootCause: string;
@@ -132,10 +133,36 @@ type KnowledgeStatus = {
 
 type ObservabilitySummary = {
   window: string;
-  executions: { total: number; completed: number; failed: number; paused: number; avg_duration_ms: number };
-  modelCalls: { calls: number; prompt_tokens: number; completion_tokens: number; avg_call_duration_ms: number };
-  byNode: Array<{ node: string; calls: number; avg_duration_ms: number; prompt_tokens: number; completion_tokens: number }>;
-  recentCalls: Array<{ id: string; node: string; prompt_version: string; model: string; prompt_tokens: number; completion_tokens: number; duration_ms: number; created_at: string }>;
+  executions: {
+    total: number;
+    completed: number;
+    failed: number;
+    paused: number;
+    avg_duration_ms: number;
+  };
+  modelCalls: {
+    calls: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    avg_call_duration_ms: number;
+  };
+  byNode: Array<{
+    node: string;
+    calls: number;
+    avg_duration_ms: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+  }>;
+  recentCalls: Array<{
+    id: string;
+    node: string;
+    prompt_version: string;
+    model: string;
+    prompt_tokens: number;
+    completion_tokens: number;
+    duration_ms: number;
+    created_at: string;
+  }>;
 };
 
 type DashboardData = {
@@ -149,10 +176,21 @@ type DashboardData = {
 };
 
 const emptyObservability: ObservabilitySummary = {
-  window: '24h', executions: { total: 0, completed: 0, failed: 0, paused: 0, avg_duration_ms: 0 },
-  modelCalls: { calls: 0, prompt_tokens: 0, completion_tokens: 0, avg_call_duration_ms: 0 }, byNode: [], recentCalls: [],
+  window: '24h',
+  executions: { total: 0, completed: 0, failed: 0, paused: 0, avg_duration_ms: 0 },
+  modelCalls: { calls: 0, prompt_tokens: 0, completion_tokens: 0, avg_call_duration_ms: 0 },
+  byNode: [],
+  recentCalls: [],
 };
-const emptyData: DashboardData = { runs: [], failures: [], issues: [], messages: [], approvals: [], knowledge: { chunkCount: 0, sourceCount: 0 }, observability: emptyObservability };
+const emptyData: DashboardData = {
+  runs: [],
+  failures: [],
+  issues: [],
+  messages: [],
+  approvals: [],
+  knowledge: { chunkCount: 0, sourceCount: 0 },
+  observability: emptyObservability,
+};
 
 const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: 'overview', label: 'Command center', icon: LayoutDashboard },
@@ -357,9 +395,8 @@ function App() {
       ]);
       if (responses.some((response) => !response.ok))
         throw new Error('One or more services are unavailable');
-      const [runs, failures, issues, messages, approvals, knowledge, observability] = await Promise.all(
-        responses.map((response) => response.json())
-      );
+      const [runs, failures, issues, messages, approvals, knowledge, observability] =
+        await Promise.all(responses.map((response) => response.json()));
       setData({
         runs: runs.runs ?? [],
         failures: failures.failures ?? [],
@@ -795,12 +832,21 @@ function App() {
                     {agent.specialistReports && agent.specialistReports.length > 0 && (
                       <div className="mt-5 grid gap-2 sm:grid-cols-3">
                         {agent.specialistReports.map((report) => (
-                          <div key={report.agent} className="border border-violet-200 bg-violet-50/60 p-3">
+                          <div
+                            key={report.agent}
+                            className="border border-violet-200 bg-violet-50/60 p-3"
+                          >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-mono text-[9px] font-bold uppercase text-violet-800">{report.agent} agent</span>
-                              <span className="font-mono text-[9px] text-violet-600">{Math.round(report.confidence * 100)}%</span>
+                              <span className="font-mono text-[9px] font-bold uppercase text-violet-800">
+                                {report.agent} agent
+                              </span>
+                              <span className="font-mono text-[9px] text-violet-600">
+                                {Math.round(report.confidence * 100)}%
+                              </span>
                             </div>
-                            <p className="mt-2 text-[11px] leading-4 text-slate-600">{report.summary}</p>
+                            <p className="mt-2 text-[11px] leading-4 text-slate-600">
+                              {report.summary}
+                            </p>
                           </div>
                         ))}
                       </div>
@@ -838,7 +884,10 @@ function App() {
                     {agent.sources && agent.sources.length > 0 && (
                       <div className="mt-4 flex flex-wrap gap-2">
                         {agent.sources.map((source) => (
-                          <span key={`${source.path}-${source.chunk}`} className="border border-cyan/50 bg-cyan/10 px-2 py-1 font-mono text-[9px] text-cyan-900">
+                          <span
+                            key={`${source.path}-${source.chunk}`}
+                            className="border border-cyan/50 bg-cyan/10 px-2 py-1 font-mono text-[9px] text-cyan-900"
+                          >
                             {source.path}#{source.chunk} · {Math.round(source.score * 100)}%
                           </span>
                         ))}
@@ -874,7 +923,10 @@ function App() {
             ) : (
               <div className="grid gap-5 xl:grid-cols-2">
                 {data.approvals.map((approval) => (
-                  <article key={approval.thread_id} className="border border-ink/10 bg-white p-5 shadow-panel">
+                  <article
+                    key={approval.thread_id}
+                    className="border border-ink/10 bg-white p-5 shadow-panel"
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <Badge value={approval.classification} />
@@ -885,9 +937,15 @@ function App() {
                       </span>
                     </div>
                     <div className="mt-5 border-l-4 border-amber-400 bg-amber-50 p-4">
-                      <p className="font-mono text-[9px] uppercase text-slate-500">Agent recommendation</p>
-                      <p className="mt-2 text-sm font-bold">{approval.investigation.suspectedRootCause}</p>
-                      <p className="mt-2 text-xs leading-5 text-slate-600">{approval.investigation.explanation}</p>
+                      <p className="font-mono text-[9px] uppercase text-slate-500">
+                        Agent recommendation
+                      </p>
+                      <p className="mt-2 text-sm font-bold">
+                        {approval.investigation.suspectedRootCause}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-slate-600">
+                        {approval.investigation.explanation}
+                      </p>
                     </div>
                     <div className="mt-4 flex items-center justify-between font-mono text-[9px] text-slate-500">
                       <span>{approval.requested_action}</span>
@@ -919,39 +977,84 @@ function App() {
         {!initialLoading && view === 'observability' && (
           <section className="page-enter space-y-6 py-7">
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <Metric label="Agent executions" value={data.observability.executions.total} note={`${data.observability.window} persisted runs`} icon={Network} accent="bg-ink" />
-              <Metric label="Model calls" value={data.observability.modelCalls.calls} note="Specialists + supervisor" icon={BrainCircuit} accent="bg-violet-500" />
-              <Metric label="Total tokens" value={data.observability.modelCalls.prompt_tokens + data.observability.modelCalls.completion_tokens} note={`${data.observability.modelCalls.prompt_tokens} prompt / ${data.observability.modelCalls.completion_tokens} completion`} icon={Sparkles} accent="bg-signal" />
-              <Metric label="Avg call latency" value={`${Math.round(data.observability.modelCalls.avg_call_duration_ms)}ms`} note="Measured wall-clock duration" icon={Clock3} accent="bg-cyan" />
+              <Metric
+                label="Agent executions"
+                value={data.observability.executions.total}
+                note={`${data.observability.window} persisted runs`}
+                icon={Network}
+                accent="bg-ink"
+              />
+              <Metric
+                label="Model calls"
+                value={data.observability.modelCalls.calls}
+                note="Specialists + supervisor"
+                icon={BrainCircuit}
+                accent="bg-violet-500"
+              />
+              <Metric
+                label="Total tokens"
+                value={
+                  data.observability.modelCalls.prompt_tokens +
+                  data.observability.modelCalls.completion_tokens
+                }
+                note={`${data.observability.modelCalls.prompt_tokens} prompt / ${data.observability.modelCalls.completion_tokens} completion`}
+                icon={Sparkles}
+                accent="bg-signal"
+              />
+              <Metric
+                label="Avg call latency"
+                value={`${Math.round(data.observability.modelCalls.avg_call_duration_ms)}ms`}
+                note="Measured wall-clock duration"
+                icon={Clock3}
+                accent="bg-cyan"
+              />
             </div>
             <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
               <article className="border border-ink/10 bg-white p-5 shadow-panel">
                 <h2 className="font-bold">Node performance</h2>
-                <p className="mt-1 text-xs text-slate-500">Prompt lineage, latency, and token consumption by role</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Prompt lineage, latency, and token consumption by role
+                </p>
                 <div className="mt-5 space-y-3">
                   {data.observability.byNode.map((node) => (
                     <div key={node.node} className="border-l-4 border-violet-400 bg-violet-50 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-xs font-bold uppercase">{node.node}</span>
-                        <span className="font-mono text-[10px]">{Math.round(node.avg_duration_ms)}ms avg</span>
+                        <span className="font-mono text-[10px]">
+                          {Math.round(node.avg_duration_ms)}ms avg
+                        </span>
                       </div>
-                      <p className="mt-2 font-mono text-[9px] text-slate-500">{node.calls} calls · {node.prompt_tokens} prompt · {node.completion_tokens} completion tokens</p>
+                      <p className="mt-2 font-mono text-[9px] text-slate-500">
+                        {node.calls} calls · {node.prompt_tokens} prompt · {node.completion_tokens}{' '}
+                        completion tokens
+                      </p>
                     </div>
                   ))}
-                  {data.observability.byNode.length === 0 && <p className="text-sm text-slate-500">Run an AI scenario to capture model telemetry.</p>}
+                  {data.observability.byNode.length === 0 && (
+                    <p className="text-sm text-slate-500">
+                      Run an AI scenario to capture model telemetry.
+                    </p>
+                  )}
                 </div>
               </article>
               <article className="overflow-hidden border border-ink/10 bg-white shadow-panel">
                 <div className="border-b border-slate-200 p-5">
                   <h2 className="font-bold">Recent model calls</h2>
-                  <p className="mt-1 text-xs text-slate-500">Traceable model and prompt versions per graph node</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Traceable model and prompt versions per graph node
+                  </p>
                 </div>
                 <div className="max-h-[430px] overflow-auto">
                   {data.observability.recentCalls.map((call) => (
-                    <div key={call.id} className="grid grid-cols-[1fr_auto] gap-4 border-b border-slate-100 p-4">
+                    <div
+                      key={call.id}
+                      className="grid grid-cols-[1fr_auto] gap-4 border-b border-slate-100 p-4"
+                    >
                       <div className="min-w-0">
                         <p className="truncate text-xs font-bold">{call.node}</p>
-                        <p className="mt-1 font-mono text-[9px] text-violet-700">{call.prompt_version} · {call.model}</p>
+                        <p className="mt-1 font-mono text-[9px] text-violet-700">
+                          {call.prompt_version} · {call.model}
+                        </p>
                       </div>
                       <div className="text-right font-mono text-[9px] text-slate-500">
                         <p>{call.duration_ms}ms</p>
@@ -968,23 +1071,51 @@ function App() {
         {!initialLoading && view === 'knowledge' && (
           <section className="page-enter space-y-6 py-7">
             <div className="grid gap-4 sm:grid-cols-3">
-              <Metric label="Indexed chunks" value={data.knowledge.chunkCount} note="LlamaIndex sentence chunks" icon={Database} accent="bg-signal" />
-              <Metric label="Sources" value={data.knowledge.sourceCount} note="Allowlisted repository files" icon={BookOpen} accent="bg-cyan" />
-              <Metric label="Embedding" value={data.knowledge.latestRun?.status ?? 'not indexed'} note={data.knowledge.latestRun?.embedding_model ?? 'nomic-embed-text'} icon={BrainCircuit} accent="bg-violet-500" />
+              <Metric
+                label="Indexed chunks"
+                value={data.knowledge.chunkCount}
+                note="LlamaIndex sentence chunks"
+                icon={Database}
+                accent="bg-signal"
+              />
+              <Metric
+                label="Sources"
+                value={data.knowledge.sourceCount}
+                note="Allowlisted repository files"
+                icon={BookOpen}
+                accent="bg-cyan"
+              />
+              <Metric
+                label="Embedding"
+                value={data.knowledge.latestRun?.status ?? 'not indexed'}
+                note={data.knowledge.latestRun?.embedding_model ?? 'nomic-embed-text'}
+                icon={BrainCircuit}
+                accent="bg-violet-500"
+              />
             </div>
             <div className="border border-ink/10 bg-white p-5 shadow-panel">
               <div className="flex flex-col gap-4 lg:flex-row">
                 <input
                   value={knowledgeQuery}
                   onChange={(event) => setKnowledgeQuery(event.target.value)}
-                  onKeyDown={(event) => { if (event.key === 'Enter') void searchKnowledge(); }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') void searchKnowledge();
+                  }}
                   className="min-w-0 flex-1 border border-slate-300 px-4 py-3 text-sm outline-none focus:border-ink"
                   placeholder="Search repository knowledge"
                 />
-                <button onClick={() => void searchKnowledge()} disabled={knowledgeBusy} className="bg-ink px-5 py-3 text-xs font-bold text-signal disabled:opacity-50">
+                <button
+                  onClick={() => void searchKnowledge()}
+                  disabled={knowledgeBusy}
+                  className="bg-ink px-5 py-3 text-xs font-bold text-signal disabled:opacity-50"
+                >
                   Semantic search
                 </button>
-                <button onClick={() => void reindexKnowledge()} disabled={knowledgeBusy} className="border border-ink px-5 py-3 text-xs font-bold disabled:opacity-50">
+                <button
+                  onClick={() => void reindexKnowledge()}
+                  disabled={knowledgeBusy}
+                  className="border border-ink px-5 py-3 text-xs font-bold disabled:opacity-50"
+                >
                   Reindex repository
                 </button>
               </div>
@@ -992,12 +1123,21 @@ function App() {
             {knowledgeMatches.length > 0 && (
               <div className="grid gap-4 lg:grid-cols-2">
                 {knowledgeMatches.map((match) => (
-                  <article key={`${match.sourcePath}-${match.chunkIndex}`} className="border border-ink/10 bg-white p-5 shadow-panel">
+                  <article
+                    key={`${match.sourcePath}-${match.chunkIndex}`}
+                    className="border border-ink/10 bg-white p-5 shadow-panel"
+                  >
                     <div className="flex items-center justify-between gap-3 font-mono text-[9px]">
-                      <span className="truncate font-bold text-cyan-800">{match.sourcePath}#{match.chunkIndex}</span>
-                      <span className="shrink-0 bg-signal px-2 py-1 text-ink">{Math.round(match.score * 100)}%</span>
+                      <span className="truncate font-bold text-cyan-800">
+                        {match.sourcePath}#{match.chunkIndex}
+                      </span>
+                      <span className="shrink-0 bg-signal px-2 py-1 text-ink">
+                        {Math.round(match.score * 100)}%
+                      </span>
                     </div>
-                    <p className="mt-4 line-clamp-6 whitespace-pre-wrap text-xs leading-5 text-slate-600">{match.content}</p>
+                    <p className="mt-4 line-clamp-6 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                      {match.content}
+                    </p>
                   </article>
                 ))}
               </div>
@@ -1177,35 +1317,57 @@ function App() {
                     />
                   </div>
                 </div>
-                {selectedFailure.agent_investigation.specialistReports && selectedFailure.agent_investigation.specialistReports.length > 0 && (
-                  <div className="mt-5">
-                    <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500">Supervisor team reports</p>
-                    <div className="mt-3 grid gap-3">
-                      {selectedFailure.agent_investigation.specialistReports.map((report) => (
-                        <div key={report.agent} className="border-l-4 border-violet-400 bg-violet-50 p-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-xs font-bold uppercase">{report.agent} specialist</span>
-                            <span className="font-mono text-[10px] text-violet-700">{Math.round(report.confidence * 100)}%</span>
+                {selectedFailure.agent_investigation.specialistReports &&
+                  selectedFailure.agent_investigation.specialistReports.length > 0 && (
+                    <div className="mt-5">
+                      <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500">
+                        Supervisor team reports
+                      </p>
+                      <div className="mt-3 grid gap-3">
+                        {selectedFailure.agent_investigation.specialistReports.map((report) => (
+                          <div
+                            key={report.agent}
+                            className="border-l-4 border-violet-400 bg-violet-50 p-4"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-xs font-bold uppercase">
+                                {report.agent} specialist
+                              </span>
+                              <span className="font-mono text-[10px] text-violet-700">
+                                {Math.round(report.confidence * 100)}%
+                              </span>
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-slate-600">
+                              {report.summary}
+                            </p>
+                            {report.risk && (
+                              <span className="mt-2 inline-block border border-violet-300 px-2 py-0.5 font-mono text-[9px] uppercase">
+                                risk: {report.risk}
+                              </span>
+                            )}
                           </div>
-                          <p className="mt-2 text-xs leading-5 text-slate-600">{report.summary}</p>
-                          {report.risk && <span className="mt-2 inline-block border border-violet-300 px-2 py-0.5 font-mono text-[9px] uppercase">risk: {report.risk}</span>}
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-                {selectedFailure.agent_investigation.sources && selectedFailure.agent_investigation.sources.length > 0 && (
-                  <div className="mt-5">
-                    <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500">Retrieved sources</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {selectedFailure.agent_investigation.sources.map((source) => (
-                        <span key={`${source.path}-${source.chunk}`} className="border border-cyan/50 bg-cyan/10 px-2 py-1 font-mono text-[9px] text-cyan-900">
-                          {source.path}#{source.chunk} · {Math.round(source.score * 100)}%
-                        </span>
-                      ))}
+                  )}
+                {selectedFailure.agent_investigation.sources &&
+                  selectedFailure.agent_investigation.sources.length > 0 && (
+                    <div className="mt-5">
+                      <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500">
+                        Retrieved sources
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {selectedFailure.agent_investigation.sources.map((source) => (
+                          <span
+                            key={`${source.path}-${source.chunk}`}
+                            className="border border-cyan/50 bg-cyan/10 px-2 py-1 font-mono text-[9px] text-cyan-900"
+                          >
+                            {source.path}#{source.chunk} · {Math.round(source.score * 100)}%
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             ) : (
               <div className="mt-8 border border-dashed border-slate-300 p-5 text-sm text-slate-500">

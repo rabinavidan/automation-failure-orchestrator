@@ -19,11 +19,11 @@ N8N_PASSWORD=your-secure-password
 
 The main workflow (`n8n/workflows/main-workflow.json`) uses these endpoints:
 
-| Service | Development | Production |
-|---------|------------|------------|
-| Jira | `http://mock-integrations:3002/jira` | `https://your-company.atlassian.net` |
-| Slack | `http://mock-integrations:3002/slack/services/...` | Slack Incoming Webhook URL |
-| Ingestion | `http://ingestion-service:3001` | Your deployed ingestion service URL |
+| Service   | Development                                        | Production                           |
+| --------- | -------------------------------------------------- | ------------------------------------ |
+| Jira      | `http://mock-integrations:3002/jira`               | `https://your-company.atlassian.net` |
+| Slack     | `http://mock-integrations:3002/slack/services/...` | Slack Incoming Webhook URL           |
+| Ingestion | `http://ingestion-service:3001`                    | Your deployed ingestion service URL  |
 
 ## Importing the Workflow
 

@@ -460,7 +460,8 @@ export async function executeApprovedFailureActions(input: {
   let slackSent = false;
 
   if (input.classification === FailureClassification.NewRegression) {
-    jiraKey = (await handleNewRegression(input.test, input.payload, input.fingerprint, label)) ?? undefined;
+    jiraKey =
+      (await handleNewRegression(input.test, input.payload, input.fingerprint, label)) ?? undefined;
   } else if (input.classification === FailureClassification.KnownBug) {
     jiraKey = existingIssue?.key;
     if (jiraKey) await handleKnownBug(input.test, input.payload, jiraKey, input.fingerprint);
@@ -481,10 +482,10 @@ export async function executeApprovedFailureActions(input: {
   });
 
   if (jiraKey) {
-    await query(
-      `UPDATE failure_history SET jira_issue_key = $2 WHERE fingerprint = $1`,
-      [input.fingerprint, jiraKey]
-    );
+    await query(`UPDATE failure_history SET jira_issue_key = $2 WHERE fingerprint = $1`, [
+      input.fingerprint,
+      jiraKey,
+    ]);
     await query(
       `UPDATE test_results SET jira_issue_key = $3
        WHERE run_id = $1 AND fingerprint = $2`,

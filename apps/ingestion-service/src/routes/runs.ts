@@ -50,9 +50,7 @@ router.get('/', async (req, res) => {
       [limit, offset]
     );
 
-    const total = await query<{ count: string }>(
-      'SELECT COUNT(*) as count FROM test_runs'
-    );
+    const total = await query<{ count: string }>('SELECT COUNT(*) as count FROM test_runs');
 
     res.json({
       runs,
@@ -71,10 +69,9 @@ router.get('/:runId', async (req, res) => {
   const { runId } = req.params;
 
   try {
-    const runs = await query<{ run_id: string }>(
-      'SELECT * FROM test_runs WHERE run_id = $1',
-      [runId]
-    );
+    const runs = await query<{ run_id: string }>('SELECT * FROM test_runs WHERE run_id = $1', [
+      runId,
+    ]);
 
     if (runs.length === 0) {
       res.status(404).json({ error: 'Run not found' });

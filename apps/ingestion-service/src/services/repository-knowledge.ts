@@ -37,9 +37,13 @@ function defaultEmbedder(): TextEmbedder {
 }
 
 function allowedTopLevel(path: string): boolean {
-  return path === 'README.md' || path.startsWith(`docs${sep}`) ||
+  return (
+    path === 'README.md' ||
+    path.startsWith(`docs${sep}`) ||
     path.startsWith(`apps${sep}ingestion-service${sep}src${sep}`) ||
-    path.startsWith(`packages${sep}`) || path.startsWith(`database${sep}migrations${sep}`);
+    path.startsWith(`packages${sep}`) ||
+    path.startsWith(`database${sep}migrations${sep}`)
+  );
 }
 
 async function discoverFiles(root: string): Promise<string[]> {
@@ -52,7 +56,10 @@ async function discoverFiles(root: string): Promise<string[]> {
       const absolute = join(directory, entry.name);
       const sourcePath = relative(root, absolute);
       if (entry.isDirectory()) await walk(absolute);
-      else if (allowedTopLevel(sourcePath) && INCLUDED_EXTENSIONS.has(entry.name.slice(entry.name.lastIndexOf('.')))) {
+      else if (
+        allowedTopLevel(sourcePath) &&
+        INCLUDED_EXTENSIONS.has(entry.name.slice(entry.name.lastIndexOf('.')))
+      ) {
         const fileStat = await stat(absolute);
         if (fileStat.size <= MAX_FILE_BYTES) files.push(absolute);
       }
@@ -74,7 +81,13 @@ export async function reindexRepositoryKnowledge(embedder: TextEmbedder = defaul
   try {
     const files = await discoverFiles(root);
     const splitter = new SentenceSplitter({ chunkSize: 384, chunkOverlap: 48 });
-    const chunks: Array<{ sourcePath: string; chunkIndex: number; content: string; hash: string; embedding: number[] }> = [];
+    const chunks: Array<{
+      sourcePath: string;
+      chunkIndex: number;
+      content: string;
+      hash: string;
+      embedding: number[];
+    }> = [];
     for (const absolute of files) {
       const sourcePath = relative(root, absolute).split(sep).join('/');
       const content = await readFile(absolute, 'utf8');
@@ -100,7 +113,14 @@ export async function reindexRepositoryKnowledge(embedder: TextEmbedder = defaul
           `INSERT INTO repository_knowledge_chunks
             (source_path, chunk_index, content, content_hash, embedding, embedding_model)
            VALUES ($1, $2, $3, $4, $5::jsonb, $6)`,
-          [chunk.sourcePath, chunk.chunkIndex, chunk.content, chunk.hash, JSON.stringify(chunk.embedding), model]
+          [
+            chunk.sourcePath,
+            chunk.chunkIndex,
+            chunk.content,
+            chunk.hash,
+            JSON.stringify(chunk.embedding),
+            model,
+          ]
         );
       }
       await client.query('COMMIT');
@@ -116,7 +136,12 @@ export async function reindexRepositoryKnowledge(embedder: TextEmbedder = defaul
        WHERE id = $1`,
       [indexRunId, files.length, chunks.length]
     );
-    return { indexRunId, fileCount: files.length, chunkCount: chunks.length, embeddingModel: model };
+    return {
+      indexRunId,
+      fileCount: files.length,
+      chunkCount: chunks.length,
+      embeddingModel: model,
+    };
   } catch (error) {
     await query(
       `UPDATE repository_knowledge_index_runs

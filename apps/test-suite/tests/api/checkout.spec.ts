@@ -1,17 +1,18 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Checkout API', () => {
-  test('GET /posts returns 200 with posts @smoke', async ({ request }) => {
-    test.info().annotations.push({ type: 'service', description: 'checkout-service' });
-    test.info().annotations.push({ type: 'endpoint', description: '/api/checkout' });
+  test('local integration service exposes a healthy contract @smoke', async ({ request }) => {
+    test.info().annotations.push({ type: 'service', description: 'mock-integrations' });
+    test.info().annotations.push({ type: 'endpoint', description: '/health' });
     test.info().annotations.push({ type: 'severity', description: 'high' });
 
-    const response = await request.get('https://jsonplaceholder.typicode.com/posts/1');
+    const response = await request.get('/health');
     expect(response.status()).toBe(200);
 
     const body = await response.json();
-    expect(body).toHaveProperty('id', 1);
-    expect(body).toHaveProperty('title');
+    expect(body).toMatchObject({ status: 'ok' });
+    expect(body.jiraIssues).toEqual(expect.any(Number));
+    expect(body.slackMessages).toEqual(expect.any(Number));
   });
 
   test('checkout with valid item returns product details', async ({ request }) => {

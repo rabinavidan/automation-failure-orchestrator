@@ -150,9 +150,10 @@ app.post('/slack/services/:team/:bot/:token', (req, res) => {
   };
 
   slackMessages.push(message);
-  const text = typeof req.body === 'object' && req.body !== null
-    ? (req.body as Record<string, unknown>).text ?? JSON.stringify(req.body).slice(0, 80)
-    : String(req.body).slice(0, 80);
+  const text =
+    typeof req.body === 'object' && req.body !== null
+      ? ((req.body as Record<string, unknown>).text ?? JSON.stringify(req.body).slice(0, 80))
+      : String(req.body).slice(0, 80);
   console.log(`  [Slack] Message #${slackCounter}: ${text}`);
 
   res.json({ ok: true, ts: String(Date.now() / 1000) });

@@ -20,6 +20,7 @@ npm run demo:new-regression
 ```
 
 **Expected behavior:**
+
 - `POST /api/runs` returns `201` with `classification: "new_regression"`
 - Mock Jira shows a new issue at `http://localhost:3002/jira/issues`
 - Mock Slack shows a notification at `http://localhost:3002/slack/messages`
@@ -35,6 +36,7 @@ npm run demo:known-bug
 ```
 
 **Expected behavior:**
+
 - First run: creates Jira issue
 - Second run: `classification: "known_bug"`, adds a comment to existing issue
 
@@ -49,7 +51,8 @@ npm run demo:flaky-test
 ```
 
 **Expected behavior:**
-- `classification: "flaky"` 
+
+- `classification: "flaky"`
 - Slack notification only (no Jira action)
 
 ---
@@ -63,6 +66,7 @@ npm run demo:infrastructure-failure
 ```
 
 **Expected behavior:**
+
 - `classification: "infrastructure"`
 - Slack notification only
 - Multiple tests with same infra error all classified correctly
@@ -78,6 +82,7 @@ npm run demo:automation-failure
 ```
 
 **Expected behavior:**
+
 - `classification: "automation_failure"`
 - Slack notification only
 
@@ -96,6 +101,7 @@ npm run demo:recovered-bug
 ```
 
 **Expected behavior:**
+
 - After 3 consecutive passes: `classification: "possibly_fixed"`
 - Jira comment added noting potential fix
 - Slack notification
@@ -111,6 +117,7 @@ npm run demo:duplicate-delivery
 ```
 
 **Expected behavior:**
+
 - First request: `201` processed normally
 - Second request: `200` with `duplicateRun: true`, no reprocessing
 

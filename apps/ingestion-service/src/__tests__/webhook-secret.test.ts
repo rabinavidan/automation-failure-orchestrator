@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { webhookSecret } from '../middleware/webhook-secret';
@@ -24,16 +24,12 @@ describe('webhookSecret middleware', () => {
   });
 
   it('allows request with correct secret', async () => {
-    const res = await request(app)
-      .get('/test')
-      .set('x-webhook-secret', 'test-secret-123');
+    const res = await request(app).get('/test').set('x-webhook-secret', 'test-secret-123');
     expect(res.status).toBe(200);
   });
 
   it('rejects request with wrong secret', async () => {
-    const res = await request(app)
-      .get('/test')
-      .set('x-webhook-secret', 'wrong-secret');
+    const res = await request(app).get('/test').set('x-webhook-secret', 'wrong-secret');
     expect(res.status).toBe(403);
   });
 

@@ -19,7 +19,9 @@ test.describe('Infrastructure Failure Simulation', () => {
     // We expect either a DNS error or a timeout — either way this simulates infra failure
     // For demo purposes, if the error occurred we pass; if somehow it succeeded (unlikely) we fail
     if (!errorMessage) {
-      throw new Error('ENOTFOUND: getaddrinfo failed for this-host-does-not-exist-orchestrator.invalid');
+      throw new Error(
+        'ENOTFOUND: getaddrinfo failed for this-host-does-not-exist-orchestrator.invalid'
+      );
     }
 
     // The test "passes" from Playwright's perspective but the error message is captured

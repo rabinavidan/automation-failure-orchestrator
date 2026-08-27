@@ -137,12 +137,12 @@ The Agentic AI layer is intentionally specialized and auditable. A custom LangGr
 
 ### Supervisor team
 
-| Agent | Scoped responsibility | Forbidden responsibility |
-| --- | --- | --- |
-| `triage` | Interpret symptoms, deterministic classification, and recurrence history | Operational side effects |
-| `repository` | Ground hypotheses in locally retrieved code and documentation | Inventing code or choosing Jira/Slack actions |
-| `action` | Assess risk and propose the safest action from collected evidence | Executing the proposed action |
-| `supervisor` | Reconcile reports, surface conflicts, and produce the final validated investigation | Bypassing deterministic policy or HITL |
+| Agent        | Scoped responsibility                                                               | Forbidden responsibility                      |
+| ------------ | ----------------------------------------------------------------------------------- | --------------------------------------------- |
+| `triage`     | Interpret symptoms, deterministic classification, and recurrence history            | Operational side effects                      |
+| `repository` | Ground hypotheses in locally retrieved code and documentation                       | Inventing code or choosing Jira/Slack actions |
+| `action`     | Assess risk and propose the safest action from collected evidence                   | Executing the proposed action                 |
+| `supervisor` | Reconcile reports, surface conflicts, and produce the final validated investigation | Bypassing deterministic policy or HITL        |
 
 ### Agent goal
 
@@ -150,10 +150,10 @@ Investigate one failed test, identify the most plausible root cause, and recomme
 
 ### Available tools
 
-| Tool                     | Purpose                                                                                                             |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `get_failure_history`    | Retrieves recurrence counts, recent statuses, consecutive passes, and the linked Jira key for the exact fingerprint |
-| `get_related_jira_issue` | Retrieves the Jira issue associated with the exact fingerprint, if present                                          |
+| Tool                        | Purpose                                                                                                              |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `get_failure_history`       | Retrieves recurrence counts, recent statuses, consecutive passes, and the linked Jira key for the exact fingerprint  |
+| `get_related_jira_issue`    | Retrieves the Jira issue associated with the exact fingerprint, if present                                           |
 | `search_repository_context` | Uses local embeddings to retrieve cited code and documentation chunks from the allowlisted repository knowledge base |
 
 ### Structured decision contract
@@ -258,21 +258,21 @@ The first 12 fingerprint characters become a Jira label such as `automation-fing
 
 ## Technology choices
 
-| Concern           | Technology                           | Engineering rationale                                                                |
-| ----------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
-| Agentic reasoning | LangGraph.js + Ollama                | Explicit state graph, bounded tool loops, local inference, and structured output      |
-| Retrieval         | LlamaIndex TS + nomic-embed-text     | Local semantic chunking and embeddings with cited repository evidence                 |
-| Domain language   | TypeScript 5                         | Shared contracts and strict typing across packages and services                      |
-| API               | Node.js 24 + Express                 | Explicit service boundary with native `fetch` support                                |
-| Validation        | Zod                                  | Runtime validation aligned with TypeScript types                                     |
+| Concern           | Technology                             | Engineering rationale                                                                |
+| ----------------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
+| Agentic reasoning | LangGraph.js + Ollama                  | Explicit state graph, bounded tool loops, local inference, and structured output     |
+| Retrieval         | LlamaIndex TS + nomic-embed-text       | Local semantic chunking and embeddings with cited repository evidence                |
+| Domain language   | TypeScript 5                           | Shared contracts and strict typing across packages and services                      |
+| API               | Node.js 24 + Express                   | Explicit service boundary with native `fetch` support                                |
+| Validation        | Zod                                    | Runtime validation aligned with TypeScript types                                     |
 | State             | PostgreSQL 16 + LangGraph checkpointer | Durable graph threads, restart-safe checkpoints, relational history, and JSONB audit |
-| Orchestration     | n8n                                  | Inspectable event workflow and integration routing                                   |
-| Test ingestion    | Playwright custom reporter           | Framework output normalized at the source                                            |
-| Reliability logic | Rules + SHA-256                      | Explainable classification and correlation                                           |
-| Integrations      | Jira + Slack adapters                | Separation between domain decisions and external APIs                                |
-| Local runtime     | Docker Compose                       | Reproducible multi-service startup and health checks                                 |
-| Quality           | Vitest, Playwright, ESLint, Prettier | Unit, integration, E2E, and static-quality coverage                                  |
-| CI/CD             | GitHub Actions                       | Build, lint, tests, artifacts, and optional n8n delivery                             |
+| Orchestration     | n8n                                    | Inspectable event workflow and integration routing                                   |
+| Test ingestion    | Playwright custom reporter             | Framework output normalized at the source                                            |
+| Reliability logic | Rules + SHA-256                        | Explainable classification and correlation                                           |
+| Integrations      | Jira + Slack adapters                  | Separation between domain decisions and external APIs                                |
+| Local runtime     | Docker Compose                         | Reproducible multi-service startup and health checks                                 |
+| Quality           | Vitest, Playwright, ESLint, Prettier   | Unit, integration, E2E, and static-quality coverage                                  |
+| CI/CD             | GitHub Actions                         | Build, lint, tests, artifacts, and optional n8n delivery                             |
 
 ## Repository structure
 
@@ -290,9 +290,32 @@ automation-failure-orchestrator/
 |-- n8n/workflows/               # Importable visual workflow
 |-- scripts/                     # Repeatable behavioral demos
 |-- docs/                        # Architecture, API, and scenarios
-|-- .github/workflows/ci.yml     # CI pipeline
+|-- .github/workflows/           # CI, security, and release automation
+|-- SECURITY.md                  # Vulnerability reporting and security controls
 `-- docker-compose.yml           # Local multi-service environment
 ```
+
+## Production delivery pipeline
+
+Every pull request and main-branch update is evaluated as a deployable system, not only as a collection of source files:
+
+- **Quality gate**: ESLint, Prettier, TypeScript builds, unit tests, and deterministic Agent evaluation suites.
+- **Supply-chain controls**: GitHub dependency review, weekly Dependabot updates, and a high-severity production dependency audit.
+- **Runtime verification**: Docker Compose boots the core platform and validates health, ingestion, policy actions, idempotency, and the dashboard API proxy.
+- **Container security**: Trivy blocks critical vulnerabilities in the production ingestion and dashboard images.
+- **Release engineering**: semantic Git tags publish three GHCR images with BuildKit provenance and SBOM metadata; public repositories also receive GitHub artifact attestations.
+- **Operational handoff**: Playwright smoke evidence is retained as a CI artifact and successful pipelines can optionally report through the n8n webhook.
+
+Run the same principal gates locally:
+
+```bash
+npm run quality
+npm run test:smoke
+npm audit --omit=dev --audit-level=high
+docker compose config --quiet
+```
+
+Create an immutable release by pushing a semantic version tag such as `v1.0.0` after CI passes.
 
 ## Quick start
 

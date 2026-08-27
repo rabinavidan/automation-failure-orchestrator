@@ -8,9 +8,7 @@
       "@orchestrator/shared-types": ["../../packages/shared-types/src/index.ts"]
     }
   },
-  "references": [
-    { "path": "../../packages/shared-types" }
-  ],
+  "references": [{ "path": "../../packages/shared-types" }],
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist", "test-results", "playwright-report"]
 }

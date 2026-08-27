@@ -26,7 +26,7 @@ async function main() {
           message:
             "locator.click: Error: strict mode violation: getByRole('button', { name: 'Search' }) resolved to 3 elements",
           stack:
-            "Error: locator.click: strict mode violation: getByRole('button', { name: 'Search' }) resolved to 3 elements:\n    1) <button class=\"search-btn primary\">Search</button>\n    2) <button class=\"search-btn secondary\">Search</button>\n    3) <button class=\"modal-search-btn\">Search</button>\n    at search.spec.ts:34:18",
+            'Error: locator.click: strict mode violation: getByRole(\'button\', { name: \'Search\' }) resolved to 3 elements:\n    1) <button class="search-btn primary">Search</button>\n    2) <button class="search-btn secondary">Search</button>\n    3) <button class="modal-search-btn">Search</button>\n    at search.spec.ts:34:18',
         },
         metadata: {
           service: 'search-service',

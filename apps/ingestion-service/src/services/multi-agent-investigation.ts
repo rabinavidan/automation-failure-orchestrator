@@ -1,4 +1,12 @@
-import { Annotation, Command, END, START, StateGraph, interrupt, isInterrupted } from '@langchain/langgraph';
+import {
+  Annotation,
+  Command,
+  END,
+  START,
+  StateGraph,
+  interrupt,
+  isInterrupted,
+} from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { z } from 'zod';
 import type { AgentInvestigation, AgentSpecialistReport } from '@orchestrator/shared-types';
@@ -42,7 +50,10 @@ const actionFormat = {
   type: 'object',
   properties: {
     ...specialistFormat.properties,
-    proposedAction: { type: 'string', enum: ['create_issue', 'update_issue', 'notify_only', 'human_review'] },
+    proposedAction: {
+      type: 'string',
+      enum: ['create_issue', 'update_issue', 'notify_only', 'human_review'],
+    },
     risk: { type: 'string', enum: ['low', 'medium', 'high'] },
   },
   required: [...specialistFormat.required, 'proposedAction', 'risk'],
@@ -53,7 +64,10 @@ const finalFormat = {
   properties: {
     suspectedRootCause: { type: 'string' },
     evidence: { type: 'array', items: { type: 'string' }, maxItems: 8 },
-    recommendedAction: { type: 'string', enum: ['create_issue', 'update_issue', 'notify_only', 'human_review'] },
+    recommendedAction: {
+      type: 'string',
+      enum: ['create_issue', 'update_issue', 'notify_only', 'human_review'],
+    },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     explanation: { type: 'string' },
   },
@@ -135,8 +149,18 @@ export function createMultiAgentInvestigationGraph(
       const response = await client.chat({
         model: state.model,
         messages: [
-          { role: 'system', content: 'You are the triage specialist. Analyze failure symptoms, recurrence, and deterministic classification. Do not recommend side effects. Return only schema-valid JSON and never invent evidence.' },
-          { role: 'user', content: JSON.stringify({ failure: failureContext(state.context), history: state.context.history }) },
+          {
+            role: 'system',
+            content:
+              'You are the triage specialist. Analyze failure symptoms, recurrence, and deterministic classification. Do not recommend side effects. Return only schema-valid JSON and never invent evidence.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              failure: failureContext(state.context),
+              history: state.context.history,
+            }),
+          },
         ],
         format: specialistFormat,
         stream: false,
@@ -155,31 +179,53 @@ export function createMultiAgentInvestigationGraph(
       state.context.test.error?.name,
       state.context.test.error?.message,
       state.context.test.metadata?.service,
-    ].filter(Boolean).join(' ');
+    ]
+      .filter(Boolean)
+      .join(' ');
     let matches: Awaited<ReturnType<typeof searchRepositoryKnowledge>> = [];
     if (process.env.RAG_ENABLED === 'true') {
       matches = await (options.knowledgeSearch ?? searchRepositoryKnowledge)(query, 4);
     }
-    const sources = matches.map((match) => ({ path: match.sourcePath, chunk: match.chunkIndex, score: match.score }));
+    const sources = matches.map((match) => ({
+      path: match.sourcePath,
+      chunk: match.chunkIndex,
+      score: match.score,
+    }));
     const report = await recordAgent(options.audit, 'repository', async () => {
       const startedAt = Date.now();
       const response = await client.chat({
         model: state.model,
         messages: [
-          { role: 'system', content: 'You are the repository evidence specialist. Correlate the failure only with the supplied retrieved code and documentation. Identify likely implementation areas and evidence gaps. Do not recommend side effects. Return only schema-valid JSON.' },
-          { role: 'user', content: JSON.stringify({ failure: failureContext(state.context), retrievedContext: matches }) },
+          {
+            role: 'system',
+            content:
+              'You are the repository evidence specialist. Correlate the failure only with the supplied retrieved code and documentation. Identify likely implementation areas and evidence gaps. Do not recommend side effects. Return only schema-valid JSON.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              failure: failureContext(state.context),
+              retrievedContext: matches,
+            }),
+          },
         ],
         format: specialistFormat,
         stream: false,
         think: false,
       });
       await recordModelCall('repository', 'repository-v1', state.model, startedAt, response);
-      return { agent: 'repository', ...SpecialistSchema.parse(JSON.parse(response.message.content)) };
+      return {
+        agent: 'repository',
+        ...SpecialistSchema.parse(JSON.parse(response.message.content)),
+      };
     });
     return {
       reports: [...state.reports, report],
       sources,
-      toolsUsed: process.env.RAG_ENABLED === 'true' ? [...state.toolsUsed, 'search_repository_context'] : state.toolsUsed,
+      toolsUsed:
+        process.env.RAG_ENABLED === 'true'
+          ? [...state.toolsUsed, 'search_repository_context']
+          : state.toolsUsed,
     };
   };
 
@@ -189,8 +235,19 @@ export function createMultiAgentInvestigationGraph(
       const response = await client.chat({
         model: state.model,
         messages: [
-          { role: 'system', content: 'You are the action-policy specialist. Propose the safest operational action using deterministic classification, Jira state, and specialist evidence. High-risk or insufficient evidence requires human_review. Return only schema-valid JSON.' },
-          { role: 'user', content: JSON.stringify({ failure: failureContext(state.context), existingIssue: state.context.existingIssue, specialistReports: state.reports }) },
+          {
+            role: 'system',
+            content:
+              'You are the action-policy specialist. Propose the safest operational action using deterministic classification, Jira state, and specialist evidence. High-risk or insufficient evidence requires human_review. Return only schema-valid JSON.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              failure: failureContext(state.context),
+              existingIssue: state.context.existingIssue,
+              specialistReports: state.reports,
+            }),
+          },
         ],
         format: actionFormat,
         stream: false,
@@ -209,8 +266,19 @@ export function createMultiAgentInvestigationGraph(
     const response = await client.chat({
       model: state.model,
       messages: [
-        { role: 'system', content: 'You are the supervisor. Reconcile the specialist reports into one conservative investigation. Never add facts absent from the reports. Prefer human_review when specialists conflict, action risk is high, or confidence is weak. Return only schema-valid JSON.' },
-        { role: 'user', content: JSON.stringify({ deterministicClassification: state.context.deterministicClassification, specialistReports: state.reports, sources: state.sources }) },
+        {
+          role: 'system',
+          content:
+            'You are the supervisor. Reconcile the specialist reports into one conservative investigation. Never add facts absent from the reports. Prefer human_review when specialists conflict, action risk is high, or confidence is weak. Return only schema-valid JSON.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            deterministicClassification: state.context.deterministicClassification,
+            specialistReports: state.reports,
+            sources: state.sources,
+          }),
+        },
       ],
       format: finalFormat,
       stream: false,
@@ -229,7 +297,11 @@ export function createMultiAgentInvestigationGraph(
     await options.audit?.record({
       node: 'supervisor',
       status: 'completed',
-      details: { confidence: result.confidence, recommendation: result.recommendedAction, specialists: state.reports.map((report) => report.agent) },
+      details: {
+        confidence: result.confidence,
+        recommendation: result.recommendedAction,
+        specialists: state.reports.map((report) => report.agent),
+      },
     });
     return { result };
   };
@@ -245,7 +317,11 @@ export function createMultiAgentInvestigationGraph(
       explanation: state.result?.explanation,
     }) as { approved: boolean; reviewer?: string; comment?: string };
     const approvalStatus = decision.approved ? 'approved' : 'rejected';
-    await options.audit?.record({ node: 'request_approval', status: 'completed', details: { decision: approvalStatus, reviewer: decision.reviewer } });
+    await options.audit?.record({
+      node: 'request_approval',
+      status: 'completed',
+      details: { decision: approvalStatus, reviewer: decision.reviewer },
+    });
     return { approvalStatus };
   };
 
@@ -260,7 +336,9 @@ export function createMultiAgentInvestigationGraph(
     .addEdge('repository_agent', 'action_agent')
     .addEdge('action_agent', 'supervisor')
     .addConditionalEdges('supervisor', (state) =>
-      options.requireApproval && state.result?.recommendedAction === 'human_review' ? 'request_approval' : END
+      options.requireApproval && state.result?.recommendedAction === 'human_review'
+        ? 'request_approval'
+        : END
     )
     .addEdge('request_approval', END)
     .compile({ checkpointer: options.checkpointer });
@@ -272,15 +350,18 @@ export async function runMultiAgentInvestigation(
   model: string,
   options: MultiAgentGraphOptions = {}
 ) {
-  const state = await createMultiAgentInvestigationGraph(client, options).invoke({
-    context,
-    model,
-    reports: [],
-    toolsUsed: [],
-    sources: [],
-    result: undefined,
-    approvalStatus: 'not_required',
-  }, options.threadId ? { configurable: { thread_id: options.threadId } } : undefined);
+  const state = await createMultiAgentInvestigationGraph(client, options).invoke(
+    {
+      context,
+      model,
+      reports: [],
+      toolsUsed: [],
+      sources: [],
+      result: undefined,
+      approvalStatus: 'not_required',
+    },
+    options.threadId ? { configurable: { thread_id: options.threadId } } : undefined
+  );
   return state.result;
 }
 
@@ -292,7 +373,11 @@ export async function resumeMultiAgentInvestigation(input: {
   checkpointer: BaseCheckpointSaver;
   audit?: AgentAuditSink;
 }) {
-  const blockedClient: InvestigationModel = { async chat() { throw new Error('Specialist agents must not run while resuming an approval checkpoint'); } };
+  const blockedClient: InvestigationModel = {
+    async chat() {
+      throw new Error('Specialist agents must not run while resuming an approval checkpoint');
+    },
+  };
   const graph = createMultiAgentInvestigationGraph(blockedClient, {
     checkpointer: input.checkpointer,
     threadId: input.threadId,
@@ -300,12 +385,14 @@ export async function resumeMultiAgentInvestigation(input: {
     requireApproval: true,
   });
   const state = await graph.invoke(
-    new Command({ resume: { approved: input.approved, reviewer: input.reviewer, comment: input.comment } }),
+    new Command({
+      resume: { approved: input.approved, reviewer: input.reviewer, comment: input.comment },
+    }),
     { configurable: { thread_id: input.threadId } }
   );
   return {
     investigation: state.result,
-    status: state.approvalStatus === 'approved' ? 'approved' as const : 'rejected' as const,
+    status: state.approvalStatus === 'approved' ? ('approved' as const) : ('rejected' as const),
   };
 }
 

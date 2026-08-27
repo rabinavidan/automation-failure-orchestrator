@@ -51,6 +51,7 @@ The Bug-Aware Test Failure Orchestrator is a multi-service system that intellige
 ### SHA-256 Fingerprinting
 
 Each test failure is fingerprinted using SHA-256 over:
+
 - `testId | service | errorName | normalizedMessage | endpoint`
 
 The message normalizer strips dynamic values (UUIDs, timestamps, request IDs) before hashing,

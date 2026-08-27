@@ -9,6 +9,7 @@ GET /health
 ```
 
 Response:
+
 ```json
 {
   "status": "ok",
@@ -28,6 +29,7 @@ x-webhook-secret: <WEBHOOK_SECRET>
 ```
 
 **Request Body** (WebhookPayload schema):
+
 ```json
 {
   "schemaVersion": "1.0.0",
@@ -45,6 +47,7 @@ x-webhook-secret: <WEBHOOK_SECRET>
 ```
 
 **Response 201** (new run):
+
 ```json
 {
   "runId": "uuid",
@@ -64,6 +67,7 @@ x-webhook-secret: <WEBHOOK_SECRET>
 ```
 
 **Response 200** (duplicate run):
+
 ```json
 {
   "runId": "uuid",
@@ -75,6 +79,7 @@ x-webhook-secret: <WEBHOOK_SECRET>
 ```
 
 **Response 400** (invalid payload):
+
 ```json
 {
   "error": "Invalid payload",
@@ -134,24 +139,24 @@ Content-Type: application/json
 
 ### Jira Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/jira/rest/api/2/issue` | Create issue |
-| GET | `/jira/rest/api/2/search?jql=...` | Search by JQL |
-| GET | `/jira/rest/api/2/issue/:key` | Get issue |
-| POST | `/jira/rest/api/2/issue/:key/comment` | Add comment |
-| GET | `/jira/issues` | View all issues |
+| Method | Path                                  | Description     |
+| ------ | ------------------------------------- | --------------- |
+| POST   | `/jira/rest/api/2/issue`              | Create issue    |
+| GET    | `/jira/rest/api/2/search?jql=...`     | Search by JQL   |
+| GET    | `/jira/rest/api/2/issue/:key`         | Get issue       |
+| POST   | `/jira/rest/api/2/issue/:key/comment` | Add comment     |
+| GET    | `/jira/issues`                        | View all issues |
 
 ### Slack Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/slack/services/T00/B00/xxx` | Receive message |
-| GET | `/slack/messages` | View all messages |
+| Method | Path                          | Description       |
+| ------ | ----------------------------- | ----------------- |
+| POST   | `/slack/services/T00/B00/xxx` | Receive message   |
+| GET    | `/slack/messages`             | View all messages |
 
 ### Utility
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| POST | `/reset` | Reset all state |
+| Method | Path      | Description     |
+| ------ | --------- | --------------- |
+| GET    | `/health` | Health check    |
+| POST   | `/reset`  | Reset all state |

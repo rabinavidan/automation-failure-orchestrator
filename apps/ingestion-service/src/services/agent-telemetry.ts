@@ -20,8 +20,15 @@ export function createDatabaseTelemetrySink(threadId: string): AgentTelemetrySin
         `INSERT INTO agent_model_calls
           (thread_id, node, prompt_version, model, prompt_tokens, completion_tokens, duration_ms)
          VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [threadId, metric.node, metric.promptVersion, metric.model, metric.promptTokens,
-          metric.completionTokens, metric.durationMs]
+        [
+          threadId,
+          metric.node,
+          metric.promptVersion,
+          metric.model,
+          metric.promptTokens,
+          metric.completionTokens,
+          metric.durationMs,
+        ]
       );
     },
   };
