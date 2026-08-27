@@ -13,6 +13,12 @@ import {
 } from './agent-execution-audit';
 import type { AgentAuditSink } from './agent-execution-audit';
 import { searchRepositoryKnowledge } from './repository-knowledge';
+import { query } from '../db/client';
+import {
+  createMultiAgentInvestigationGraph,
+  isInterrupted as isMultiAgentInterrupted,
+  resumeMultiAgentInvestigation,
+} from './multi-agent-investigation';
 
 const MAX_REASONING_STEPS = 4;
 
@@ -52,7 +58,7 @@ const outputFormat = {
 } as const;
 
 export interface InvestigationModel {
-  chat(input: { model: string; messages: Message[]; tools?: typeof tools; format: typeof outputFormat; stream: false }): Promise<{ message: Message }>;
+  chat(input: { model: string; messages: Message[]; tools?: Tool[]; format: Record<string, unknown>; stream: false; think?: false }): Promise<{ message: Message }>;
 }
 
 export interface InvestigationGraphOptions {
@@ -303,24 +309,21 @@ export async function investigateFailure(context: InvestigationContext): Promise
       testId: context.test.testId,
       model,
     });
-    const graph = createFailureInvestigationGraph(client, {
+    const useMultiAgent = process.env.MULTI_AGENT_ENABLED === 'true';
+    const graphOptions = {
       checkpointer,
       threadId,
       audit: createDatabaseAuditSink(threadId),
       requireApproval: true,
-    });
-    const finalState = await graph.invoke({
-      context,
-      model,
-      messages: initialMessages(context),
-      pendingCalls: [],
-      toolsUsed: [],
-      reasoningSteps: 0,
-      result: undefined,
-      approvalStatus: 'not_required',
-      ragSources: [],
-    }, { configurable: { thread_id: threadId } });
-    const approvalPending = isInterrupted(finalState);
+    };
+    const graph = useMultiAgent
+      ? createMultiAgentInvestigationGraph(client, graphOptions)
+      : createFailureInvestigationGraph(client, graphOptions);
+    const initialState = useMultiAgent
+      ? { context, model, reports: [], toolsUsed: [], sources: [], result: undefined, approvalStatus: 'not_required' as const }
+      : { context, model, messages: initialMessages(context), pendingCalls: [], toolsUsed: [], reasoningSteps: 0, result: undefined, approvalStatus: 'not_required' as const, ragSources: [] };
+    const finalState = await graph.invoke(initialState, { configurable: { thread_id: threadId } });
+    const approvalPending = useMultiAgent ? isMultiAgentInterrupted(finalState) : isInterrupted(finalState);
     await finishAgentExecution(
       threadId,
       approvalPending ? 'paused' : finalState.result ? 'completed' : 'bounded',
@@ -342,6 +345,15 @@ export async function resumeFailureInvestigation(input: {
 }): Promise<{ investigation?: AgentInvestigation; status: 'approved' | 'rejected' }> {
   const checkpointer = await getAgentCheckpointer();
   const audit = createDatabaseAuditSink(input.threadId);
+  const execution = await query<{ orchestration: string | null }>(
+    `SELECT final_result->>'orchestration' AS orchestration FROM agent_executions WHERE thread_id = $1`,
+    [input.threadId]
+  );
+  if (execution[0]?.orchestration === 'supervisor') {
+    const resumed = await resumeMultiAgentInvestigation({ ...input, checkpointer, audit });
+    await finishAgentExecution(input.threadId, resumed.status === 'approved' ? 'completed' : 'rejected', resumed.investigation);
+    return resumed;
+  }
   const client: InvestigationModel = {
     async chat() {
       throw new Error('The reasoning node must not run while resuming an approval checkpoint');

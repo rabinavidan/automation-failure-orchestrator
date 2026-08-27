@@ -38,6 +38,15 @@ type AgentInvestigation = {
   toolsUsed: string[];
   model: string;
   sources?: Array<{ path: string; chunk: number; score: number }>;
+  orchestration?: 'single_agent' | 'supervisor';
+  specialistReports?: Array<{
+    agent: string;
+    summary: string;
+    findings: string[];
+    confidence: number;
+    proposedAction?: string;
+    risk?: string;
+  }>;
 };
 
 type AgentExecution = {
@@ -766,6 +775,19 @@ function App() {
                       <p className="mt-2 text-sm font-bold">{agent.suspectedRootCause}</p>
                     </div>
                     <p className="mt-4 text-sm leading-6 text-slate-600">{agent.explanation}</p>
+                    {agent.specialistReports && agent.specialistReports.length > 0 && (
+                      <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                        {agent.specialistReports.map((report) => (
+                          <div key={report.agent} className="border border-violet-200 bg-violet-50/60 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-mono text-[9px] font-bold uppercase text-violet-800">{report.agent} agent</span>
+                              <span className="font-mono text-[9px] text-violet-600">{Math.round(report.confidence * 100)}%</span>
+                            </div>
+                            <p className="mt-2 text-[11px] leading-4 text-slate-600">{report.summary}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="mt-5">
                       <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide">
                         <History size={14} /> Evidence
@@ -1089,6 +1111,23 @@ function App() {
                     />
                   </div>
                 </div>
+                {selectedFailure.agent_investigation.specialistReports && selectedFailure.agent_investigation.specialistReports.length > 0 && (
+                  <div className="mt-5">
+                    <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500">Supervisor team reports</p>
+                    <div className="mt-3 grid gap-3">
+                      {selectedFailure.agent_investigation.specialistReports.map((report) => (
+                        <div key={report.agent} className="border-l-4 border-violet-400 bg-violet-50 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs font-bold uppercase">{report.agent} specialist</span>
+                            <span className="font-mono text-[10px] text-violet-700">{Math.round(report.confidence * 100)}%</span>
+                          </div>
+                          <p className="mt-2 text-xs leading-5 text-slate-600">{report.summary}</p>
+                          {report.risk && <span className="mt-2 inline-block border border-violet-300 px-2 py-0.5 font-mono text-[9px] uppercase">risk: {report.risk}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {selectedFailure.agent_investigation.sources && selectedFailure.agent_investigation.sources.length > 0 && (
                   <div className="mt-5">
                     <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500">Retrieved sources</p>

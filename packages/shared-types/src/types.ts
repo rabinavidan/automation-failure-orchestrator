@@ -59,6 +59,17 @@ export interface AgentInvestigation {
     chunk: number;
     score: number;
   }>;
+  orchestration?: 'single_agent' | 'supervisor';
+  specialistReports?: AgentSpecialistReport[];
+}
+
+export interface AgentSpecialistReport {
+  agent: string;
+  summary: string;
+  findings: string[];
+  confidence: number;
+  proposedAction?: 'create_issue' | 'update_issue' | 'notify_only' | 'human_review';
+  risk?: 'low' | 'medium' | 'high';
 }
 
 export interface FingerprintInput {

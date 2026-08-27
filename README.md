@@ -32,7 +32,8 @@ The result is a portfolio-grade example of **AI automation as a complete system*
 
 ## What makes it technically interesting
 
-- **Real agentic behavior**: a local Ollama model autonomously decides whether to call failure-history and Jira-context tools before returning its diagnosis.
+- **Multi-agent supervision**: specialized triage, repository-evidence, and action-policy agents collaborate through a stateful LangGraph supervisor instead of sharing one oversized prompt.
+- **Real agentic behavior**: local Ollama models reason over scoped context while repository retrieval and operational actions remain bounded by explicit policies.
 - **Evidence-backed structured output**: every investigation contains a root-cause hypothesis, evidence, a recommended action, confidence, explanation, tools used, and model identity.
 - **Guarded autonomy**: the model advises; deterministic policy controls Jira and Slack side effects. AI uncertainty or downtime cannot bypass operational rules.
 - **Stable failure identity**: SHA-256 fingerprints are generated after removing UUIDs, timestamps, request IDs, numeric IDs, temporary paths, and dynamic ports.
@@ -94,8 +95,8 @@ The important part is not the prose. The agent selected tools, consumed state fr
                     |                         +---------+----------+
                     |                                   |
                     |                         +---------v----------+
-                    |                         | LangGraph + Ollama |
-                    |                         | bounded tools      |
+                    |                         | LangGraph supervisor|
+                    |                         | 3 specialist agents |
                     |                         | checkpoints/audit  |
                     |                         +---------+----------+
                     |                                   |
@@ -130,7 +131,16 @@ This demonstrates both code-first orchestration and low-code workflow automation
 
 ## Agent design
 
-The Agentic AI layer is intentionally narrow and auditable.
+The Agentic AI layer is intentionally specialized and auditable. A custom LangGraph workflow gives each worker only the context required for its role, then routes their structured reports to a supervisor.
+
+### Supervisor team
+
+| Agent | Scoped responsibility | Forbidden responsibility |
+| --- | --- | --- |
+| `triage` | Interpret symptoms, deterministic classification, and recurrence history | Operational side effects |
+| `repository` | Ground hypotheses in locally retrieved code and documentation | Inventing code or choosing Jira/Slack actions |
+| `action` | Assess risk and propose the safest action from collected evidence | Executing the proposed action |
+| `supervisor` | Reconcile reports, surface conflicts, and produce the final validated investigation | Bypassing deterministic policy or HITL |
 
 ### Agent goal
 
@@ -157,6 +167,8 @@ type AgentInvestigation = {
   explanation: string;
   toolsUsed: string[];
   model: string;
+  orchestration?: 'single_agent' | 'supervisor';
+  specialistReports?: AgentSpecialistReport[];
 };
 ```
 
@@ -524,6 +536,7 @@ GitHub Actions performs linting, formatting checks, workspace builds, unit tests
 | `RECOVERY_PASS_THRESHOLD` | `3`                              | Passes before `possibly_fixed`         |
 | `FLAKY_HISTORY_WINDOW`    | `5`                              | Outcomes considered by flaky detection |
 | `AI_ENABLED`              | `false`                          | Enable Ollama investigation            |
+| `MULTI_AGENT_ENABLED`     | `true`                           | Enable specialist supervisor workflow  |
 | `OLLAMA_HOST`             | `localhost:11434` outside Docker | Ollama server                          |
 | `OLLAMA_MODEL`            | `qwen3:4b`                       | Tool-capable model                     |
 | `OLLAMA_TIMEOUT_MS`       | `30000`                          | Per-request AI timeout                 |
