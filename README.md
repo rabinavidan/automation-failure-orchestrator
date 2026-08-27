@@ -9,6 +9,25 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Runtime-Docker_Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 
+![SignalOps dashboard: command center showing CI runs, failure signals, AI investigations, agent confidence, and live classification mix](docs/screenshots/dashboard.png)
+
+## Skills demonstrated, at a glance
+
+For reviewers scanning quickly: this repository is a working implementation of the core competencies behind an **AI automation / agentic AI engineering** role, not a single notebook or prompt demo.
+
+| Competency area | Where it shows up in this repo |
+| --- | --- |
+| LLM orchestration & agentic workflows | LangGraph.js supervisor coordinating specialist agents ([Agent design](#agent-design)) |
+| Multi-agent system design | Scoped triage / repository / action specialists with explicit forbidden responsibilities |
+| Retrieval-augmented generation | Local LlamaIndex + `nomic-embed-text` embeddings with cited repository evidence |
+| Structured output & validation | Zod-validated `AgentInvestigation` contract; malformed output triggers deterministic fallback |
+| Human-in-the-loop safety | Durable LangGraph interrupts + dashboard approve/reject before any Jira/Slack side effect |
+| AI observability & evaluation | Per-call model/token/latency telemetry; deterministic evaluation gates in CI |
+| Tool-using agents with bounded authority | Three allowlisted tools, no free-form code execution or unbounded external calls |
+| Production delivery for AI systems | Docker Compose, GitHub Actions quality/security gates, container vulnerability scanning, semantic-versioned releases |
+| API & event-contract design | Zod-validated webhook contract shared across the API and n8n paths |
+| Low-code + code-first orchestration | Equivalent n8n visual workflow alongside the TypeScript service |
+
 ## Why this project exists
 
 CI pipelines detect failures, but they do not decide what those failures mean. A red build can represent a new product regression, an existing bug, an unstable test, broken automation, or a temporary infrastructure problem. Treating every failure the same creates duplicate tickets, alert fatigue, and wasted investigation time.
@@ -47,6 +66,10 @@ The result is a portfolio-grade example of **AI automation as a complete system*
 - **Evaluation gates**: deterministic code evaluators reject missing specialist coverage, ungrounded RAG output, invalid confidence, and high-risk automation that bypasses human review.
 
 ## Demonstrated agent outcome
+
+The dashboard's AI investigations view shows the supervisor's reconciled root cause alongside each specialist's independent report, confidence, and cited evidence:
+
+![AI investigations view: reconciled root cause, per-specialist confidence, and cited evidence for a real webhook-validation failure](docs/screenshots/dashboard-investigations.png)
 
 The checkout failure scenario produced this real local-agent result:
 
@@ -133,7 +156,11 @@ This demonstrates both code-first orchestration and low-code workflow automation
 
 ## Agent design
 
-The Agentic AI layer is intentionally specialized and auditable. A custom LangGraph workflow gives each worker only the context required for its role, then routes their structured reports to a supervisor.
+The Agentic AI layer is intentionally specialized and auditable. A custom LangGraph workflow gives each worker only the context required for its role, then routes their structured reports to a supervisor. Every node transition is checkpointed to PostgreSQL via `@langchain/langgraph-checkpoint-postgres`, which is what makes the durable `human_review` interrupt in the [Safety model](#safety-model) possible: the graph can pause mid-run and resume on the exact same thread later, even after a process restart.
+
+The dashboard renders that checkpointed state directly — this is the actual LangGraph run for the investigation shown above, not a mocked diagram:
+
+![LangGraph execution timeline: agent:triage, agent:repository, and agent:action nodes each firing started/completed events with structured findings and confidence, followed by the supervisor node reconciling them into a final recommendation](docs/screenshots/dashboard-langgraph-timeline.png)
 
 ### Supervisor team
 
@@ -155,6 +182,10 @@ Investigate one failed test, identify the most plausible root cause, and recomme
 | `get_failure_history`       | Retrieves recurrence counts, recent statuses, consecutive passes, and the linked Jira key for the exact fingerprint  |
 | `get_related_jira_issue`    | Retrieves the Jira issue associated with the exact fingerprint, if present                                           |
 | `search_repository_context` | Uses local embeddings to retrieve cited code and documentation chunks from the allowlisted repository knowledge base |
+
+The Knowledge RAG view exposes the same index the agent queries — chunk/source counts, embedding status, and ad hoc semantic search:
+
+![Knowledge RAG view: 128 indexed chunks from 50 allowlisted repository files, embedded with nomic-embed-text, with a semantic search box](docs/screenshots/dashboard-knowledge-rag.png)
 
 ### Structured decision contract
 
@@ -195,6 +226,8 @@ policy-owned classification
 
 The agent does not override deterministic classification. When it recommends `human_review`, LangGraph persists an interrupt before any Jira or Slack side effect. An operator can approve or reject from the dashboard; the API resumes the exact checkpoint using the same thread ID. This preserves deterministic policy while adding explicit human authority for ambiguous cases.
 
+![Approval queue view: two paused investigations awaiting human_review, each with the agent's recommendation, confidence, and Approve & resume / Reject controls](docs/screenshots/dashboard-approvals.png)
+
 ### Observability and evaluation
 
 Two complementary telemetry levels are persisted:
@@ -203,6 +236,8 @@ Two complementary telemetry levels are persisted:
 - `agent_model_calls` captures the model and prompt version, prompt/completion tokens, and wall-clock latency for every specialist and supervisor call.
 
 `GET /api/observability/summary` exposes rolling 24-hour execution and per-node aggregates to the dashboard. The local evaluation suite follows the same dataset/target/evaluator pattern used by modern LLM evaluation platforms, but uses deterministic code evaluators so it remains free, reproducible, and suitable for CI.
+
+![AI observability view: agent executions, model calls, total tokens, and average call latency, broken down by graph node](docs/screenshots/dashboard-observability.png)
 
 ## Deterministic decision engine
 
