@@ -9,7 +9,7 @@
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:unit": "vitest run",
-    "test:evaluations": "vitest run apps/ingestion-service/src/__tests__/agent-evaluation.test.ts apps/ingestion-service/src/__tests__/multi-agent-investigation.test.ts",
+    "test:evaluations": "vitest run apps/ingestion-service/src/__tests__/agent-evaluation.test.ts apps/ingestion-service/src/__tests__/multi-agent-investigation.test.ts apps/ingestion-service/src/__tests__/agent-judge.test.ts",
     "test:smoke": "node scripts/ci-smoke.mjs",
     "lint": "eslint .",
     "format:check": "prettier --check .",
