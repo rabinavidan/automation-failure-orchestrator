@@ -15,18 +15,18 @@
 
 For reviewers scanning quickly: this repository is a working implementation of the core competencies behind an **AI automation / agentic AI engineering** role, not a single notebook or prompt demo.
 
-| Competency area | Where it shows up in this repo |
-| --- | --- |
-| LLM orchestration & agentic workflows | LangGraph.js supervisor coordinating specialist agents ([Agent design](#agent-design)) |
-| Multi-agent system design | Scoped triage / repository / action specialists with explicit forbidden responsibilities |
-| Retrieval-augmented generation | Local LlamaIndex + `nomic-embed-text` embeddings with cited repository evidence |
-| Structured output & validation | Zod-validated `AgentInvestigation` contract; malformed output triggers deterministic fallback |
-| Human-in-the-loop safety | Durable LangGraph interrupts + dashboard approve/reject before any Jira/Slack side effect |
-| AI observability & evaluation | Per-call model/token/latency telemetry; deterministic evaluation gates in CI |
-| Tool-using agents with bounded authority | Three allowlisted tools, no free-form code execution or unbounded external calls |
-| Production delivery for AI systems | Docker Compose, GitHub Actions quality/security gates, container vulnerability scanning, semantic-versioned releases |
-| API & event-contract design | Zod-validated webhook contract shared across the API and n8n paths |
-| Low-code + code-first orchestration | Equivalent n8n visual workflow alongside the TypeScript service |
+| Competency area                          | Where it shows up in this repo                                                                                       |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| LLM orchestration & agentic workflows    | LangGraph.js supervisor coordinating specialist agents ([Agent design](#agent-design))                               |
+| Multi-agent system design                | Scoped triage / repository / action specialists with explicit forbidden responsibilities                             |
+| Retrieval-augmented generation           | Local LlamaIndex + `nomic-embed-text` embeddings with cited repository evidence                                      |
+| Structured output & validation           | Zod-validated `AgentInvestigation` contract; malformed output triggers deterministic fallback                        |
+| Human-in-the-loop safety                 | Durable LangGraph interrupts + dashboard approve/reject before any Jira/Slack side effect                            |
+| AI observability & evaluation            | Per-call model/token/latency telemetry; deterministic evaluation gates in CI                                         |
+| Tool-using agents with bounded authority | Three allowlisted tools, no free-form code execution or unbounded external calls                                     |
+| Production delivery for AI systems       | Docker Compose, GitHub Actions quality/security gates, container vulnerability scanning, semantic-versioned releases |
+| API & event-contract design              | Zod-validated webhook contract shared across the API and n8n paths                                                   |
+| Low-code + code-first orchestration      | Equivalent n8n visual workflow alongside the TypeScript service                                                      |
 
 ## Why this project exists
 
