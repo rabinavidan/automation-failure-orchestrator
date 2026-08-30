@@ -11,16 +11,34 @@ interface ExecutionRow {
   final_result: AgentInvestigation;
 }
 
-export function createDatabaseExecutionFetcher(): ExecutionFetcher {
+export interface ExecutionFetcherFilter {
+  model?: string;
+  graphVersion?: string;
+}
+
+export function createDatabaseExecutionFetcher(
+  filter: ExecutionFetcherFilter = {}
+): ExecutionFetcher {
   return {
     async fetchRecentCompleted(limit: number): Promise<ExecutionRecord[]> {
+      const conditions = [`status = 'completed'`, 'final_result IS NOT NULL'];
+      const params: unknown[] = [];
+      if (filter.model) {
+        params.push(filter.model);
+        conditions.push(`model = $${params.length}`);
+      }
+      if (filter.graphVersion) {
+        params.push(filter.graphVersion);
+        conditions.push(`graph_version = $${params.length}`);
+      }
+      params.push(limit);
       const rows = await query<ExecutionRow>(
         `SELECT thread_id, run_id, fingerprint, test_id, model, final_result
          FROM agent_executions
-         WHERE status = 'completed' AND final_result IS NOT NULL
+         WHERE ${conditions.join(' AND ')}
          ORDER BY finished_at DESC
-         LIMIT $1`,
-        [limit]
+         LIMIT $${params.length}`,
+        params
       );
       return rows.map((row) => ({
         threadId: row.thread_id,
