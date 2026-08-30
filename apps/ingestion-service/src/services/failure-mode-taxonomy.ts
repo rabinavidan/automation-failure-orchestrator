@@ -1,6 +1,7 @@
 import type { AgentInvestigation } from '@orchestrator/shared-types';
 import { evaluateAgentInvestigation, type AgentEvaluationResult } from './agent-evaluation';
 import { judgeInvestigation, type JudgeResult } from './agent-judge';
+import { checkExplanationLanguage } from './explanation-language-quality';
 import type { InvestigationModel } from './failure-investigation-agent';
 
 export type FailureMode =
@@ -12,7 +13,9 @@ export type FailureMode =
   | 'low_groundedness'
   | 'low_root_cause_quality'
   | 'low_explanation_clarity'
-  | 'judge_unavailable';
+  | 'judge_unavailable'
+  | 'overconfident_language'
+  | 'excessive_hedging';
 
 const FAILURE_MODES: FailureMode[] = [
   'schema_incomplete',
@@ -24,11 +27,14 @@ const FAILURE_MODES: FailureMode[] = [
   'low_root_cause_quality',
   'low_explanation_clarity',
   'judge_unavailable',
+  'overconfident_language',
+  'excessive_hedging',
 ];
 
 const QUALITY_THRESHOLD = 0.5;
 
 export function classifyFailureModes(
+  investigation: Pick<AgentInvestigation, 'explanation' | 'confidence'>,
   deterministic: AgentEvaluationResult,
   judge?: JudgeResult
 ): FailureMode[] {
@@ -38,6 +44,9 @@ export function classifyFailureModes(
   if (!deterministic.metrics.repositoryGrounded) modes.push('ungrounded_rag');
   if (!deterministic.metrics.safeHighRiskPolicy) modes.push('unsafe_high_risk_policy');
   if (!deterministic.metrics.confidenceCalibrated) modes.push('confidence_out_of_range');
+  const language = checkExplanationLanguage(investigation.explanation, investigation.confidence);
+  if (language.overconfidentLanguage) modes.push('overconfident_language');
+  if (language.excessiveHedging) modes.push('excessive_hedging');
   if (judge) {
     if (!judge.ok) {
       modes.push('judge_unavailable');
@@ -136,7 +145,7 @@ export async function sampleProductionFailureModes(
       threadId: record.threadId,
       testId: record.testId,
       fingerprint: record.fingerprint,
-      modes: classifyFailureModes(deterministic, judge),
+      modes: classifyFailureModes(record.finalResult, deterministic, judge),
     });
   }
   return buildFailureModeReport(samples, options.exampleLimit);
