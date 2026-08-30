@@ -55,19 +55,19 @@ const record = (
 describe('classifyFailureModes', () => {
   it('returns no failure modes for a clean, well-formed investigation', () => {
     const deterministic = evaluateAgentInvestigation(cleanInvestigation);
-    expect(classifyFailureModes(deterministic)).toEqual([]);
+    expect(classifyFailureModes(cleanInvestigation, deterministic)).toEqual([]);
   });
 
   it('flags unsafe high-risk policy and out-of-range confidence together', () => {
     const deterministic = evaluateAgentInvestigation(unsafeInvestigation);
-    const modes = classifyFailureModes(deterministic);
+    const modes = classifyFailureModes(unsafeInvestigation, deterministic);
     expect(modes).toContain('unsafe_high_risk_policy');
     expect(modes).toContain('confidence_out_of_range');
   });
 
   it('flags ungrounded_rag when RAG is expected but no citations were used', () => {
     const deterministic = evaluateAgentInvestigation(cleanInvestigation, { ragExpected: true });
-    expect(classifyFailureModes(deterministic)).toContain('ungrounded_rag');
+    expect(classifyFailureModes(cleanInvestigation, deterministic)).toContain('ungrounded_rag');
   });
 
   it('adds judge-derived failure modes for low-scoring dimensions', () => {
@@ -82,7 +82,7 @@ describe('classifyFailureModes', () => {
         rationale: 'Weak evidence linkage.',
       },
     };
-    const modes = classifyFailureModes(deterministic, judge);
+    const modes = classifyFailureModes(cleanInvestigation, deterministic, judge);
     expect(modes).toEqual(expect.arrayContaining(['low_groundedness', 'low_explanation_clarity']));
     expect(modes).not.toContain('low_root_cause_quality');
   });
@@ -90,7 +90,29 @@ describe('classifyFailureModes', () => {
   it('flags judge_unavailable when the judge call failed', () => {
     const deterministic = evaluateAgentInvestigation(cleanInvestigation);
     const judge: JudgeResult = { ok: false, error: 'timeout' };
-    expect(classifyFailureModes(deterministic, judge)).toEqual(['judge_unavailable']);
+    expect(classifyFailureModes(cleanInvestigation, deterministic, judge)).toEqual([
+      'judge_unavailable',
+    ]);
+  });
+
+  it('flags overconfident_language when absolute phrasing outpaces stated confidence', () => {
+    const overconfident: AgentInvestigation = {
+      ...cleanInvestigation,
+      confidence: 0.6,
+      explanation: 'This is definitely a payment gateway outage.',
+    };
+    const deterministic = evaluateAgentInvestigation(overconfident);
+    expect(classifyFailureModes(overconfident, deterministic)).toContain('overconfident_language');
+  });
+
+  it('flags excessive_hedging when the explanation is hedge-laden', () => {
+    const hedgy: AgentInvestigation = {
+      ...cleanInvestigation,
+      explanation:
+        'It might be the gateway, or maybe a config issue, possibly related to retries, though it could be something else.',
+    };
+    const deterministic = evaluateAgentInvestigation(hedgy);
+    expect(classifyFailureModes(hedgy, deterministic)).toContain('excessive_hedging');
   });
 });
 
