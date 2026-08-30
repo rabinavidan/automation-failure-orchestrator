@@ -26,6 +26,11 @@ RUN npm run build --workspace=packages/fingerprint-engine
 RUN npm run build --workspace=packages/failure-classifier
 RUN npm run build --workspace=apps/ingestion-service
 
+# Drop devDependencies (e.g. vitest, which pulls in vite/esbuild) before the
+# runtime stage copies node_modules, so build-only tooling never ships in the
+# production image.
+RUN npm prune --omit=dev
+
 FROM node:24-alpine AS runtime
 
 WORKDIR /app
