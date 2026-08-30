@@ -15,18 +15,19 @@
 
 For reviewers scanning quickly: this repository is a working implementation of the core competencies behind an **AI automation / agentic AI engineering** role, not a single notebook or prompt demo.
 
-| Competency area                          | Where it shows up in this repo                                                                                       |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| LLM orchestration & agentic workflows    | LangGraph.js supervisor coordinating specialist agents ([Agent design](#agent-design))                               |
-| Multi-agent system design                | Scoped triage / repository / action specialists with explicit forbidden responsibilities                             |
-| Retrieval-augmented generation           | Local LlamaIndex + `nomic-embed-text` embeddings with cited repository evidence                                      |
-| Structured output & validation           | Zod-validated `AgentInvestigation` contract; malformed output triggers deterministic fallback                        |
-| Human-in-the-loop safety                 | Durable LangGraph interrupts + dashboard approve/reject before any Jira/Slack side effect                            |
-| AI observability & evaluation            | Per-call model/token/latency telemetry; deterministic evaluation gates in CI                                         |
-| Tool-using agents with bounded authority | Three allowlisted tools, no free-form code execution or unbounded external calls                                     |
-| Production delivery for AI systems       | Docker Compose, GitHub Actions quality/security gates, container vulnerability scanning, semantic-versioned releases |
-| API & event-contract design              | Zod-validated webhook contract shared across the API and n8n paths                                                   |
-| Low-code + code-first orchestration      | Equivalent n8n visual workflow alongside the TypeScript service                                                      |
+| Competency area                          | Where it shows up in this repo                                                                                                                                                                                                                     |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LLM orchestration & agentic workflows    | LangGraph.js supervisor coordinating specialist agents ([Agent design](#agent-design))                                                                                                                                                             |
+| Multi-agent system design                | Scoped triage / repository / action specialists with explicit forbidden responsibilities                                                                                                                                                           |
+| Retrieval-augmented generation           | Local LlamaIndex + `nomic-embed-text` embeddings with cited repository evidence                                                                                                                                                                    |
+| Structured output & validation           | Zod-validated `AgentInvestigation` contract; malformed output triggers deterministic fallback                                                                                                                                                      |
+| Human-in-the-loop safety                 | Durable LangGraph interrupts + dashboard approve/reject before any Jira/Slack side effect                                                                                                                                                          |
+| AI observability & evaluation            | Per-call model/token/latency telemetry; deterministic + LLM-as-judge evaluation gates in CI                                                                                                                                                        |
+| LLM quality engineering                  | LLM-as-judge grader validated against a human-labeled set, a named failure-mode taxonomy, production sampling, and before/after model/prompt comparison ([Evaluation suite](#evaluation-suite-deterministic-llm-as-judge-and-production-sampling)) |
+| Tool-using agents with bounded authority | Three allowlisted tools, no free-form code execution or unbounded external calls                                                                                                                                                                   |
+| Production delivery for AI systems       | Docker Compose, GitHub Actions quality/security gates, container vulnerability scanning, semantic-versioned releases                                                                                                                               |
+| API & event-contract design              | Zod-validated webhook contract shared across the API and n8n paths                                                                                                                                                                                 |
+| Low-code + code-first orchestration      | Equivalent n8n visual workflow alongside the TypeScript service                                                                                                                                                                                    |
 
 ## Why this project exists
 
@@ -64,6 +65,9 @@ The result is a portfolio-grade example of **AI automation as a complete system*
 - **Operations dashboard**: a live React console combines CI runs, failure intelligence, persisted Agent investigations, Jira issues, and Slack notifications in one UI.
 - **AI observability**: every specialist call records model, prompt version, token counts, and latency; the dashboard aggregates execution health and node-level performance over a rolling 24-hour window.
 - **Evaluation gates**: deterministic code evaluators reject missing specialist coverage, ungrounded RAG output, invalid confidence, and high-risk automation that bypasses human review.
+- **LLM-as-judge grading**: a second Ollama call scores each investigation's groundedness, root-cause quality, and explanation clarity against a rubric, fails closed on malformed output, and is itself validated against a small human-labeled set via a judge/human agreement score.
+- **Named failure-mode taxonomy**: quality failures are classified into specific modes (`ungrounded_rag`, `unsafe_high_risk_policy`, `low_groundedness`, `overconfident_language`, ...) instead of a single pass/fail signal, then aggregated with example thread IDs across a batch.
+- **Production quality sampling and before/after comparison**: CLI tooling samples recent live investigations into a failure-mode report, and a second tool diffs that report between two models or LangGraph versions to call a change `improved`, `regressed`, or `no_change`.
 
 ## Demonstrated agent outcome
 
@@ -235,9 +239,24 @@ Two complementary telemetry levels are persisted:
 - `agent_execution_events` captures graph transitions, interrupts, decisions, and worker boundaries.
 - `agent_model_calls` captures the model and prompt version, prompt/completion tokens, and wall-clock latency for every specialist and supervisor call.
 
-`GET /api/observability/summary` exposes rolling 24-hour execution and per-node aggregates to the dashboard. The local evaluation suite follows the same dataset/target/evaluator pattern used by modern LLM evaluation platforms, but uses deterministic code evaluators so it remains free, reproducible, and suitable for CI.
+`GET /api/observability/summary` exposes rolling 24-hour execution and per-node aggregates to the dashboard.
 
 ![AI observability view: agent executions, model calls, total tokens, and average call latency, broken down by graph node](docs/screenshots/dashboard-observability.png)
+
+### Evaluation suite: deterministic, LLM-as-judge, and production sampling
+
+The evaluation stack is layered and follows the dataset/target/evaluator pattern used by modern LLM evaluation platforms, while keeping the LLM off the CI critical path so the suite stays free, reproducible, and fast:
+
+| Layer                       | What it checks                                                                                                                                                                                                                       | Where                                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Deterministic evaluators    | Schema completeness, specialist coverage, RAG grounding, high-risk policy safety, confidence range                                                                                                                                   | `agent-evaluation.ts`; runs on every `npm run test:evaluations` CI pass                                                |
+| LLM-as-judge grader         | Groundedness, root-cause quality, and explanation clarity, scored by a second Ollama call against a rubric; fails closed on non-JSON, schema-invalid, or failed judge output                                                         | `agent-judge.ts`; validated against a 6-example human-labeled set (`judge-labeled-set.ts`) via `scoreJudgeAgreement()` |
+| Language-quality heuristics | Model-free checks for overconfident phrasing ("definitely", "guaranteed") at low stated confidence, and hedge-laden explanations                                                                                                     | `explanation-language-quality.ts`                                                                                      |
+| Failure-mode taxonomy       | Names _why_ an investigation failed (`ungrounded_rag`, `unsafe_high_risk_policy`, `low_groundedness`, `overconfident_language`, ...) instead of a single pass/fail signal, and aggregates counts + example thread IDs across a batch | `failure-mode-taxonomy.ts`                                                                                             |
+| Production sampling         | Pulls recent completed investigations straight from `agent_executions` and runs the full stack above against them                                                                                                                    | `npm run sample:failure-modes --workspace=apps/ingestion-service`                                                      |
+| Before/after comparison     | Diffs two models or LangGraph versions on pass rate and per-failure-mode counts, returning `improved` / `regressed` / `no_change`                                                                                                    | `npm run compare:versions --workspace=apps/ingestion-service -- --before-model=X --after-model=Y`                      |
+
+This mirrors how a quality-mature AI team ships a model, prompt, or context change: deterministic checks gate CI unconditionally, the LLM judge and language heuristics catch quality regressions structural checks can't see, and the sampling and comparison tools turn "does this feel better?" into a measured before/after verdict instead of a spot check.
 
 ## Deterministic decision engine
 
@@ -487,6 +506,8 @@ It uses same-origin Nginx proxies to the ingestion and mock-integration services
 - How bounded tools reduce hallucination and data exposure.
 - How processing continues when Ollama is down or slow.
 - Where n8n adds visibility and where code should remain the source of truth.
+- Why the LLM-as-judge grader is itself validated against a human-labeled set rather than trusted on its own.
+- How a named failure-mode taxonomy and before/after version comparison turn "does this feel better?" into a measured verdict.
 - How the architecture can expand to repository search, logs, approvals, and evaluation.
 
 ## n8n workflow
@@ -580,6 +601,15 @@ npm test
 npm test --workspace=packages/fingerprint-engine
 npm test --workspace=packages/failure-classifier
 npm test --workspace=apps/ingestion-service
+
+# Deterministic + LLM-as-judge agent evaluation suite (the CI quality gate)
+npm run test:evaluations
+
+# Sample recent production investigations into a failure-mode report
+npm run sample:failure-modes --workspace=apps/ingestion-service
+
+# Compare two models or LangGraph versions on pass rate and failure modes
+npm run compare:versions --workspace=apps/ingestion-service -- --before-model=qwen3:4b --after-model=llama3:8b
 ```
 
 The Playwright project intentionally includes successful, failing, flaky, infrastructure, and automation scenarios. Its custom reporter writes:
@@ -647,7 +677,7 @@ CI failures can contain source paths, stack traces, endpoints, and operational c
 Planned evolution:
 
 1. Extend local RAG with Git diff, log, and trace ingestion.
-2. Add historical and adversarial datasets plus optional local LLM-as-judge evaluation.
+2. Grow the LLM-as-judge human-labeled set with adversarial and near-miss examples, and schedule the production sampling script as a recurring job.
 3. Add semantic clustering after exact fingerprint matching.
 4. Export traces and metrics through OpenTelemetry collectors.
 5. Add retries, circuit breakers, and a transactional action outbox.
