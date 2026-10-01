@@ -13,9 +13,9 @@
     "@orchestrator/shared-types": "*"
   },
   "devDependencies": {
-    "@playwright/test": "^1.47.0",
-    "allure-playwright": "^3.0.0",
-    "typescript": "^5.5.0",
-    "tsx": "^4.19.0"
+    "@playwright/test": "^1.63.0",
+    "allure-playwright": "^3.13.0",
+    "typescript": "^7.0.2",
+    "tsx": "^4.23.15"
   }
 }
