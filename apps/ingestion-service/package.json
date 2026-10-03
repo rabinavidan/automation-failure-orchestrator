@@ -25,6 +25,7 @@
     "llamaindex": "^0.12.1",
     "ollama": "^0.6.3",
     "pg": "^8.13.0",
+    "yaml": "^2.9.1",
     "zod": "^3.23.0"
   },
   "devDependencies": {

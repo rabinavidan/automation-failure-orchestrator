@@ -23,6 +23,10 @@ import {
   TriageDispositionSchema,
   TriagePrioritySchema,
   TriageActionSchema,
+  ResponseActionTypeSchema,
+  PlaybookStepSchema,
+  PlaybookSchema,
+  ResponseActionStatusSchema,
 } from './security';
 
 export type TestError = z.infer<typeof TestErrorSchema>;
@@ -164,6 +168,7 @@ export interface AlertProcessingResult {
   enrichment?: AlertEnrichmentOutcome;
   triage?: AlertTriage;
   investigation?: AlertInvestigationOutcome;
+  response?: AlertResponseOutcome;
 }
 
 export type TriagePolicy = z.infer<typeof TriagePolicySchema>;
@@ -259,4 +264,28 @@ export interface SocEvaluationResult {
 export interface AlertInvestigationOutcome {
   status: 'queued' | 'disabled' | 'not_applicable';
   threadId?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Response playbooks (M5)
+// ---------------------------------------------------------------------------
+
+export type ResponseActionType = z.infer<typeof ResponseActionTypeSchema>;
+export type PlaybookStep = z.infer<typeof PlaybookStepSchema>;
+export type Playbook = z.infer<typeof PlaybookSchema>;
+export type ResponseActionStatus = z.infer<typeof ResponseActionStatusSchema>;
+
+export interface ResponseActionSummary {
+  id: string;
+  playbookId: string;
+  stepId: string;
+  action: ResponseActionType;
+  target: string | null;
+  status: ResponseActionStatus;
+  detail?: string;
+}
+
+export interface AlertResponseOutcome {
+  playbooks: string[];
+  actions: ResponseActionSummary[];
 }

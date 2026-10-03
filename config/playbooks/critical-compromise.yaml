@@ -1,0 +1,21 @@
+id: critical-compromise
+version: 1
+description: Credential dumping or ransomware behaviour - isolate first, investigate second.
+owner: secops-ir
+trigger:
+  dispositions: [true_positive]
+  techniques: [T1003, T1486, T1490]
+steps:
+  - id: open-case
+    action: ticket.create
+    description: Open a critical incident ticket
+    approval: none
+  - id: notify-soc
+    action: slack.notify
+    description: Page the incident commander via the SOC channel
+    approval: none
+  - id: isolate-host
+    action: edr.isolate_host
+    description: Network-isolate the affected host via EDR (runbooks credential-dumping.md, ransomware.md)
+    target: { indicator: host, role: destination }
+    approval: required

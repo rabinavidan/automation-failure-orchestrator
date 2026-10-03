@@ -169,3 +169,65 @@ export const TriageDispositionSchema = z.enum([
 export const TriagePrioritySchema = z.enum(['P1', 'P2', 'P3', 'P4']);
 
 export const TriageActionSchema = z.enum(['escalate', 'investigate', 'close', 'suppress']);
+
+// ---------------------------------------------------------------------------
+// Response playbooks (M5)
+// ---------------------------------------------------------------------------
+
+/** Allowlisted response actions; anything else is rejected at playbook load time. */
+export const ResponseActionTypeSchema = z.enum([
+  'ticket.create',
+  'slack.notify',
+  'firewall.block_ip',
+  'edr.isolate_host',
+  'edr.kill_process',
+]);
+
+/** Containment changes production state: these can never run without a human decision. */
+export const CONTAINMENT_ACTIONS = ['firewall.block_ip', 'edr.isolate_host', 'edr.kill_process'];
+
+export const PlaybookStepSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+    action: ResponseActionTypeSchema,
+    description: z.string().min(1),
+    /** Which alert entity the action targets. */
+    target: z
+      .object({
+        indicator: IndicatorTypeSchema,
+        role: z.enum(['source', 'destination', 'target', 'observed']).optional(),
+      })
+      .optional(),
+    approval: z.enum(['none', 'required']),
+  })
+  .refine((s) => !CONTAINMENT_ACTIONS.includes(s.action) || s.approval === 'required', {
+    message: 'containment actions must set approval: required',
+  })
+  .refine((s) => !CONTAINMENT_ACTIONS.includes(s.action) || s.target !== undefined, {
+    message: 'containment actions must declare a target',
+  });
+
+export const PlaybookSchema = z.object({
+  id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+  version: z.number().int().positive(),
+  description: z.string().min(1),
+  owner: z.string().min(1),
+  trigger: z.object({
+    dispositions: z.array(TriageDispositionSchema).min(1),
+    /** ATT&CK techniques (parent match). Omit to match any technique. */
+    techniques: z.array(z.string().regex(/^T\d{4}(\.\d{3})?$/)).optional(),
+    /** Only run for alerts at this priority or more urgent. */
+    maxPriority: TriagePrioritySchema.optional(),
+  }),
+  steps: z.array(PlaybookStepSchema).min(1),
+});
+
+export const ResponseActionStatusSchema = z.enum([
+  'pending_approval',
+  'approved',
+  'rejected',
+  'succeeded',
+  'failed',
+  'blocked_by_guard',
+  'rolled_back',
+]);

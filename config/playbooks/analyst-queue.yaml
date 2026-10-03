@@ -1,0 +1,16 @@
+id: analyst-queue
+version: 1
+description: Track urgent alerts that need analyst review; no containment.
+owner: secops-tier1
+trigger:
+  dispositions: [needs_investigation]
+  maxPriority: P2
+steps:
+  - id: open-case
+    action: ticket.create
+    description: Open an investigation ticket for the analyst queue
+    approval: none
+  - id: notify-soc
+    action: slack.notify
+    description: Notify the SOC channel of a high-priority alert awaiting review
+    approval: none
