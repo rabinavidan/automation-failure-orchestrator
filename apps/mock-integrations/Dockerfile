@@ -30,4 +30,6 @@ RUN npm install --production
 
 EXPOSE 3002
 
+USER node
+
 CMD ["node", "dist/server.js"]

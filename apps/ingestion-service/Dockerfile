@@ -55,8 +55,17 @@ COPY --from=builder /app/config ./config
 COPY --from=builder /app/README.md ./README.md
 COPY --from=builder /app/docs ./docs
 
+# Amazon RDS CA bundle: lets the service verify the database certificate (DB_SSL=require).
+RUN wget -qO /etc/ssl/certs/rds-global-bundle.pem \
+      https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+ && chmod 644 /etc/ssl/certs/rds-global-bundle.pem
+
 EXPOSE 3001
 
 WORKDIR /app/apps/ingestion-service
+
+# Run as the image's unprivileged `node` user (uid 1000). The API and the investigation
+# worker (`node dist/workers/investigation-worker.js`) share this image.
+USER node
 
 CMD ["node", "dist/server.js"]

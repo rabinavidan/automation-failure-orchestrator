@@ -36,7 +36,9 @@ describe('scheduleAlertInvestigation', () => {
 
   it('is disabled when AI is off', () => {
     delete process.env.AI_ENABLED;
-    expect(scheduleAlertInvestigation(input)).toEqual({ status: 'disabled' });
+    expect(scheduleAlertInvestigation(input, undefined, vi.fn(), null)).toEqual({
+      status: 'disabled',
+    });
   });
 
   it.each(['false_positive', 'duplicate', 'benign_true_positive'] as const)(
@@ -48,7 +50,8 @@ describe('scheduleAlertInvestigation', () => {
         scheduleAlertInvestigation(
           { ...input, triage: { ...socTriage, disposition } },
           undefined,
-          schedule
+          schedule,
+          null
         )
       ).toEqual({ status: 'not_applicable' });
       expect(schedule).not.toHaveBeenCalled();
@@ -58,10 +61,38 @@ describe('scheduleAlertInvestigation', () => {
   it('queues true positives without blocking the webhook response', () => {
     process.env.AI_ENABLED = 'true';
     const schedule = vi.fn();
-    expect(scheduleAlertInvestigation(input, undefined, schedule)).toEqual({
+    expect(scheduleAlertInvestigation(input, undefined, schedule, null)).toEqual({
       status: 'queued',
       threadId: `alert:${socAlert.alertId}`,
+      queue: 'in_process',
     });
+    expect(schedule).toHaveBeenCalledOnce();
+  });
+
+  it('hands work to the durable queue when configured, without running in-process', async () => {
+    process.env.AI_ENABLED = 'true';
+    const schedule = vi.fn();
+    const queue = { kind: 'sqs' as const, enqueue: vi.fn(async () => undefined) };
+    expect(scheduleAlertInvestigation(input, undefined, schedule, queue)).toMatchObject({
+      status: 'queued',
+      queue: 'sqs',
+    });
+    await Promise.resolve();
+    expect(queue.enqueue).toHaveBeenCalledWith(socAlert.alertId);
+    expect(schedule).not.toHaveBeenCalled();
+  });
+
+  it('falls back to in-process when the enqueue fails', async () => {
+    process.env.AI_ENABLED = 'true';
+    const schedule = vi.fn();
+    const queue = {
+      kind: 'sqs' as const,
+      enqueue: vi.fn(async () => {
+        throw new Error('AccessDenied');
+      }),
+    };
+    scheduleAlertInvestigation(input, undefined, schedule, queue);
+    await new Promise((resolve) => setImmediate(resolve));
     expect(schedule).toHaveBeenCalledOnce();
   });
 });

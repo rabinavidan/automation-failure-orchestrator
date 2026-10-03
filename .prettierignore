@@ -11,3 +11,4 @@ n8n/workflows/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.terraform/

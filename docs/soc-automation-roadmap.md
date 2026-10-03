@@ -14,16 +14,16 @@ Design principles carried over from the CI track:
 
 ## Milestones
 
-| #   | Milestone                        | Status  | Scope                                                                                                                      |
-| --- | -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------- |
-| M1  | Security alert ingestion         | ✅ Done | `SecurityAlert` contract, Splunk webhook normalizer, `/api/alerts`, entity fingerprinting, idempotency, suppression window |
-| M2  | Python enrichment service        | ✅ Done | FastAPI service: IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with mock mode, caching, pytest/ruff/mypy                   |
-| M3  | Deterministic SOC classifier     | ✅ Done | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping    |
-| M4  | AI SOC triage agents             | ✅ Done | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates             |
-| M5  | Response playbooks + approval    | ✅ Done | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit               |
-| M6  | SOAR / SIEM interoperability     | ✅ Done | Sentinel + Wazuh normalizers beside Splunk (vendor registry), multi-SIEM n8n SOC workflow with ChatOps approval requests   |
-| M7  | AWS deployment                   | Planned | Terraform: Lambda/Fargate, SQS/EventBridge, RDS, Secrets Manager; GitHub Actions deploy                                    |
-| M8  | SOC dashboard + portfolio polish | Planned | Alert queue, MTTT/automation-rate metrics, demo scenarios (phishing, brute force, EDR malware), architecture diagram       |
+| #   | Milestone                        | Status  | Scope                                                                                                                                       |
+| --- | -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | Security alert ingestion         | ✅ Done | `SecurityAlert` contract, Splunk webhook normalizer, `/api/alerts`, entity fingerprinting, idempotency, suppression window                  |
+| M2  | Python enrichment service        | ✅ Done | FastAPI service: IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with mock mode, caching, pytest/ruff/mypy                                    |
+| M3  | Deterministic SOC classifier     | ✅ Done | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping                     |
+| M4  | AI SOC triage agents             | ✅ Done | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates                              |
+| M5  | Response playbooks + approval    | ✅ Done | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit                                |
+| M6  | SOAR / SIEM interoperability     | ✅ Done | Sentinel + Wazuh normalizers beside Splunk (vendor registry), multi-SIEM n8n SOC workflow with ChatOps approval requests                    |
+| M7  | AWS deployment                   | ✅ Done | Terraform (ECS Fargate, RDS, SQS + DLQ worker, WAF, KMS, Secrets Manager, GitHub OIDC), Checkov-gated in CI, approval-gated deploy workflow |
+| M8  | SOC dashboard + portfolio polish | Planned | Alert queue, MTTT/automation-rate metrics, demo scenarios (phishing, brute force, EDR malware), architecture diagram                        |
 
 ## M1 — Security alert ingestion (done)
 
@@ -268,3 +268,27 @@ N8N=true npm run demo:soc-multi-siem   # same, through the n8n SOC workflow
 
 Deferred: live Splunk/Sentinel API adapters (pulling notables, closing incidents back in the
 SIEM) and a Wazuh container profile. The normalizers already accept their native payloads.
+
+## M7 — AWS deployment (done)
+
+`infra/terraform` provisions the platform on AWS (see its [README](../infra/terraform/README.md)
+for the architecture, security controls, deploy steps and cost):
+
+- **Compute**: ECS Fargate services for the API, the Python enrichment service, the new
+  **SQS investigation worker**, and (demo) the mock integrations, in private subnets.
+- **Durable AI queue**: with `INVESTIGATION_QUEUE=sqs` the API only enqueues the alert id;
+  `dist/workers/investigation-worker.js` consumes it with at-least-once semantics (delete only
+  after the result is persisted, idempotent on redelivery, poison messages discarded, failures
+  backed off and dead-lettered after 3 attempts with a CloudWatch alarm). This removes the M4
+  limitation that a restart lost queued investigations.
+- **Data**: RDS PostgreSQL 16 with forced TLS (the app verifies the RDS CA via `DB_SSL=require`)
+  and an RDS-managed password injected as `PGUSER`/`PGPASSWORD` from Secrets Manager.
+- **Edge**: ALB + AWS WAF (rate limiting and managed rule groups) restricted to SIEM egress CIDRs;
+  HTTPS required unless explicitly opted out for a demo.
+- **Delivery**: GitHub OIDC (no AWS keys in GitHub) and a manual, environment-approved
+  `Deploy to AWS` workflow that pushes immutable images and rolls services with circuit-breaker
+  rollback. CI runs `terraform validate` plus a **Checkov** IaC scan (309 passed, 0 failed,
+  13 documented skips).
+
+Not applied from this repository's CI: provisioning creates billable resources in the
+operator's AWS account and is run deliberately with `terraform apply`.
