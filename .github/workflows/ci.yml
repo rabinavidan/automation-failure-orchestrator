@@ -47,6 +47,30 @@ jobs:
       - run: mypy
       - run: pytest -q
 
+  terraform:
+    name: Terraform validate and IaC security scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Checkov IaC security scan (fails on any unskipped finding)
+        run: |
+          pip install --quiet checkov==3.3.22
+          checkov -d . --framework terraform --quiet --compact
+
   dependency-review:
     name: Dependency review
     if: github.event_name == 'pull_request'

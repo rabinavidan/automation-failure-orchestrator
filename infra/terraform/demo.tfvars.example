@@ -1,0 +1,14 @@
+# cp demo.tfvars.example demo.tfvars && terraform plan -var-file=demo.tfvars
+environment           = "demo"
+aws_region            = "eu-central-1"
+allowed_ingress_cidrs = ["198.51.100.0/24"] # your SIEM / SOAR egress range(s)
+
+# Production: an ACM certificate for your API hostname.
+# certificate_arn = "arn:aws:acm:eu-central-1:123456789012:certificate/..."
+allow_insecure_http = true # throwaway demo only
+
+enrichment_mode          = "mock"
+deploy_mock_integrations = true
+ai_enabled               = false
+deletion_protection      = false # demo: allow terraform destroy
+alarm_email              = ""

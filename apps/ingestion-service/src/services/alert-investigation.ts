@@ -19,6 +19,8 @@ import type { InvestigationModel } from './failure-investigation-agent';
 import { evaluateSocInvestigation } from './soc-agent-evaluation';
 import { SOC_GRAPH_VERSION, runSocInvestigation } from './soc-investigation';
 import { loadRunbooks, selectRunbooks } from './soc-runbooks';
+import { getInvestigationQueue } from './investigation-queue';
+import type { InvestigationQueue } from './investigation-queue';
 
 /** LLM time is spent only where a human will act: confirmed threats and the analyst queue. */
 const INVESTIGATED_DISPOSITIONS = new Set(['true_positive', 'needs_investigation']);
@@ -41,13 +43,15 @@ export function threadIdFor(alertId: string): string {
 
 /**
  * Queues an advisory investigation and returns immediately: SIEM webhooks must not
- * wait on model latency. The investigation runs in-process after the response;
- * a restart loses queued work (a durable queue is part of the AWS milestone).
+ * wait on model latency. With INVESTIGATION_QUEUE=sqs the alert id goes to SQS and the
+ * investigation worker runs it (durable, retried, dead-lettered); otherwise it runs
+ * in-process after the response, which a restart can lose.
  */
 export function scheduleAlertInvestigation(
   input: AlertInvestigationInput | null,
   deps?: AlertInvestigationDeps,
-  schedule: (task: () => void) => void = setImmediate
+  schedule: (task: () => void) => void = setImmediate,
+  queue: InvestigationQueue | null = getInvestigationQueue()
 ): AlertInvestigationOutcome {
   if (!input) return { status: 'not_applicable' };
   if (process.env.AI_ENABLED !== 'true') return { status: 'disabled' };
@@ -56,12 +60,66 @@ export function scheduleAlertInvestigation(
   }
 
   const threadId = threadIdFor(input.alert.alertId);
-  schedule(() => {
-    runAlertInvestigation(input, deps).catch((err) =>
-      console.error(`[SOC Agent] ${threadId} crashed:`, err instanceof Error ? err.name : err)
-    );
-  });
-  return { status: 'queued', threadId };
+  const runInProcess = () =>
+    schedule(() => {
+      runAlertInvestigation(input, deps).catch((err) =>
+        console.error(`[SOC Agent] ${threadId} crashed:`, err instanceof Error ? err.name : err)
+      );
+    });
+
+  if (queue) {
+    // Durable path: the worker loads everything it needs from the database by alert id.
+    queue.enqueue(input.alert.alertId).catch((err) => {
+      console.error(
+        `[SOC Agent] enqueue failed for ${threadId}; running in-process instead:`,
+        err instanceof Error ? err.name : err
+      );
+      runInProcess();
+    });
+    return { status: 'queued', threadId, queue: queue.kind };
+  }
+
+  runInProcess();
+  return { status: 'queued', threadId, queue: 'in_process' };
+}
+
+/** Rebuilds an investigation input from the persisted alert (used by the queue worker). */
+export async function loadInvestigationInput(alertId: string): Promise<{
+  input: AlertInvestigationInput | null;
+  alreadyCompleted: boolean;
+}> {
+  const rows = await query<{
+    alert: SecurityAlert;
+    triage: AlertTriage | null;
+    enrichment: EnrichmentResponse | null;
+    fingerprint: string;
+    status: AlertProcessingResult['status'];
+    ai_investigation_status: string | null;
+  }>(
+    `SELECT alert, triage, enrichment, fingerprint, status, ai_investigation_status
+     FROM security_alerts WHERE alert_id = $1`,
+    [alertId]
+  );
+  const row = rows[0];
+  if (!row?.triage) return { input: null, alreadyCompleted: false };
+  return {
+    alreadyCompleted: row.ai_investigation_status === 'completed',
+    input: {
+      alert: row.alert,
+      triage: row.triage,
+      enrichment: row.enrichment,
+      result: {
+        alertId,
+        fingerprint: row.fingerprint,
+        fingerprintLabel: '',
+        status: row.status,
+        occurrenceCount: 1,
+        suppressedCount: 0,
+        firstSeenAt: '',
+        lastSeenAt: '',
+      },
+    },
+  };
 }
 
 export async function runAlertInvestigation(

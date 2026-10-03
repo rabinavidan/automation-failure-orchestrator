@@ -1,0 +1,94 @@
+name: Deploy to AWS
+
+# Manual, approval-gated deployment of the SOC platform to ECS Fargate.
+# Infrastructure is provisioned separately with Terraform (infra/terraform); this
+# workflow only builds immutable images and rolls the ECS services to them.
+#
+# Prerequisites (GitHub environment `production`):
+#   vars.AWS_DEPLOY_ROLE_ARN  - terraform output github_deploy_role_arn
+#   vars.AWS_REGION           - e.g. eu-central-1
+#   vars.NAME_PREFIX          - "<project>-<environment>", e.g. soc-orchestrator-demo
+# Add required reviewers to the environment so every deploy needs a human approval.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC: no long-lived AWS keys
+
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build, push and roll ECS services
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      NAME_PREFIX: ${{ vars.NAME_PREFIX }}
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - name: Check configuration
+        run: |
+          for v in AWS_REGION NAME_PREFIX; do
+            if [ -z "${!v}" ]; then echo "::error::Environment variable $v is not configured"; exit 1; fi
+          done
+          if [ -z "${{ vars.AWS_DEPLOY_ROLE_ARN }}" ]; then
+            echo "::error::vars.AWS_DEPLOY_ROLE_ARN is not configured"; exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push immutable images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          docker build -f apps/ingestion-service/Dockerfile -t "$REGISTRY/$NAME_PREFIX/ingestion:$IMAGE_TAG" .
+          docker build -t "$REGISTRY/$NAME_PREFIX/enrichment:$IMAGE_TAG" apps/enrichment-service
+          docker build -f apps/mock-integrations/Dockerfile -t "$REGISTRY/$NAME_PREFIX/mock-integrations:$IMAGE_TAG" .
+          for image in ingestion enrichment mock-integrations; do
+            docker push "$REGISTRY/$NAME_PREFIX/$image:$IMAGE_TAG"
+          done
+
+      - name: Roll ECS services to the new images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          cluster="$NAME_PREFIX"
+          # service:container:image
+          for spec in ingestion:ingestion:ingestion worker:worker:ingestion enrichment:enrichment:enrichment mock-integrations:mock-integrations:mock-integrations; do
+            IFS=: read -r service container image <<< "$spec"
+            if ! aws ecs describe-services --cluster "$cluster" --services "$service" \
+                 --query 'services[?status==`ACTIVE`]' --output text | grep -q .; then
+              echo "Skipping $service (not deployed)"; continue
+            fi
+            current=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+              --query 'services[0].taskDefinition' --output text)
+            aws ecs describe-task-definition --task-definition "$current" --query taskDefinition > td.json
+            jq --arg c "$container" --arg img "$REGISTRY/$NAME_PREFIX/$image:$IMAGE_TAG" '
+              .containerDefinitions |= map(if .name == $c then .image = $img else . end)
+              | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities,
+                    .registeredAt, .registeredBy)' td.json > td-new.json
+            revision=$(aws ecs register-task-definition --cli-input-json file://td-new.json \
+              --query 'taskDefinition.taskDefinitionArn' --output text)
+            aws ecs update-service --cluster "$cluster" --service "$service" \
+              --task-definition "$revision" > /dev/null
+            echo "$service -> $revision"
+          done
+          # The deployment circuit breaker rolls back automatically if new tasks fail.
+          aws ecs wait services-stable --cluster "$cluster" \
+            --services ingestion worker enrichment

@@ -268,6 +268,8 @@ export interface SocEvaluationResult {
 export interface AlertInvestigationOutcome {
   status: 'queued' | 'disabled' | 'not_applicable';
   threadId?: string;
+  /** Where queued work runs: in the API process, or via SQS + the investigation worker. */
+  queue?: 'in_process' | 'sqs';
 }
 
 // ---------------------------------------------------------------------------

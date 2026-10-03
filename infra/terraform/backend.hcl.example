@@ -1,0 +1,6 @@
+# terraform init -backend-config=backend.hcl
+bucket       = "my-terraform-state-bucket"
+key          = "soc-orchestrator/demo.tfstate"
+region       = "eu-central-1"
+encrypt      = true
+use_lockfile = true
