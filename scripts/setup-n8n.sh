@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Automates n8n first-time setup: creates the owner account and imports + activates the workflow.
+# Automates n8n first-time setup: creates the owner account and imports + activates every
+# workflow in n8n/workflows (CI failure workflow and multi-SIEM SOC workflow).
 # Run once after `docker compose up --build -d`.
 
 set -e
@@ -11,7 +12,7 @@ PASSWORD="Orchestrator123!"
 # Resolve project root regardless of where the script is called from
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORKFLOW_FILE="$PROJECT_ROOT/n8n/workflows/main-workflow.json"
+WORKFLOW_DIR="$PROJECT_ROOT/n8n/workflows"
 
 echo "==> Waiting for n8n to be ready..."
 until curl -sf "$N8N_URL/rest/settings" > /dev/null 2>&1; do sleep 2; done
@@ -43,62 +44,74 @@ if [ -z "$TOKEN" ]; then
 fi
 echo "    Logged in successfully."
 
-echo "==> Preparing workflow (stripping tags field)..."
-# Convert POSIX path to a form Node.js on Windows can read
-if command -v cygpath > /dev/null 2>&1; then
-  NODE_PATH="$(cygpath -w "$WORKFLOW_FILE")"
-else
-  NODE_PATH="$WORKFLOW_FILE"
-fi
-CLEAN_WORKFLOW=$(node -e "
-  const w = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
-  delete w.tags;
-  w.active = false;
-  process.stdout.write(JSON.stringify(w));
-" "$NODE_PATH")
-
-echo "==> Importing workflow via API..."
-IMPORT_RESP=$(echo "$CLEAN_WORKFLOW" | curl -s -X POST "$N8N_URL/rest/workflows" \
-  -H "Content-Type: application/json" \
-  -H "Cookie: n8n-auth=$TOKEN" \
-  -d @-)
-
-WORKFLOW_ID=$(echo "$IMPORT_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log((r.data&&r.data.id)||''); } catch(e){} })")
-
-if [ -z "$WORKFLOW_ID" ]; then
-  # Workflow already exists — update it instead
-  if echo "$IMPORT_RESP" | grep -q "exists already"; then
-    echo "    Workflow already exists, updating..."
-    WORKFLOW_ID="main-workflow"
-    UPDATE_RESP=$(echo "$CLEAN_WORKFLOW" | curl -s -X PUT "$N8N_URL/rest/workflows/$WORKFLOW_ID" \
-      -H "Content-Type: application/json" \
-      -H "Cookie: n8n-auth=$TOKEN" \
-      -d @-)
-    WORKFLOW_ID=$(echo "$UPDATE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log((r.data&&r.data.id)||'main-workflow'); } catch(e){ console.log('main-workflow'); } })")
-  else
-    echo "ERROR: Workflow import failed. Response: $IMPORT_RESP"
-    exit 1
+# Import, update and activate one workflow file. The workflow id comes from the file's "id".
+import_workflow() {
+  local file="$1"
+  local node_path="$file"
+  # Convert POSIX path to a form Node.js on Windows can read
+  if command -v cygpath > /dev/null 2>&1; then
+    node_path="$(cygpath -w "$file")"
   fi
-fi
-echo "    Workflow ready: ID=$WORKFLOW_ID"
+  local default_id
+  default_id=$(node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).id || '')" "$node_path")
 
-echo "==> Activating workflow..."
-ACT_RESP=$(curl -s -X PATCH "$N8N_URL/rest/workflows/$WORKFLOW_ID" \
-  -H "Content-Type: application/json" \
-  -H "Cookie: n8n-auth=$TOKEN" \
-  -d '{"active":true}')
+  echo "==> Preparing $(basename "$file") (stripping tags field)..."
+  local clean
+  clean=$(node -e "
+    const w = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+    delete w.tags;
+    w.active = false;
+    process.stdout.write(JSON.stringify(w));
+  " "$node_path")
 
-ACTIVE=$(echo "$ACT_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log(r.data&&r.data.active); } catch(e){} })")
+  echo "==> Importing workflow via API..."
+  local import_resp workflow_id
+  import_resp=$(echo "$clean" | curl -s -X POST "$N8N_URL/rest/workflows" \
+    -H "Content-Type: application/json" \
+    -H "Cookie: n8n-auth=$TOKEN" \
+    -d @-)
+  workflow_id=$(echo "$import_resp" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log((r.data&&r.data.id)||''); } catch(e){} })")
 
-if [ "$ACTIVE" = "true" ]; then
-  echo "    Workflow is active."
-else
-  echo "    Note: active=$ACTIVE — open http://localhost:5678 and activate manually if needed."
-fi
+  if [ -z "$workflow_id" ]; then
+    # Workflow already exists — update it instead
+    if echo "$import_resp" | grep -q "exists already"; then
+      echo "    Workflow already exists, updating..."
+      local update_resp
+      update_resp=$(echo "$clean" | curl -s -X PUT "$N8N_URL/rest/workflows/$default_id" \
+        -H "Content-Type: application/json" \
+        -H "Cookie: n8n-auth=$TOKEN" \
+        -d @-)
+      workflow_id=$(echo "$update_resp" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log((r.data&&r.data.id)||process.argv[1]); } catch(e){ console.log(process.argv[1]); } })" "$default_id")
+    else
+      echo "ERROR: Workflow import failed. Response: $import_resp"
+      exit 1
+    fi
+  fi
+  echo "    Workflow ready: ID=$workflow_id"
+
+  echo "==> Activating workflow..."
+  local act_resp active
+  act_resp=$(curl -s -X PATCH "$N8N_URL/rest/workflows/$workflow_id" \
+    -H "Content-Type: application/json" \
+    -H "Cookie: n8n-auth=$TOKEN" \
+    -d '{"active":true}')
+  active=$(echo "$act_resp" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{ try { const r=JSON.parse(d); console.log(r.data&&r.data.active); } catch(e){} })")
+
+  if [ "$active" = "true" ]; then
+    echo "    Workflow is active."
+  else
+    echo "    Note: active=$active — open http://localhost:5678 and activate manually if needed."
+  fi
+}
+
+for workflow_file in "$WORKFLOW_DIR"/*.json; do
+  import_workflow "$workflow_file"
+done
 
 echo ""
 echo "==> Setup complete!"
 echo "    n8n UI:        $N8N_URL"
 echo "    Login email:   $EMAIL"
 echo "    Login password: $PASSWORD"
-echo "    Webhook URL:   $N8N_URL/webhook/test-results"
+echo "    CI webhook:    $N8N_URL/webhook/test-results"
+echo "    SOC webhook:   $N8N_URL/webhook/soc-alerts   (Splunk, Sentinel or Wazuh payloads)"

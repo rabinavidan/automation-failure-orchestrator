@@ -21,7 +21,7 @@ Design principles carried over from the CI track:
 | M3  | Deterministic SOC classifier     | ✅ Done | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping    |
 | M4  | AI SOC triage agents             | ✅ Done | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates             |
 | M5  | Response playbooks + approval    | ✅ Done | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit               |
-| M6  | SOAR / SIEM interoperability     | Planned | n8n security playbook, optional Wazuh profile, Sentinel normalizer, real Splunk adapter                                    |
+| M6  | SOAR / SIEM interoperability     | ✅ Done | Sentinel + Wazuh normalizers beside Splunk (vendor registry), multi-SIEM n8n SOC workflow with ChatOps approval requests   |
 | M7  | AWS deployment                   | Planned | Terraform: Lambda/Fargate, SQS/EventBridge, RDS, Secrets Manager; GitHub Actions deploy                                    |
 | M8  | SOC dashboard + portfolio polish | Planned | Alert queue, MTTT/automation-rate metrics, demo scenarios (phishing, brute force, EDR malware), architecture diagram       |
 
@@ -230,3 +230,41 @@ curl 'http://localhost:3001/api/responses/actions?status=pending_approval'
 
 Known limitation: reviewer identity is a free-text field (as in the CI approval flow);
 production needs SSO-backed identity and role-based approval (e.g. two-person rule for P1 isolation).
+
+## M6 — Multi-SIEM interoperability and n8n SOAR front door (done)
+
+**SIEM adapters** (`services/alert-normalizers/`, one registry entry each, `POST /api/alerts/:vendor`):
+
+| Vendor             | Native payload                                           | Notable mapping                                                                                                                                                                                      |
+| ------------------ | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Splunk             | Webhook alert action (`sid`, `search_name`, `result`)    | CIM fields; ambiguous `src`/`dest` routed by IP vs hostname                                                                                                                                          |
+| Microsoft Sentinel | Logic App alert (`SystemAlertId`, `Entities`, `Tactics`) | `Entities` as array or JSON string; account/host/ip/file/url/process/dns/mailbox entities; `CredentialAccess` → `Credential Access`; IP role inferred from address space (Sentinel has no direction) |
+| Wazuh              | Integration alert (`rule.level`, `rule.mitre`, `data`)   | Rule level 0–15 → severity; ATT&CK straight from `rule.mitre`                                                                                                                                        |
+
+Every adapter's output is re-validated against `SecurityAlertSchema`, so a vendor parsing bug
+fails at the edge (422) instead of polluting the pipeline. Fingerprints stay vendor-scoped. A
+test proves the same brute-force pattern from all three SIEMs reaches the same triage decision.
+
+**n8n SOC workflow** (`n8n/workflows/soc-alert-workflow.json`, webhook `/webhook/soc-alerts`):
+
+```text
+Receive SIEM Alert ─► Detect SIEM Vendor ─► Ingest via Orchestrator ─► Route by Triage Disposition
+                     (payload shape)        (POST /api/alerts/:vendor)   ├─ true_positive ─► Summarize Pending Containment ─► Request Approval in Slack ─┐
+                                                                         ├─ needs_investigation ──────────────────────────────────────────────────────────┤
+                                                                         └─ other ─────────────────────────────────────────────────────────────────────────┴─► Respond to SIEM
+```
+
+The workflow is the low-code orchestration layer a SOAR team would edit (fan-in from several
+SIEMs, ChatOps approval requests), while every domain decision (dedup, enrichment, triage,
+playbooks, approvals) stays in the tested service. Unlike the CI workflow, it duplicates no
+rule logic; a test enforces that no triage/policy logic appears in its Code nodes and executes
+those nodes against the real vendor fixtures. `scripts/setup-n8n.sh` now imports and activates
+every workflow in `n8n/workflows/`.
+
+```bash
+npm run demo:soc-multi-siem            # Splunk, Sentinel and Wazuh -> same triage + playbook
+N8N=true npm run demo:soc-multi-siem   # same, through the n8n SOC workflow
+```
+
+Deferred: live Splunk/Sentinel API adapters (pulling notables, closing incidents back in the
+SIEM) and a Wazuh container profile. The normalizers already accept their native payloads.

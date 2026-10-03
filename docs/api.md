@@ -225,6 +225,36 @@ steps, cited runbooks, `requiresHumanApproval`, `conflictsWithTriage`, specialis
 
 ---
 
+### Ingest Microsoft Sentinel / Wazuh Alerts
+
+The same pipeline accepts other SIEMs' native payloads at `POST /api/alerts/:vendor`
+(`splunk`, `sentinel`, `wazuh`; unknown vendors return `404`):
+
+```
+POST /api/alerts/sentinel
+{
+  "SystemAlertId": "7d3e1a52-5b1c-4f0e-9d6a-2b9c8e1f0a11",
+  "AlertDisplayName": "Brute force attack against Azure AD account",
+  "Severity": "High",
+  "StartTimeUtc": "2026-10-03T12:00:00Z",
+  "Tactics": "CredentialAccess",
+  "Techniques": "[\"T1110\"]",
+  "Entities": "[{\"Type\":\"account\",\"Name\":\"jdoe\"},{\"Type\":\"ip\",\"Address\":\"203.0.113.21\"}]"
+}
+
+POST /api/alerts/wazuh
+{
+  "id": "1759492800.123456",
+  "timestamp": "2026-10-03T12:00:00.000+0000",
+  "rule": { "id": "5712", "level": 10, "description": "sshd: brute force ...",
+            "mitre": { "id": ["T1110"], "tactic": ["Credential Access"] } },
+  "agent": { "name": "web-01" },
+  "data": { "srcip": "203.0.113.22", "dstuser": "root" }
+}
+```
+
+---
+
 ### Ingest Normalized Alert
 
 Producers that already emit the `SecurityAlert` contract (see `packages/shared-types/src/security.ts`):

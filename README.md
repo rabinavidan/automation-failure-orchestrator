@@ -27,7 +27,7 @@ For reviewers scanning quickly: this repository is a working implementation of t
 | Tool-using agents with bounded authority | Three allowlisted tools, no free-form code execution or unbounded external calls                                                                                                                                                                   |
 | Production delivery for AI systems       | Docker Compose, GitHub Actions quality/security gates, container vulnerability scanning, semantic-versioned releases                                                                                                                               |
 | API & event-contract design              | Zod-validated webhook contract shared across the API and n8n paths                                                                                                                                                                                 |
-| SOC alert automation (SIEM ingestion)    | Splunk webhook normalization, entity fingerprinting, dedup, threat-intel enrichment, policy-as-code triage with MITRE ATT&CK ([SOC automation track](#soc-automation-track))                                                                       |
+| SOC alert automation (SIEM ingestion)    | Splunk, Sentinel and Wazuh normalization, entity fingerprinting, dedup, threat-intel enrichment, policy-as-code triage with MITRE ATT&CK ([SOC automation track](#soc-automation-track))                                                           |
 | Low-code + code-first orchestration      | Equivalent n8n visual workflow alongside the TypeScript service                                                                                                                                                                                    |
 
 ## Why this project exists
@@ -172,6 +172,7 @@ Shipped so far (M1):
 
 - **Python threat-intel enrichment service** (M2, `apps/enrichment-service`, FastAPI): AbuseIPDB, VirusTotal and GeoIP lookups for every **new** alert. Internal IPs and identities never leave the network, defanged IOCs are refanged, lookups are cached with single-flight to respect API rate limits, and every provider is timeout-isolated. Enrichment is fail-open, so a degraded intel provider never drops an alert. A golden contract file is verified by both pytest and the TypeScript Zod schema.
 
+- **Multi-SIEM interoperability** (M6): native **Splunk**, **Microsoft Sentinel** and **Wazuh** alert payloads (`POST /api/alerts/:vendor`) normalize onto one contract and get the same triage and playbooks. An n8n SOC workflow (`/webhook/soc-alerts`) acts as the SOAR front door: it detects the SIEM, delegates every decision to the service, and posts ChatOps approval requests for pending containment.
 - **Response playbooks with human approval** (M5): YAML playbooks (policy-as-code) open fingerprint-correlated tickets and notify Slack immediately, while containment (block IP, isolate host, kill process via mock EDR/firewall APIs) waits for an analyst's decision. Blast-radius guards refuse to block private or allowlisted IPs or isolate protected hosts, re-checked at execution time; decisions are exactly-once, containment is reversible, and every step lands in an append-only audit trail.
 - **Advisory SOC agents** (M4): a LangGraph supervisor over triage-analyst, threat-intel and response-planner specialists, grounded in [incident-response runbooks](docs/runbooks/) selected by ATT&CK technique. Code (not the model) requires human approval for containment or any disagreement with triage, and an evaluation gate flags hallucinated IOCs before they could reach a block list. See [SOC supervisor team](#soc-supervisor-team-security-alerts).
 - **Deterministic SOC triage** (M3): a strict priority chain (false positive → duplicate → true positive → known benign → needs investigation) with an explainable evidence trail, a 0–100 risk score, P1–P4 priority, MITRE ATT&CK tactic mapping (inferred from the rule name when the SIEM gives none) and a recommended action. Allowlists and known-benign rules are **policy-as-code** (`config/soc-triage-policy.json`): every entry has an owner and an expiry date, and an invalid policy fails safe so nothing is auto-closed.
@@ -180,6 +181,7 @@ Shipped so far (M1):
 npm run demo:soc-brute-force   # new -> duplicate_delivery -> suppressed -> new
 npm run demo:soc-triage        # one alert per triage disposition
 npm run demo:soc-response      # playbook -> approve firewall block -> rollback, with audit trail
+npm run demo:soc-multi-siem    # Splunk, Sentinel and Wazuh payloads -> same triage and playbook
 npm run demo:soc-malware       # C2 IP + EICAR hash + defanged URL enriched as malicious; internal entities skipped
 ```
 

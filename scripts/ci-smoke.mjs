@@ -146,6 +146,24 @@ const rollback = await postJson(`/api/responses/actions/${block.id}/rollback`, {
 if (rollback.body.status !== 'rolled_back') {
   throw new Error(`Containment rollback smoke failed: ${JSON.stringify(rollback.body)}`);
 }
+// M6: a Microsoft Sentinel alert flows through the same pipeline.
+const sentinelResponse = await fetch(`${ingestionUrl}/api/alerts/sentinel`, {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', 'x-webhook-secret': secret },
+  body: JSON.stringify({
+    SystemAlertId: `ci-smoke-${Date.now()}`,
+    AlertDisplayName: 'CI Smoke - Brute force attack against Azure AD account',
+    Severity: 'High',
+    StartTimeUtc: new Date().toISOString(),
+    Tactics: 'CredentialAccess',
+    Techniques: '["T1110"]',
+    Entities: JSON.stringify([{ Type: 'ip', Address: `203.0.113.${(Date.now() % 250) + 2}` }]),
+  }),
+});
+const sentinelResult = await sentinelResponse.json();
+if (sentinelResponse.status !== 201 || sentinelResult.triage?.disposition !== 'true_positive') {
+  throw new Error(`Sentinel ingestion smoke failed: ${JSON.stringify(sentinelResult)}`);
+}
 const alertRetry = await (await postAlert()).json();
 if (alertRetry.status !== 'duplicate_delivery') {
   throw new Error(`Alert idempotency smoke failed: ${JSON.stringify(alertRetry)}`);
@@ -162,5 +180,6 @@ console.log(
     alertEnrichment: alertResult.enrichment.summary.verdict,
     alertTriage: `${alertResult.triage.disposition}/${alertResult.triage.priority}`,
     containment: 'approved -> executed -> rolled back',
+    sentinel: sentinelResult.triage.disposition,
   })
 );
