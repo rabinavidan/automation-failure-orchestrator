@@ -39,7 +39,7 @@ export const MitreAttackSchema = z.object({
 });
 
 export const AlertSourceSchema = z.object({
-  vendor: z.enum(['splunk', 'sentinel', 'generic']),
+  vendor: z.enum(['splunk', 'sentinel', 'wazuh', 'generic']),
   product: z.string().optional(),
   searchName: z.string().optional(),
   resultsLink: z.string().url().optional(),
@@ -68,6 +68,53 @@ export const SecurityAlertSchema = z.object({
  * https://docs.splunk.com/Documentation/Splunk/latest/Alert/Webhooks
  * `result` holds the first result row; field names follow the Splunk CIM.
  */
+/**
+ * Microsoft Sentinel alert as posted by a Logic App / automation rule
+ * ("When a Microsoft Sentinel alert is triggered"). `Entities` arrives either as
+ * an array or as a JSON string, depending on the connector.
+ */
+export const SentinelAlertSchema = z
+  .object({
+    SystemAlertId: z.string().min(1),
+    AlertDisplayName: z.string().min(1),
+    AlertType: z.string().optional(),
+    Severity: z.string().optional(),
+    Description: z.string().optional(),
+    ProductName: z.string().optional(),
+    StartTimeUtc: z.string().optional(),
+    TimeGenerated: z.string().optional(),
+    Tactics: z.union([z.string(), z.array(z.string())]).optional(),
+    Techniques: z.union([z.string(), z.array(z.string())]).optional(),
+    Entities: z.union([z.string(), z.array(z.record(z.unknown()))]).optional(),
+    AlertUri: z.string().url().optional(),
+  })
+  .passthrough();
+
+/** Wazuh alert as sent by a custom integration (ossec.conf <integration>). */
+export const WazuhAlertSchema = z
+  .object({
+    id: z.string().min(1),
+    timestamp: z.string().optional(),
+    rule: z.object({
+      id: z.string().min(1),
+      level: z.number().int().min(0).max(16),
+      description: z.string().min(1),
+      groups: z.array(z.string()).optional(),
+      mitre: z
+        .object({
+          id: z.array(z.string()).optional(),
+          tactic: z.array(z.string()).optional(),
+        })
+        .optional(),
+    }),
+    agent: z
+      .object({ id: z.string().optional(), name: z.string().optional(), ip: z.string().optional() })
+      .optional(),
+    data: z.record(z.unknown()).optional(),
+    syscheck: z.record(z.unknown()).optional(),
+  })
+  .passthrough();
+
 export const SplunkAlertWebhookSchema = z.object({
   sid: z.string().min(1),
   search_name: z.string().min(1),

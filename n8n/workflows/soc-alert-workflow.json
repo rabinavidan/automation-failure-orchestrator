@@ -1,0 +1,270 @@
+{
+  "name": "SOC Alert Orchestration (multi-SIEM)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "soc-alerts",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "soc-webhook",
+      "name": "Receive SIEM Alert",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "soc-alerts-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detect the SIEM from the payload shape and pass the native payload through untouched.\n// All parsing, dedup, triage and response decisions stay in the ingestion service:\n// this workflow orchestrates, it never duplicates domain rules.\nconst body = $input.first().json.body ?? $input.first().json;\n\nlet vendor = null;\nif (body && typeof body.SystemAlertId === 'string') vendor = 'sentinel';\nelse if (body && typeof body.sid === 'string' && typeof body.search_name === 'string') vendor = 'splunk';\nelse if (body && body.rule && typeof body.rule.level === 'number') vendor = 'wazuh';\n\nif (!vendor) {\n  throw new Error('Unrecognized SIEM payload: expected Splunk, Microsoft Sentinel or Wazuh');\n}\nreturn [{ json: { vendor, payload: body } }];"
+      },
+      "id": "soc-detect",
+      "name": "Detect SIEM Vendor",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://ingestion-service:3001/api/alerts/{{ $json.vendor }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-webhook-secret",
+              "value": "={{ $env.WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "soc-ingest",
+      "name": "Ingest via Orchestrator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.triage?.disposition ?? 'none' }}",
+                    "rightValue": "true_positive",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "true_positive"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.triage?.disposition ?? 'none' }}",
+                    "rightValue": "needs_investigation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "needs_investigation"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "soc-route",
+      "name": "Route by Triage Disposition",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a ChatOps approval request for containment the playbooks queued.\nconst result = $input.first().json;\nconst pending = (result.response?.actions ?? []).filter((a) => a.status === 'pending_approval');\nconst lines = pending.map(\n  (a) => `\u2022 #${a.id} *${a.action}* \u2192 \\`${a.target ?? 'n/a'}\\` (approve: POST /api/responses/actions/${a.id}/decision)`\n);\nconst text = pending.length\n  ? `:shield: *Containment awaiting approval* for ${result.triage.priority} ${result.alertId}\\n${result.triage.reasons[0] ?? ''}\\n${lines.join('\\n')}`\n  : `:white_check_mark: ${result.triage.priority} true positive ${result.alertId}: no containment pending`;\nreturn [{ json: { ...result, _approvalText: text, _pendingCount: pending.length } }];"
+      },
+      "id": "soc-summarize",
+      "name": "Summarize Pending Containment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://mock-integrations:3002/slack/services/T00/B00/xxx",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json._approvalText }) }}",
+        "options": {}
+      },
+      "id": "soc-chatops",
+      "name": "Request Approval in Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1340,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, vendor: $('Detect SIEM Vendor').first().json.vendor, alertId: $('Ingest via Orchestrator').first().json.alertId, status: $('Ingest via Orchestrator').first().json.status, disposition: $('Ingest via Orchestrator').first().json.triage?.disposition ?? null, priority: $('Ingest via Orchestrator').first().json.triage?.priority ?? null }) }}",
+        "options": {}
+      },
+      "id": "soc-respond",
+      "name": "Respond to SIEM",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Receive SIEM Alert": {
+      "main": [
+        [
+          {
+            "node": "Detect SIEM Vendor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect SIEM Vendor": {
+      "main": [
+        [
+          {
+            "node": "Ingest via Orchestrator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ingest via Orchestrator": {
+      "main": [
+        [
+          {
+            "node": "Route by Triage Disposition",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Triage Disposition": {
+      "main": [
+        [
+          {
+            "node": "Summarize Pending Containment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to SIEM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to SIEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Pending Containment": {
+      "main": [
+        [
+          {
+            "node": "Request Approval in Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Approval in Slack": {
+      "main": [
+        [
+          {
+            "node": "Respond to SIEM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "automation-failure-orchestrator"
+  },
+  "id": "soc-alert-workflow",
+  "tags": [
+    "soc",
+    "security",
+    "soar"
+  ]
+}

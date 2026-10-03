@@ -2,7 +2,6 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import {
   SecurityAlertSchema,
-  SplunkAlertWebhookSchema,
   TriageDispositionSchema,
   TriagePrioritySchema,
 } from '@orchestrator/shared-types';
@@ -13,7 +12,7 @@ import { enrichIngestedAlert } from '../services/alert-enrichment';
 import { getTriagePolicy, triageIngestedAlert } from '../services/alert-triage';
 import { scheduleAlertInvestigation } from '../services/alert-investigation';
 import { runResponsePlaybooks } from '../services/response-engine';
-import { normalizeSplunkAlert } from '../services/alert-normalizers/splunk';
+import { VENDOR_NORMALIZERS } from '../services/alert-normalizers';
 import { webhookSecret } from '../middleware/webhook-secret';
 
 const router = Router();
@@ -65,21 +64,28 @@ router.post('/', webhookSecret, async (req, res) => {
   await ingest(parsed.data, res);
 });
 
-// POST /api/alerts/splunk — ingest a raw Splunk webhook alert action payload
-router.post('/splunk', webhookSecret, async (req, res) => {
-  const parsed = SplunkAlertWebhookSchema.safeParse(req.body);
+// POST /api/alerts/:vendor — ingest a native SIEM payload (splunk | sentinel | wazuh)
+router.post('/:vendor', webhookSecret, async (req, res) => {
+  const vendor = VENDOR_NORMALIZERS[req.params.vendor];
+  if (!vendor) {
+    res.status(404).json({
+      error: `unknown SIEM vendor; supported: ${Object.keys(VENDOR_NORMALIZERS).join(', ')}`,
+    });
+    return;
+  }
+  const parsed = vendor.schema.safeParse(req.body);
   if (!parsed.success) {
     res
       .status(400)
-      .json({ error: 'Invalid Splunk webhook payload', details: parsed.error.flatten() });
+      .json({ error: `Invalid ${vendor.label} payload`, details: parsed.error.flatten() });
     return;
   }
 
   // Re-validate the normalized output so vendor parsing bugs fail loudly at the edge.
-  const normalized = SecurityAlertSchema.safeParse(normalizeSplunkAlert(parsed.data));
+  const normalized = SecurityAlertSchema.safeParse(vendor.normalize(parsed.data as never));
   if (!normalized.success) {
     res.status(422).json({
-      error: 'Splunk payload could not be normalized',
+      error: `${vendor.label} payload could not be normalized`,
       details: normalized.error.flatten(),
     });
     return;

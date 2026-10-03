@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import type { AlertProcessingResult, SecurityAlert } from '@orchestrator/shared-types';
 import { splunkBruteForceAlert } from './fixtures/splunk-alerts';
+import { sentinelBruteForce, wazuhSshBruteForce } from './fixtures/siem-alerts';
 import alertsRouter from '../routes/alerts';
 
 const { processAlert } = vi.hoisted(() => ({
@@ -83,6 +84,27 @@ describe('alerts routes', () => {
     expect(dup.status).toBe(200);
     expect(dup.body.status).toBe('duplicate_delivery');
     expect(dup.body.triage).toBeUndefined();
+  });
+
+  it('routes Sentinel and Wazuh payloads through their normalizers', async () => {
+    processAlert.mockResolvedValue(result('new'));
+    const sentinel = await request(app).post('/api/alerts/sentinel').send(sentinelBruteForce);
+    expect(sentinel.status).toBe(201);
+    expect(processAlert.mock.calls.at(-1)![0].source.vendor).toBe('sentinel');
+
+    const wazuh = await request(app).post('/api/alerts/wazuh').send(wazuhSshBruteForce);
+    expect(wazuh.status).toBe(201);
+    expect(processAlert.mock.calls.at(-1)![0].ruleId).toBe('wazuh-rule-5712');
+  });
+
+  it('returns 404 for unknown SIEM vendors and 400 for invalid vendor payloads', async () => {
+    const unknown = await request(app).post('/api/alerts/qradar').send({});
+    expect(unknown.status).toBe(404);
+    expect(unknown.body.error).toContain('splunk, sentinel, wazuh');
+    expect(
+      (await request(app).post('/api/alerts/sentinel').send({ Severity: 'High' })).status
+    ).toBe(400);
+    expect(processAlert).not.toHaveBeenCalled();
   });
 
   it('rejects a malformed Splunk payload with 400', async () => {

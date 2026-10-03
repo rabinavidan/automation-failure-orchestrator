@@ -15,6 +15,8 @@ import {
   AlertSourceSchema,
   SecurityAlertSchema,
   SplunkAlertWebhookSchema,
+  SentinelAlertSchema,
+  WazuhAlertSchema,
   EnrichmentVerdictSchema,
   EnrichmentSummarySchema,
   EnrichmentResponseSchema,
@@ -126,6 +128,8 @@ export type MitreAttack = z.infer<typeof MitreAttackSchema>;
 export type AlertSource = z.infer<typeof AlertSourceSchema>;
 export type SecurityAlert = z.infer<typeof SecurityAlertSchema>;
 export type SplunkAlertWebhook = z.infer<typeof SplunkAlertWebhookSchema>;
+export type SentinelAlert = z.infer<typeof SentinelAlertSchema>;
+export type WazuhAlert = z.infer<typeof WazuhAlertSchema>;
 export type EnrichmentVerdict = z.infer<typeof EnrichmentVerdictSchema>;
 export type EnrichmentSummary = z.infer<typeof EnrichmentSummarySchema>;
 export type EnrichmentResponse = z.infer<typeof EnrichmentResponseSchema>;
