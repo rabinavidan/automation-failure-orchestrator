@@ -139,6 +139,77 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/alerts/metrics — SOC KPIs over a rolling window (?hours=24, max 720)
+router.get('/metrics', async (req, res) => {
+  const hours = Math.min(Math.max(parseInt(String(req.query.hours ?? '24'), 10) || 24, 1), 720);
+  try {
+    const [totals] = await query<Record<string, number>>(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE triage_disposition IN
+                ('false_positive', 'duplicate', 'benign_true_positive'))::int AS auto_closed,
+              COUNT(*) FILTER (WHERE triage_disposition = 'true_positive')::int AS true_positives,
+              COUNT(*) FILTER (WHERE triage_disposition = 'needs_investigation')::int AS analyst_queue,
+              COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (triaged_at - received_at)) * 1000), 0)::float
+                AS median_triage_ms,
+              COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (triaged_at - received_at)) * 1000), 0)::float
+                AS p95_triage_ms
+       FROM security_alerts
+       WHERE received_at >= NOW() - make_interval(hours => $1)`,
+      [hours]
+    );
+    const byDisposition = await query(
+      `SELECT COALESCE(triage_disposition, 'untriaged') AS disposition, COUNT(*)::int AS count
+       FROM security_alerts WHERE received_at >= NOW() - make_interval(hours => $1)
+       GROUP BY 1 ORDER BY 2 DESC`,
+      [hours]
+    );
+    const byPriority = await query(
+      `SELECT triage_priority AS priority, COUNT(*)::int AS count
+       FROM security_alerts
+       WHERE received_at >= NOW() - make_interval(hours => $1) AND triage_priority IS NOT NULL
+       GROUP BY 1 ORDER BY 1`,
+      [hours]
+    );
+    const topTechniques = await query(
+      `SELECT technique, COUNT(*)::int AS count
+       FROM security_alerts, jsonb_array_elements_text(triage->'mitre'->'techniques') AS technique
+       WHERE received_at >= NOW() - make_interval(hours => $1)
+       GROUP BY 1 ORDER BY 2 DESC LIMIT 8`,
+      [hours]
+    );
+    const [response] = await query<Record<string, number>>(
+      `SELECT COUNT(*) FILTER (WHERE status = 'pending_approval')::int AS pending_approval,
+              COUNT(*) FILTER (WHERE status = 'succeeded' AND approval_required)::int AS contained,
+              COUNT(*) FILTER (WHERE status = 'blocked_by_guard')::int AS blocked_by_guard,
+              COUNT(*) FILTER (WHERE status = 'rolled_back')::int AS rolled_back,
+              COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (
+                ORDER BY EXTRACT(EPOCH FROM (decided_at - created_at)) * 1000)
+                FILTER (WHERE decided_at IS NOT NULL), 0)::float AS median_approval_ms
+       FROM response_actions WHERE created_at >= NOW() - make_interval(hours => $1)`,
+      [hours]
+    );
+
+    const total = totals?.total ?? 0;
+    res.json({
+      windowHours: hours,
+      alerts: {
+        ...totals,
+        // Share of alerts resolved by deterministic automation without analyst time.
+        automationRate: total ? (totals!.auto_closed ?? 0) / total : 0,
+      },
+      byDisposition,
+      byPriority,
+      topTechniques,
+      response,
+    });
+  } catch (err) {
+    console.error('[Alerts] Metrics error:', err);
+    res.status(500).json({ error: 'Failed to load SOC metrics' });
+  }
+});
+
 // GET /api/alerts/triage-policy — active policy version and entries (policy-as-code audit)
 router.get('/triage-policy', (_req, res) => {
   const { policy, source, error } = getTriagePolicy();

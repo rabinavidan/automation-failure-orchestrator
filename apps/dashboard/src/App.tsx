@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SocConsole } from './SocConsole';
 import {
   Activity,
   AlertTriangle,
@@ -20,6 +21,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Siren,
   Sparkles,
   TicketCheck,
   ToolCase,
@@ -28,7 +30,14 @@ import {
 } from 'lucide-react';
 
 type View =
-  'overview' | 'observability' | 'approvals' | 'knowledge' | 'investigations' | 'jira' | 'slack';
+  | 'overview'
+  | 'soc'
+  | 'observability'
+  | 'approvals'
+  | 'knowledge'
+  | 'investigations'
+  | 'jira'
+  | 'slack';
 
 type AgentInvestigation = {
   suspectedRootCause: string;
@@ -194,6 +203,7 @@ const emptyData: DashboardData = {
 
 const navItems: Array<{ id: View; label: string; icon: typeof Activity }> = [
   { id: 'overview', label: 'Command center', icon: LayoutDashboard },
+  { id: 'soc', label: 'SOC console', icon: Siren },
   { id: 'observability', label: 'AI observability', icon: Activity },
   { id: 'approvals', label: 'Approval queue', icon: ShieldCheck },
   { id: 'knowledge', label: 'Knowledge RAG', icon: BookOpen },
@@ -451,6 +461,7 @@ function App() {
   const initialLoading = loading && !lastRefresh;
   const navCount: Record<View, number | undefined> = {
     overview: undefined,
+    soc: undefined,
     observability: data.observability.modelCalls.calls,
     approvals: data.approvals.length,
     knowledge: data.knowledge.chunkCount,
@@ -899,6 +910,8 @@ function App() {
             )}
           </section>
         )}
+
+        {!initialLoading && view === 'soc' && <SocConsole reviewer={reviewer} />}
 
         {!initialLoading && view === 'approvals' && (
           <section className="page-enter py-7">
