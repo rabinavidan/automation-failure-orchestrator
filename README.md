@@ -27,6 +27,7 @@ For reviewers scanning quickly: this repository is a working implementation of t
 | Tool-using agents with bounded authority | Three allowlisted tools, no free-form code execution or unbounded external calls                                                                                                                                                                   |
 | Production delivery for AI systems       | Docker Compose, GitHub Actions quality/security gates, container vulnerability scanning, semantic-versioned releases                                                                                                                               |
 | API & event-contract design              | Zod-validated webhook contract shared across the API and n8n paths                                                                                                                                                                                 |
+| SOC alert automation (SIEM ingestion)    | Splunk webhook normalization, entity fingerprinting, idempotent dedup and suppression windows ([SOC automation track](#soc-automation-track))                                                                                                      |
 | Low-code + code-first orchestration      | Equivalent n8n visual workflow alongside the TypeScript service                                                                                                                                                                                    |
 
 ## Why this project exists
@@ -157,6 +158,21 @@ The repository deliberately supports two entry points:
 2. **Visual orchestration path**: CI can send results to the n8n webhook. The workflow exposes validation, splitting, fingerprinting, routing, Jira/Slack calls, and persistence as an inspectable automation graph.
 
 This demonstrates both code-first orchestration and low-code workflow automation. In a production consolidation, n8n would normally remain the external orchestrator while the ingestion service owns domain decisions, preventing duplicated business logic.
+
+## SOC automation track
+
+The same guarded pipeline is being extended from CI failures to **security alerts** (SIEM → dedup → enrichment → triage → human-approved response). Milestones and design live in [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md).
+
+Shipped so far (M1):
+
+- **Vendor-agnostic `SecurityAlert` contract** (Zod) with indicators (IP, host, user, hash, URL, domain, process, email) and MITRE ATT&CK annotations.
+- **Splunk webhook normalizer** (`POST /api/alerts/splunk`) mapping Splunk CIM fields, multivalue fields, epoch/ISO `_time`, and urgency/numeric severity; ambiguous `src`/`dest` values are routed to IP or host by shape.
+- **Entity fingerprinting**: `SHA256(vendor | rule | host | user | sorted indicators)` with identity normalization (`CORP\jdoe` = `jdoe@corp.example.com`, FQDN → short host).
+- **Idempotency + suppression**: webhook retries return `duplicate_delivery`; repeats inside `ALERT_SUPPRESSION_WINDOW_MINUTES` are `suppressed` and counted; the aggregate keeps first/last seen and max severity. Race-safe under concurrent deliveries.
+
+```bash
+npm run demo:soc-brute-force   # new -> duplicate_delivery -> suppressed -> new
+```
 
 ## Agent design
 
@@ -463,6 +479,9 @@ npm run demo:recovered-bug
 
 # Same runId twice: delivery idempotency
 npm run demo:duplicate-delivery
+
+# SOC: Splunk brute-force alert -> retry -> suppressed repeat -> new attacker
+npm run demo:soc-brute-force
 ```
 
 Inspect results:
@@ -557,8 +576,13 @@ Change them outside local development.
 | `GET`  | `/api/failures`                         | Paginated failure aggregates    |
 | `GET`  | `/api/failures/:fingerprint`            | History and recent occurrences  |
 | `POST` | `/api/failures/:fingerprint/reclassify` | Human/manual correction         |
+| `POST` | `/api/alerts/splunk`                    | Ingest a Splunk webhook alert   |
+| `POST` | `/api/alerts`                           | Ingest a normalized alert       |
+| `GET`  | `/api/alerts`                           | Paginated alerts (`?status=`)   |
+| `GET`  | `/api/alerts/:alertId`                  | Full normalized alert           |
+| `GET`  | `/api/alerts/fingerprints/:fingerprint` | Alert aggregate + occurrences   |
 
-`POST /api/runs` requires:
+`POST /api/runs` and `POST /api/alerts*` require:
 
 ```text
 Content-Type: application/json
@@ -579,12 +603,14 @@ Mock mode makes the workflow demonstrable without external accounts. Real Jira a
 
 ## Data model
 
-| Table               | Responsibility                                                                     |
-| ------------------- | ---------------------------------------------------------------------------------- |
-| `test_runs`         | One record per delivered CI run; unique `run_id` enforces idempotency              |
-| `test_results`      | Outcomes, errors, artifacts, fingerprint, classification, and Jira link            |
-| `failure_history`   | Counts, recent statuses, consecutive passes, and issue correlation per fingerprint |
-| `schema_migrations` | Applied SQL migration tracking                                                     |
+| Table                | Responsibility                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `test_runs`          | One record per delivered CI run; unique `run_id` enforces idempotency               |
+| `test_results`       | Outcomes, errors, artifacts, fingerprint, classification, and Jira link             |
+| `failure_history`    | Counts, recent statuses, consecutive passes, and issue correlation per fingerprint  |
+| `security_alerts`    | One row per delivered security alert; unique `alert_id` enforces idempotency        |
+| `alert_fingerprints` | Occurrence/suppression counts, first/last seen, and max severity per alert identity |
+| `schema_migrations`  | Applied SQL migration tracking                                                      |
 
 Indexes cover run lookup, branch/time queries, fingerprint correlation, classification, Jira keys, and recent failures.
 
@@ -622,27 +648,28 @@ GitHub Actions performs linting, formatting checks, workspace builds, unit tests
 
 ## Configuration
 
-| Variable                  | Default                          | Purpose                                |
-| ------------------------- | -------------------------------- | -------------------------------------- |
-| `DATABASE_URL`            | local PostgreSQL                 | Run and history storage                |
-| `WEBHOOK_SECRET`          | `local-dev-secret`               | Ingestion authentication               |
-| `INTEGRATION_MODE`        | `mock`                           | Mock or real integrations              |
-| `JIRA_BASE_URL`           | mock service URL                 | Jira-compatible API base               |
-| `JIRA_PROJECT_KEY`        | `AUTO`                           | Project for new issues                 |
-| `JIRA_EMAIL`              | local placeholder                | Real Jira identity                     |
-| `JIRA_API_TOKEN`          | local placeholder                | Real Jira credential                   |
-| `SLACK_WEBHOOK_URL`       | mock webhook                     | Slack destination                      |
-| `RECOVERY_PASS_THRESHOLD` | `3`                              | Passes before `possibly_fixed`         |
-| `FLAKY_HISTORY_WINDOW`    | `5`                              | Outcomes considered by flaky detection |
-| `AI_ENABLED`              | `false`                          | Enable Ollama investigation            |
-| `MULTI_AGENT_ENABLED`     | `true`                           | Enable specialist supervisor workflow  |
-| `OLLAMA_HOST`             | `localhost:11434` outside Docker | Ollama server                          |
-| `OLLAMA_MODEL`            | `qwen3:4b`                       | Tool-capable model                     |
-| `OLLAMA_TIMEOUT_MS`       | `30000`                          | Per-request AI timeout                 |
-| `RAG_ENABLED`             | `true`                           | Enable bounded repository retrieval    |
-| `OLLAMA_EMBEDDING_MODEL`  | `nomic-embed-text`               | Local semantic embedding model         |
-| `PORT`                    | `3001`                           | Ingestion port                         |
-| `MOCK_PORT`               | `3002`                           | Mock service port                      |
+| Variable                           | Default                          | Purpose                                   |
+| ---------------------------------- | -------------------------------- | ----------------------------------------- |
+| `DATABASE_URL`                     | local PostgreSQL                 | Run and history storage                   |
+| `WEBHOOK_SECRET`                   | `local-dev-secret`               | Ingestion authentication                  |
+| `INTEGRATION_MODE`                 | `mock`                           | Mock or real integrations                 |
+| `JIRA_BASE_URL`                    | mock service URL                 | Jira-compatible API base                  |
+| `JIRA_PROJECT_KEY`                 | `AUTO`                           | Project for new issues                    |
+| `JIRA_EMAIL`                       | local placeholder                | Real Jira identity                        |
+| `JIRA_API_TOKEN`                   | local placeholder                | Real Jira credential                      |
+| `SLACK_WEBHOOK_URL`                | mock webhook                     | Slack destination                         |
+| `RECOVERY_PASS_THRESHOLD`          | `3`                              | Passes before `possibly_fixed`            |
+| `FLAKY_HISTORY_WINDOW`             | `5`                              | Outcomes considered by flaky detection    |
+| `ALERT_SUPPRESSION_WINDOW_MINUTES` | `60`                             | Repeat-alert suppression window (0 = off) |
+| `AI_ENABLED`                       | `false`                          | Enable Ollama investigation               |
+| `MULTI_AGENT_ENABLED`              | `true`                           | Enable specialist supervisor workflow     |
+| `OLLAMA_HOST`                      | `localhost:11434` outside Docker | Ollama server                             |
+| `OLLAMA_MODEL`                     | `qwen3:4b`                       | Tool-capable model                        |
+| `OLLAMA_TIMEOUT_MS`                | `30000`                          | Per-request AI timeout                    |
+| `RAG_ENABLED`                      | `true`                           | Enable bounded repository retrieval       |
+| `OLLAMA_EMBEDDING_MODEL`           | `nomic-embed-text`               | Local semantic embedding model            |
+| `PORT`                             | `3001`                           | Ingestion port                            |
+| `MOCK_PORT`                        | `3002`                           | Mock service port                         |
 
 Never commit production Jira tokens, Slack webhooks, webhook secrets, or n8n encryption keys.
 
@@ -701,6 +728,7 @@ This repository is designed to show more than framework familiarity:
 - [`docs/architecture.md`](docs/architecture.md) - component and data-flow details
 - [`docs/api.md`](docs/api.md) - API contracts and examples
 - [`docs/demo-scenarios.md`](docs/demo-scenarios.md) - scenario walkthroughs
+- [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md) - SOC automation track milestones and design
 - [`n8n/credentials.example.md`](n8n/credentials.example.md) - credential guidance
 
 ## License and use

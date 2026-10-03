@@ -7,6 +7,15 @@ import {
   SummarySchema,
   WebhookPayloadSchema,
 } from './schemas';
+import {
+  SecuritySeveritySchema,
+  IndicatorTypeSchema,
+  IndicatorSchema,
+  MitreAttackSchema,
+  AlertSourceSchema,
+  SecurityAlertSchema,
+  SplunkAlertWebhookSchema,
+} from './security';
 
 export type TestError = z.infer<typeof TestErrorSchema>;
 export type TestMetadata = z.infer<typeof TestMetadataSchema>;
@@ -92,4 +101,42 @@ export interface ClassifyInput {
   test: TestResult;
   failureHistory?: FailureHistory;
   existingJiraIssue?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Security alert (SOC automation) types
+// ---------------------------------------------------------------------------
+
+export type SecuritySeverity = z.infer<typeof SecuritySeveritySchema>;
+export type IndicatorType = z.infer<typeof IndicatorTypeSchema>;
+export type Indicator = z.infer<typeof IndicatorSchema>;
+export type MitreAttack = z.infer<typeof MitreAttackSchema>;
+export type AlertSource = z.infer<typeof AlertSourceSchema>;
+export type SecurityAlert = z.infer<typeof SecurityAlertSchema>;
+export type SplunkAlertWebhook = z.infer<typeof SplunkAlertWebhookSchema>;
+
+export interface AlertFingerprintInput {
+  vendor: AlertSource['vendor'];
+  ruleId: string;
+  host?: string;
+  user?: string;
+  indicators: Indicator[];
+}
+
+/**
+ * - `new`: first sighting, or outside the suppression window — actionable.
+ * - `suppressed`: same fingerprint seen within the suppression window — counted, not actioned.
+ * - `duplicate_delivery`: same alertId already ingested (webhook retry) — no-op.
+ */
+export type AlertIngestionStatus = 'new' | 'suppressed' | 'duplicate_delivery';
+
+export interface AlertProcessingResult {
+  alertId: string;
+  fingerprint: string;
+  fingerprintLabel: string;
+  status: AlertIngestionStatus;
+  occurrenceCount: number;
+  suppressedCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
 }

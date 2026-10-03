@@ -21,7 +21,8 @@
     "demo:infrastructure-failure": "tsx scripts/demo-infra-failure.ts",
     "demo:automation-failure": "tsx scripts/demo-automation-failure.ts",
     "demo:recovered-bug": "tsx scripts/demo-recovered-bug.ts",
-    "demo:duplicate-delivery": "tsx scripts/demo-duplicate-delivery.ts"
+    "demo:duplicate-delivery": "tsx scripts/demo-duplicate-delivery.ts",
+    "demo:soc-brute-force": "tsx scripts/demo-soc-brute-force.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.0",

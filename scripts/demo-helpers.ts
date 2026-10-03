@@ -52,3 +52,24 @@ export function basePayload(overrides: Record<string, unknown> = {}): Record<str
     ...overrides,
   };
 }
+
+export async function sendSplunkAlert(payload: unknown): Promise<unknown> {
+  try {
+    const response = await fetch(`${BASE_URL}/api/alerts/splunk`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-webhook-secret': WEBHOOK_SECRET,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const body = await response.json();
+    console.log(`Status: ${response.status}`);
+    console.log(JSON.stringify(body, null, 2));
+    return body;
+  } catch (err) {
+    console.error('Failed to send alert:', err);
+    process.exit(1);
+  }
+}
