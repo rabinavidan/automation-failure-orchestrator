@@ -11,6 +11,7 @@ import { query } from '../db/client';
 import { processAlert } from '../services/alert-processor';
 import { enrichIngestedAlert } from '../services/alert-enrichment';
 import { getTriagePolicy, triageIngestedAlert } from '../services/alert-triage';
+import { scheduleAlertInvestigation } from '../services/alert-investigation';
 import { normalizeSplunkAlert } from '../services/alert-normalizers/splunk';
 import { webhookSecret } from '../middleware/webhook-secret';
 
@@ -27,9 +28,15 @@ async function ingest(alert: SecurityAlert, res: Response): Promise<void> {
     // enrichment service never holds locks or loses the alert.
     const enrichment = await enrichIngestedAlert(alert, result.status);
     const triage = await triageIngestedAlert(alert, result, enrichment.response);
-    res
-      .status(result.status === 'duplicate_delivery' ? 200 : 201)
-      .json({ ...result, enrichment: enrichment.outcome, ...(triage ? { triage } : {}) });
+    // Advisory AI runs after the response; it never changes the triage decision.
+    const investigation = scheduleAlertInvestigation(
+      triage ? { alert, result, triage, enrichment: enrichment.response } : null
+    );
+    res.status(result.status === 'duplicate_delivery' ? 200 : 201).json({
+      ...result,
+      enrichment: enrichment.outcome,
+      ...(triage ? { triage, investigation } : {}),
+    });
   } catch (err) {
     console.error('[Alerts] Processing error:', err);
     res.status(500).json({ error: 'Internal server error processing alert' });
@@ -96,7 +103,7 @@ router.get('/', async (req, res) => {
     const alerts = await query(
       `SELECT alert_id, fingerprint, vendor, rule_id, title, severity, status, host, user_name,
               indicators, mitre, enrichment_status, enrichment_verdict, triage_disposition,
-              triage_priority, risk_score, detected_at, received_at
+              triage_priority, risk_score, ai_investigation_status, detected_at, received_at
        FROM security_alerts ${where}
        ORDER BY received_at DESC
        LIMIT $${n + 1} OFFSET $${n + 2}`,

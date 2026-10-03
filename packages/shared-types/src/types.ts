@@ -163,6 +163,7 @@ export interface AlertProcessingResult {
   lastSeenAt: string;
   enrichment?: AlertEnrichmentOutcome;
   triage?: AlertTriage;
+  investigation?: AlertInvestigationOutcome;
 }
 
 export type TriagePolicy = z.infer<typeof TriagePolicySchema>;
@@ -201,4 +202,61 @@ export interface AlertTriage {
     inferred: boolean;
   };
   policyVersion: string;
+}
+
+// ---------------------------------------------------------------------------
+// SOC AI investigation (M4): advisory multi-agent output
+// ---------------------------------------------------------------------------
+
+export type SocResponseRecommendation = 'contain' | 'investigate' | 'monitor' | 'close';
+
+export interface SocSpecialistReport {
+  agent: 'triage_analyst' | 'threat_intel' | 'response_planner';
+  summary: string;
+  findings: string[];
+  confidence: number;
+  proposedResponse?: SocResponseRecommendation;
+  risk?: 'low' | 'medium' | 'high';
+}
+
+/**
+ * Advisory only: the deterministic `AlertTriage` disposition is never changed by
+ * the agents. `requiresHumanApproval` is set by code (not the model) whenever the
+ * agents recommend containment or disagree with the deterministic triage.
+ */
+export interface SocInvestigation {
+  summary: string;
+  attackNarrative: string;
+  evidence: string[];
+  recommendedResponse: SocResponseRecommendation;
+  responseSteps: string[];
+  confidence: number;
+  explanation: string;
+  citedRunbooks: string[];
+  requiresHumanApproval: boolean;
+  conflictsWithTriage: boolean;
+  specialistReports: SocSpecialistReport[];
+  model: string;
+  graphVersion: string;
+}
+
+export interface SocEvaluationResult {
+  passed: boolean;
+  score: number;
+  metrics: {
+    schemaComplete: boolean;
+    specialistCoverage: boolean;
+    iocGrounded: boolean;
+    runbookGrounded: boolean;
+    safeContainmentPolicy: boolean;
+    triageRespected: boolean;
+    confidenceCalibrated: boolean;
+  };
+  failures: string[];
+  ungroundedIndicators: string[];
+}
+
+export interface AlertInvestigationOutcome {
+  status: 'queued' | 'disabled' | 'not_applicable';
+  threadId?: string;
 }

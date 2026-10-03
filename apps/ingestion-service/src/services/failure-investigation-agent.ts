@@ -442,10 +442,8 @@ export async function runFailureInvestigationGraph(
   return finalState.result;
 }
 
-export async function investigateFailure(
-  context: InvestigationContext
-): Promise<FailureInvestigationOutcome> {
-  if (process.env.AI_ENABLED !== 'true') return {};
+/** Ollama client with a per-request timeout (OLLAMA_TIMEOUT_MS); shared by the CI and SOC agents. */
+export function createOllamaClient(): { client: Ollama; model: string } {
   const model = process.env.OLLAMA_MODEL ?? 'qwen3:4b';
   const host = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
   const timeoutMs = Number.parseInt(process.env.OLLAMA_TIMEOUT_MS ?? '30000', 10);
@@ -457,6 +455,14 @@ export async function investigateFailure(
       return fetch(input, { ...init, signal });
     },
   });
+  return { client, model };
+}
+
+export async function investigateFailure(
+  context: InvestigationContext
+): Promise<FailureInvestigationOutcome> {
+  if (process.env.AI_ENABLED !== 'true') return {};
+  const { client, model } = createOllamaClient();
   const threadId = `${context.run.runId}:${context.fingerprint}`;
   try {
     const checkpointer = await getAgentCheckpointer();
