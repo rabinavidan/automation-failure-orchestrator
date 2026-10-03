@@ -12,6 +12,7 @@ import { processAlert } from '../services/alert-processor';
 import { enrichIngestedAlert } from '../services/alert-enrichment';
 import { getTriagePolicy, triageIngestedAlert } from '../services/alert-triage';
 import { scheduleAlertInvestigation } from '../services/alert-investigation';
+import { runResponsePlaybooks } from '../services/response-engine';
 import { normalizeSplunkAlert } from '../services/alert-normalizers/splunk';
 import { webhookSecret } from '../middleware/webhook-secret';
 
@@ -32,10 +33,21 @@ async function ingest(alert: SecurityAlert, res: Response): Promise<void> {
     const investigation = scheduleAlertInvestigation(
       triage ? { alert, result, triage, enrichment: enrichment.response } : null
     );
+    // Deterministic playbooks: tickets/notifications run now, containment waits for approval.
+    const response =
+      triage && result.status === 'new'
+        ? await runResponsePlaybooks({ alert, triage, fingerprint: result.fingerprint }).catch(
+            (err) => {
+              console.error('[Alerts] Response playbooks failed:', err);
+              return undefined;
+            }
+          )
+        : undefined;
     res.status(result.status === 'duplicate_delivery' ? 200 : 201).json({
       ...result,
       enrichment: enrichment.outcome,
       ...(triage ? { triage, investigation } : {}),
+      ...(response ? { response } : {}),
     });
   } catch (err) {
     console.error('[Alerts] Processing error:', err);

@@ -20,7 +20,7 @@ Design principles carried over from the CI track:
 | M2  | Python enrichment service        | ✅ Done | FastAPI service: IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with mock mode, caching, pytest/ruff/mypy                   |
 | M3  | Deterministic SOC classifier     | ✅ Done | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping    |
 | M4  | AI SOC triage agents             | ✅ Done | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates             |
-| M5  | Response playbooks + approval    | Planned | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit               |
+| M5  | Response playbooks + approval    | ✅ Done | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit               |
 | M6  | SOAR / SIEM interoperability     | Planned | n8n security playbook, optional Wazuh profile, Sentinel normalizer, real Splunk adapter                                    |
 | M7  | AWS deployment                   | Planned | Terraform: Lambda/Fargate, SQS/EventBridge, RDS, Secrets Manager; GitHub Actions deploy                                    |
 | M8  | SOC dashboard + portfolio polish | Planned | Alert queue, MTTT/automation-rate metrics, demo scenarios (phishing, brute force, EDR malware), architecture diagram       |
@@ -184,3 +184,49 @@ triage_analyst ─► threat_intel ─► response_planner ─► supervisor ─
 
 The evaluation gate (`soc-agent-evaluation.ts`) is deterministic code, part of
 `npm run test:evaluations`, and its result is stored with every investigation.
+
+## M5 — Response playbooks with approval and rollback (done)
+
+Deterministic **YAML playbooks** (`config/playbooks/*.yaml`, Zod-validated) turn a triage
+decision into response actions. The engine (`services/response-engine.ts`) runs for `new`
+alerts after triage; the AI investigation never triggers actions.
+
+```text
+triage (true_positive / needs_investigation)
+   └─► matching playbooks (disposition + ATT&CK technique + max priority)
+         ├─ ticket.create / slack.notify          ─► run immediately (fingerprint-correlated ticket)
+         └─ firewall.block_ip / edr.isolate_host
+            / edr.kill_process                    ─► blast-radius guard ─► pending_approval
+                                                        │
+                       POST /api/responses/actions/:id/decision (human) ─► guard re-check ─► execute
+                       POST /api/responses/actions/:id/rollback (human) ─► unblock / release host
+```
+
+| Playbook               | Trigger                                 | Steps (approval)                                                   |
+| ---------------------- | --------------------------------------- | ------------------------------------------------------------------ |
+| `brute-force-response` | true_positive + T1110                   | ticket, Slack, **block source IP**                                 |
+| `malware-containment`  | true_positive + T1204/T1059/T1105/T1071 | ticket, Slack, **kill process**, **isolate host**, **block C2 IP** |
+| `critical-compromise`  | true_positive + T1003/T1486/T1490       | ticket, Slack, **isolate host**                                    |
+| `analyst-queue`        | needs_investigation, P1–P2              | ticket, Slack                                                      |
+
+| Safety property                | Enforcement                                                                                                                                    |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| No autonomous containment      | Schema rejects any playbook whose containment step is not `approval: required`                                                                 |
+| Allowlisted actions only       | Actions are an enum; unknown actions (e.g. `shell.exec`) fail validation; invalid files never load                                             |
+| Blast-radius guards            | Never block private/loopback/link-local/multicast IPs or triage-allowlisted IPs; never isolate `SOC_PROTECTED_HOSTS` (e.g. domain controllers) |
+| Guards re-checked at execution | An approval cannot execute against a target allowlisted after the approval was requested                                                       |
+| Exactly-once decisions         | Atomic `UPDATE ... WHERE status = 'pending_approval'`; a second approval returns 409                                                           |
+| Idempotent planning            | Unique `(alert, playbook, step, target)`; webhook re-delivery never duplicates actions                                                         |
+| Reversible containment         | Block → unblock, isolate → release; a failed rollback restores the action's state for retry                                                    |
+| Audit                          | Append-only `response_action_events`: planned, approved/rejected, executed, blocked, rolled back, with actor                                   |
+
+Mock EDR and firewall APIs live in `apps/mock-integrations` (`/edr/*`, `/firewall/*`), so the
+full loop runs locally and in the CI smoke test (approve → execute → rollback).
+
+```bash
+npm run demo:soc-response
+curl 'http://localhost:3001/api/responses/actions?status=pending_approval'
+```
+
+Known limitation: reviewer identity is a free-text field (as in the CI approval flow);
+production needs SSO-backed identity and role-based approval (e.g. two-person rule for P1 isolation).

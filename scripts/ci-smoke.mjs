@@ -117,6 +117,35 @@ if (
 if (alertResult.investigation?.status !== 'disabled') {
   throw new Error(`Alert investigation smoke failed: ${JSON.stringify(alertResult.investigation)}`);
 }
+// M5: the brute-force playbook opens a ticket now and queues the IP block for approval.
+const actions = alertResult.response?.actions ?? [];
+const ticket = actions.find((a) => a.action === 'ticket.create');
+const block = actions.find((a) => a.action === 'firewall.block_ip');
+if (ticket?.status !== 'succeeded' || block?.status !== 'pending_approval') {
+  throw new Error(`Response playbook smoke failed: ${JSON.stringify(alertResult.response)}`);
+}
+async function postJson(path, body) {
+  const response = await fetch(`${ingestionUrl}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  return { status: response.status, body: await response.json() };
+}
+const approval = await postJson(`/api/responses/actions/${block.id}/decision`, {
+  decision: 'approved',
+  reviewer: 'ci-smoke',
+});
+if (approval.body.status !== 'succeeded') {
+  throw new Error(`Containment approval smoke failed: ${JSON.stringify(approval.body)}`);
+}
+const rollback = await postJson(`/api/responses/actions/${block.id}/rollback`, {
+  reviewer: 'ci-smoke',
+  reason: 'smoke test cleanup',
+});
+if (rollback.body.status !== 'rolled_back') {
+  throw new Error(`Containment rollback smoke failed: ${JSON.stringify(rollback.body)}`);
+}
 const alertRetry = await (await postAlert()).json();
 if (alertRetry.status !== 'duplicate_delivery') {
   throw new Error(`Alert idempotency smoke failed: ${JSON.stringify(alertRetry)}`);
@@ -132,5 +161,6 @@ console.log(
     classification: result.failures[0].classification,
     alertEnrichment: alertResult.enrichment.summary.verdict,
     alertTriage: `${alertResult.triage.disposition}/${alertResult.triage.priority}`,
+    containment: 'approved -> executed -> rolled back',
   })
 );

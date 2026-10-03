@@ -291,6 +291,34 @@ Returns the aggregate (occurrence/suppressed counts, first/last seen, max severi
 
 ---
 
+### Response Actions (SOC playbooks)
+
+New `true_positive` / `needs_investigation` alerts also return the playbook outcome:
+
+```json
+"response": {
+  "playbooks": ["brute-force-response"],
+  "actions": [
+    { "id": "1", "stepId": "open-case", "action": "ticket.create", "target": null, "status": "succeeded", "detail": "created AUTO-12" },
+    { "id": "3", "stepId": "block-source-ip", "action": "firewall.block_ip", "target": "203.0.113.77", "status": "pending_approval" }
+  ]
+}
+```
+
+```
+GET  /api/responses/actions?status=pending_approval&alertId=<id>
+GET  /api/responses/actions/:id                 # action + append-only audit events
+POST /api/responses/actions/:id/decision        { "decision": "approved" | "rejected", "reviewer": "alice", "comment": "..." }
+POST /api/responses/actions/:id/rollback        { "reviewer": "alice", "reason": "..." }
+GET  /api/responses/playbooks                   # loaded playbooks + files rejected by validation
+```
+
+Statuses: `pending_approval`, `approved` (transient), `rejected`, `succeeded`, `failed`,
+`blocked_by_guard`, `rolled_back`. Deciding a non-pending action or rolling back a non-succeeded
+or irreversible action returns `409`.
+
+---
+
 ## Enrichment Service (port 3003, Python)
 
 ### Enrich Indicators
