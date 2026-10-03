@@ -10,7 +10,8 @@ const { processAlert } = vi.hoisted(() => ({
   processAlert: vi.fn<(alert: SecurityAlert) => Promise<AlertProcessingResult>>(),
 }));
 vi.mock('../services/alert-processor', () => ({ processAlert }));
-vi.mock('../db/client', () => ({ query: vi.fn() }));
+const { query } = vi.hoisted(() => ({ query: vi.fn() }));
+vi.mock('../db/client', () => ({ query }));
 
 const app = express();
 app.use(express.json());
@@ -144,6 +145,30 @@ describe('alerts routes', () => {
     for (const q of ['status=bogus', 'disposition=bogus', 'priority=P9']) {
       expect((await request(app).get(`/api/alerts?${q}`)).status).toBe(400);
     }
+  });
+
+  it('computes SOC metrics including automation rate and clamps the window', async () => {
+    query.mockReset();
+    query
+      .mockResolvedValueOnce([{ total: 10, auto_closed: 7, true_positives: 2, analyst_queue: 1 }])
+      .mockResolvedValueOnce([{ disposition: 'false_positive', count: 5 }])
+      .mockResolvedValueOnce([{ priority: 'P1', count: 2 }])
+      .mockResolvedValueOnce([{ technique: 'T1110', count: 4 }])
+      .mockResolvedValueOnce([{ pending_approval: 1, contained: 1 }]);
+    const res = await request(app).get('/api/alerts/metrics?hours=99999');
+    expect(res.status).toBe(200);
+    expect(res.body.windowHours).toBe(720);
+    expect(res.body.alerts.automationRate).toBe(0.7);
+    expect(res.body.topTechniques[0]).toEqual({ technique: 'T1110', count: 4 });
+    expect(query.mock.calls[0]![1]).toEqual([720]);
+  });
+
+  it('reports a zero automation rate when there are no alerts', async () => {
+    query.mockReset();
+    query.mockResolvedValueOnce([{ total: 0, auto_closed: 0 }]).mockResolvedValue([]);
+    const res = await request(app).get('/api/alerts/metrics');
+    expect(res.body.alerts.automationRate).toBe(0);
+    expect(res.body.windowHours).toBe(24);
   });
 
   it('exposes the active triage policy', async () => {

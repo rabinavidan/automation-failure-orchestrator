@@ -1,13 +1,69 @@
-# Agentic Test Failure Orchestrator
+# Agentic Automation Orchestrator — SOC alert & CI failure automation
 
-> A guarded, local-first Agentic AI platform that turns noisy CI test failures into evidence-backed engineering actions.
+> A guarded, AI-assisted automation platform that turns noisy signals into evidence-backed actions. **Security track:** SIEM alerts (Splunk, Microsoft Sentinel, Wazuh) are deduplicated, enriched with threat intel, triaged by policy-as-code, investigated by advisory LLM agents, and answered by human-approved response playbooks. **Engineering track:** CI test failures get the same treatment. Deterministic rules own every side effect; the LLM only advises.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Python](https://img.shields.io/badge/Python-3.12_FastAPI-3776AB?logo=python&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![Ollama](https://img.shields.io/badge/Agentic_AI-Ollama-black)](https://ollama.com/)
-[![n8n](https://img.shields.io/badge/Orchestration-n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io/)
+[![LangGraph](https://img.shields.io/badge/Agents-LangGraph_+_Ollama-black)](https://langchain-ai.github.io/langgraphjs/)
+[![n8n](https://img.shields.io/badge/SOAR-n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io/)
+[![AWS](https://img.shields.io/badge/AWS-Terraform_|_Fargate_|_WAF-FF9900?logo=amazonwebservices&logoColor=white)](infra/terraform/README.md)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Docker](https://img.shields.io/badge/Runtime-Docker_Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+
+![SOC console: 24h alert KPIs (automation rate, time to triage), triage outcome mix, top ATT&CK techniques, and the containment approval queue with approve/execute and reject controls](docs/screenshots/soc-console.png)
+
+## SOC automation at a glance
+
+```mermaid
+flowchart LR
+    subgraph SIEM["SIEMs"]
+        S1[Splunk] & S2[Microsoft Sentinel] & S3[Wazuh]
+    end
+    N8N["n8n SOC workflow<br/>(SOAR front door, ChatOps)"]
+    subgraph CORE["Ingestion service (TypeScript)"]
+        NORM["Vendor adapters<br/>→ SecurityAlert contract"]
+        DEDUP["Entity fingerprint<br/>idempotency + suppression"]
+        TRIAGE["Deterministic triage<br/>policy-as-code + ATT&CK + risk"]
+        PB["Response playbooks<br/>(YAML)"]
+    end
+    ENR["Threat-intel enrichment<br/>(Python FastAPI)<br/>AbuseIPDB · VirusTotal · GeoIP"]
+    AI["Advisory SOC agents<br/>(LangGraph supervisor)<br/>triage · threat intel · response planner"]
+    HUMAN{{"Analyst approval<br/>(SOC console)"}}
+    ACT["Jira · Slack · EDR · Firewall"]
+    S1 & S2 & S3 --> NORM
+    S1 & S2 & S3 -.-> N8N -.-> NORM
+    NORM --> DEDUP --> TRIAGE
+    DEDUP -- new alerts only --> ENR --> TRIAGE
+    TRIAGE -- TP / analyst queue --> AI
+    TRIAGE --> PB
+    PB -- ticket, notify --> ACT
+    PB -- containment --> HUMAN -- approve --> ACT
+    AI -. evidence only .-> HUMAN
+```
+
+| Stage           | What happens                                                                                                     | Guarantee                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **Ingest**      | Native Splunk / Sentinel / Wazuh payloads normalized onto one Zod contract (`POST /api/alerts/:vendor`)          | Vendor parsing bugs fail at the edge (422)                                   |
+| **Deduplicate** | Entity fingerprint (rule, host, user, IOCs with identity normalization); webhook retries and repeats collapse    | Race-safe, idempotent                                                        |
+| **Enrich**      | Python service queries AbuseIPDB, VirusTotal, GeoIP for **new** alerts only                                      | Internal IPs/identities never leave; fail-open; rate-limit aware             |
+| **Triage**      | false positive → duplicate → true positive → known benign → needs investigation; risk 0–100, P1–P4, MITRE ATT&CK | Explainable evidence trail; allowlists expire; invalid policy closes nothing |
+| **Investigate** | LangGraph supervisor + 3 specialists grounded in [runbooks](docs/runbooks/)                                      | Advisory only; hallucinated-IOC evaluation gate; prompt-injection hardened   |
+| **Respond**     | YAML playbooks: tickets + Slack now; block IP / isolate host / kill process after approval                       | Blast-radius guards, exactly-once decisions, rollback, append-only audit     |
+| **Deploy**      | Terraform for ECS Fargate, RDS, SQS worker, WAF, KMS, OIDC                                                       | Checkov-gated in CI                                                          |
+
+```bash
+docker compose up --build -d
+npm run demo:soc-triage        # one alert per triage disposition
+npm run demo:soc-response      # playbook → approve firewall block → rollback, audited
+npm run demo:soc-multi-siem    # Splunk, Sentinel and Wazuh → same decision
+open http://localhost:4173     # SignalOps → SOC console
+```
+
+Full design, milestones and safety properties: [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md) · interview walkthrough: [`docs/soc-interview-guide.md`](docs/soc-interview-guide.md).
+
+![SOC alert detail: deterministic triage reasons and risk factors, threat-intel verdicts with internal entities kept private, the advisory AI investigation with cited runbook and passed evaluation, and executed response actions](docs/screenshots/soc-alert-detail.png)
+
+The rest of this README covers the shared platform and the original CI-failure track, which the SOC track reuses (contracts, fingerprinting, deterministic decisions, LangGraph agents, approvals, observability).
 
 ![SignalOps dashboard: command center showing CI runs, failure signals, AI investigations, agent confidence, and live classification mix](docs/screenshots/dashboard.png)
 
@@ -161,9 +217,9 @@ This demonstrates both code-first orchestration and low-code workflow automation
 
 ## SOC automation track
 
-The same guarded pipeline is being extended from CI failures to **security alerts** (SIEM → dedup → enrichment → triage → human-approved response). Milestones and design live in [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md).
+The same guarded pipeline handles **security alerts** (SIEM → dedup → enrichment → triage → advisory agents → human-approved response). Milestones and design live in [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md).
 
-Shipped so far (M1):
+What it includes:
 
 - **Vendor-agnostic `SecurityAlert` contract** (Zod) with indicators (IP, host, user, hash, URL, domain, process, email) and MITRE ATT&CK annotations.
 - **Splunk webhook normalizer** (`POST /api/alerts/splunk`) mapping Splunk CIM fields, multivalue fields, epoch/ISO `_time`, and urgency/numeric severity; ambiguous `src`/`dest` values are routed to IP or host by shape.
@@ -172,6 +228,7 @@ Shipped so far (M1):
 
 - **Python threat-intel enrichment service** (M2, `apps/enrichment-service`, FastAPI): AbuseIPDB, VirusTotal and GeoIP lookups for every **new** alert. Internal IPs and identities never leave the network, defanged IOCs are refanged, lookups are cached with single-flight to respect API rate limits, and every provider is timeout-isolated. Enrichment is fail-open, so a degraded intel provider never drops an alert. A golden contract file is verified by both pytest and the TypeScript Zod schema.
 
+- **SOC console** (M8): the SignalOps dashboard's SOC view shows 24h KPIs (automation rate, median/p95 time to triage, containment state), triage outcome mix, top ATT&CK techniques, an analyst queue sorted by priority and risk, a per-alert evidence drawer (triage reasons, intel, AI investigation and evaluation, actions), and approve / reject / roll back controls for containment. Backed by `GET /api/alerts/metrics`.
 - **AWS deployment** (M7): Terraform for ECS Fargate, RDS PostgreSQL (forced TLS), an SQS-backed investigation worker with a dead-letter queue, AWS WAF, KMS encryption, Secrets Manager and keyless GitHub OIDC deploys, gated in CI by `terraform validate` and a Checkov IaC security scan. See [`infra/terraform`](infra/terraform/README.md).
 - **Multi-SIEM interoperability** (M6): native **Splunk**, **Microsoft Sentinel** and **Wazuh** alert payloads (`POST /api/alerts/:vendor`) normalize onto one contract and get the same triage and playbooks. An n8n SOC workflow (`/webhook/soc-alerts`) acts as the SOAR front door: it detects the SIEM, delegates every decision to the service, and posts ChatOps approval requests for pending containment.
 - **Response playbooks with human approval** (M5): YAML playbooks (policy-as-code) open fingerprint-correlated tickets and notify Slack immediately, while containment (block IP, isolate host, kill process via mock EDR/firewall APIs) waits for an analyst's decision. Blast-radius guards refuse to block private or allowlisted IPs or isolate protected hosts, re-checked at execution time; decisions are exactly-once, containment is reversible, and every step lands in an append-only audit trail.

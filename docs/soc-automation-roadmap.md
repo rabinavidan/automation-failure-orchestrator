@@ -14,16 +14,16 @@ Design principles carried over from the CI track:
 
 ## Milestones
 
-| #   | Milestone                        | Status  | Scope                                                                                                                                       |
-| --- | -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| M1  | Security alert ingestion         | ✅ Done | `SecurityAlert` contract, Splunk webhook normalizer, `/api/alerts`, entity fingerprinting, idempotency, suppression window                  |
-| M2  | Python enrichment service        | ✅ Done | FastAPI service: IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with mock mode, caching, pytest/ruff/mypy                                    |
-| M3  | Deterministic SOC classifier     | ✅ Done | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping                     |
-| M4  | AI SOC triage agents             | ✅ Done | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates                              |
-| M5  | Response playbooks + approval    | ✅ Done | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit                                |
-| M6  | SOAR / SIEM interoperability     | ✅ Done | Sentinel + Wazuh normalizers beside Splunk (vendor registry), multi-SIEM n8n SOC workflow with ChatOps approval requests                    |
-| M7  | AWS deployment                   | ✅ Done | Terraform (ECS Fargate, RDS, SQS + DLQ worker, WAF, KMS, Secrets Manager, GitHub OIDC), Checkov-gated in CI, approval-gated deploy workflow |
-| M8  | SOC dashboard + portfolio polish | Planned | Alert queue, MTTT/automation-rate metrics, demo scenarios (phishing, brute force, EDR malware), architecture diagram                        |
+| #   | Milestone                      | Status  | Scope                                                                                                                                       |
+| --- | ------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | Security alert ingestion       | ✅ Done | `SecurityAlert` contract, Splunk webhook normalizer, `/api/alerts`, entity fingerprinting, idempotency, suppression window                  |
+| M2  | Python enrichment service      | ✅ Done | FastAPI service: IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with mock mode, caching, pytest/ruff/mypy                                    |
+| M3  | Deterministic SOC classifier   | ✅ Done | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping                     |
+| M4  | AI SOC triage agents           | ✅ Done | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates                              |
+| M5  | Response playbooks + approval  | ✅ Done | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit                                |
+| M6  | SOAR / SIEM interoperability   | ✅ Done | Sentinel + Wazuh normalizers beside Splunk (vendor registry), multi-SIEM n8n SOC workflow with ChatOps approval requests                    |
+| M7  | AWS deployment                 | ✅ Done | Terraform (ECS Fargate, RDS, SQS + DLQ worker, WAF, KMS, Secrets Manager, GitHub OIDC), Checkov-gated in CI, approval-gated deploy workflow |
+| M8  | SOC console + portfolio polish | ✅ Done | Dashboard SOC console (KPIs, analyst queue, evidence drawer, approve/reject/rollback), metrics API, README repositioning, interview guide   |
 
 ## M1 — Security alert ingestion (done)
 
@@ -292,3 +292,19 @@ for the architecture, security controls, deploy steps and cost):
 
 Not applied from this repository's CI: provisioning creates billable resources in the
 operator's AWS account and is run deliberately with `terraform apply`.
+
+## M8 — SOC console and portfolio polish (done)
+
+- **SOC console** (`apps/dashboard/src/SocConsole.tsx`): KPIs (alerts, automation rate,
+  median/p95 time to triage, containment), triage outcome mix, top ATT&CK techniques linked
+  to attack.mitre.org, the containment approval queue (approve / reject, plus roll back for
+  active reversible containment), an analyst queue sorted by priority → risk → recency with a
+  disposition filter, and a per-alert evidence drawer.
+- **`GET /api/alerts/metrics?hours=24`**: alert totals, automation rate (auto-closed share),
+  percentile time to triage, dispositions, priorities, top techniques, containment counts and
+  median approval latency (window clamped to 1–720 hours).
+- Verified in a real browser (Playwright + Chromium) against the full local stack; this caught
+  a drawer bug (a transformed ancestor made `position: fixed` relative to the section), fixed
+  with a React portal.
+- README repositioned around the SOC track with a Mermaid architecture diagram and screenshots;
+  [interview guide](soc-interview-guide.md).
