@@ -46,6 +46,7 @@ describe('alerts routes', () => {
   beforeEach(() => {
     processAlert.mockReset();
     delete process.env.WEBHOOK_SECRET;
+    delete process.env.ENRICHMENT_URL;
   });
   afterEach(() => {
     if (originalSecret !== undefined) process.env.WEBHOOK_SECRET = originalSecret;
@@ -57,6 +58,7 @@ describe('alerts routes', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('new');
+    expect(res.body.enrichment).toEqual({ status: 'disabled' });
     const alert = processAlert.mock.calls[0]![0];
     expect(alert.source.vendor).toBe('splunk');
     expect(alert.severity).toBe('high');

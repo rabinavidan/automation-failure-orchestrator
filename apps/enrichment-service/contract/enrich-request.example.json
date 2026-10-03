@@ -1,0 +1,10 @@
+{
+  "alertId": "splunk:contract-example:000000000000",
+  "indicators": [
+    { "type": "ip", "value": "203.0.113.7", "role": "source" },
+    { "type": "ip", "value": "10.0.0.5", "role": "destination" },
+    { "type": "file_hash", "value": "44d88612fea8a8f36de82e1278abb02f", "role": "observed" },
+    { "type": "url", "value": "hxxp://evil[.]example[.]net/payload" },
+    { "type": "user", "value": "CORP\\jdoe", "role": "target" }
+  ]
+}

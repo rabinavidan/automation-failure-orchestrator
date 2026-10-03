@@ -4,6 +4,7 @@ import { SecurityAlertSchema, SplunkAlertWebhookSchema } from '@orchestrator/sha
 import type { SecurityAlert } from '@orchestrator/shared-types';
 import { query } from '../db/client';
 import { processAlert } from '../services/alert-processor';
+import { enrichIngestedAlert } from '../services/alert-enrichment';
 import { normalizeSplunkAlert } from '../services/alert-normalizers/splunk';
 import { webhookSecret } from '../middleware/webhook-secret';
 
@@ -14,7 +15,10 @@ const ALERT_STATUSES = ['new', 'suppressed'] as const;
 async function ingest(alert: SecurityAlert, res: Response): Promise<void> {
   try {
     const result = await processAlert(alert);
-    res.status(result.status === 'duplicate_delivery' ? 200 : 201).json(result);
+    // Runs after the ingestion transaction commits, so a slow or failing
+    // enrichment service never holds locks or loses the alert.
+    const enrichment = await enrichIngestedAlert(alert, result.status);
+    res.status(result.status === 'duplicate_delivery' ? 200 : 201).json({ ...result, enrichment });
   } catch (err) {
     console.error('[Alerts] Processing error:', err);
     res.status(500).json({ error: 'Internal server error processing alert' });
@@ -69,7 +73,7 @@ router.get('/', async (req, res) => {
     const params: unknown[] = status ? [limit, offset, status] : [limit, offset];
     const alerts = await query(
       `SELECT alert_id, fingerprint, vendor, rule_id, title, severity, status, host, user_name,
-              indicators, mitre, detected_at, received_at
+              indicators, mitre, enrichment_status, enrichment_verdict, detected_at, received_at
        FROM security_alerts ${where}
        ORDER BY received_at DESC
        LIMIT $1 OFFSET $2`,

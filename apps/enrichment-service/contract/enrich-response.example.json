@@ -1,0 +1,152 @@
+{
+  "alertId": "splunk:contract-example:000000000000",
+  "mode": "mock",
+  "summary": {
+    "verdict": "malicious",
+    "maxScore": 100,
+    "malicious": 3,
+    "suspicious": 0,
+    "enriched": 3,
+    "skipped": 2,
+    "providerErrors": 0
+  },
+  "enrichments": [
+    {
+      "indicator": {
+        "type": "ip",
+        "value": "203.0.113.7",
+        "role": "source"
+      },
+      "normalizedValue": "203.0.113.7",
+      "verdict": "malicious",
+      "score": 100,
+      "skippedReason": null,
+      "results": [
+        {
+          "provider": "abuseipdb",
+          "verdict": "malicious",
+          "score": 100,
+          "summary": "Abuse confidence 100% from 412 reports",
+          "details": {
+            "abuseConfidenceScore": 100,
+            "totalReports": 412,
+            "mock": true
+          },
+          "cached": false,
+          "error": null
+        },
+        {
+          "provider": "virustotal",
+          "verdict": "malicious",
+          "score": 90,
+          "summary": "12 malicious / 2 suspicious engine detections",
+          "details": {
+            "lastAnalysisStats": {
+              "malicious": 12,
+              "suspicious": 2,
+              "harmless": 56
+            },
+            "mock": true
+          },
+          "cached": false,
+          "error": null
+        },
+        {
+          "provider": "geoip",
+          "verdict": "unknown",
+          "score": 0,
+          "summary": "ZZ, AS64500 Bulletproof Hosting (mock)",
+          "details": {
+            "country": "ZZ",
+            "org": "AS64500 Bulletproof Hosting (mock)",
+            "mock": true
+          },
+          "cached": false,
+          "error": null
+        }
+      ]
+    },
+    {
+      "indicator": {
+        "type": "ip",
+        "value": "10.0.0.5",
+        "role": "destination"
+      },
+      "normalizedValue": "10.0.0.5",
+      "verdict": "unknown",
+      "score": 0,
+      "skippedReason": "non-public IP; not sent to external providers",
+      "results": []
+    },
+    {
+      "indicator": {
+        "type": "file_hash",
+        "value": "44d88612fea8a8f36de82e1278abb02f",
+        "role": "observed"
+      },
+      "normalizedValue": "44d88612fea8a8f36de82e1278abb02f",
+      "verdict": "malicious",
+      "score": 90,
+      "skippedReason": null,
+      "results": [
+        {
+          "provider": "virustotal",
+          "verdict": "malicious",
+          "score": 90,
+          "summary": "62 malicious / 0 suspicious engine detections",
+          "details": {
+            "lastAnalysisStats": {
+              "malicious": 62,
+              "suspicious": 0,
+              "harmless": 8
+            },
+            "mock": true
+          },
+          "cached": false,
+          "error": null
+        }
+      ]
+    },
+    {
+      "indicator": {
+        "type": "url",
+        "value": "hxxp://evil[.]example[.]net/payload",
+        "role": null
+      },
+      "normalizedValue": "http://evil.example.net/payload",
+      "verdict": "malicious",
+      "score": 90,
+      "skippedReason": null,
+      "results": [
+        {
+          "provider": "virustotal",
+          "verdict": "malicious",
+          "score": 90,
+          "summary": "9 malicious / 1 suspicious engine detections",
+          "details": {
+            "lastAnalysisStats": {
+              "malicious": 9,
+              "suspicious": 1,
+              "harmless": 60
+            },
+            "mock": true
+          },
+          "cached": false,
+          "error": null
+        }
+      ]
+    },
+    {
+      "indicator": {
+        "type": "user",
+        "value": "CORP\\jdoe",
+        "role": "target"
+      },
+      "normalizedValue": "CORP\\jdoe",
+      "verdict": "unknown",
+      "score": 0,
+      "skippedReason": "internal identity; not sent to external providers",
+      "results": []
+    }
+  ]
+}

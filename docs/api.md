@@ -179,6 +179,23 @@ Response (`201` for `new`/`suppressed`, `200` for `duplicate_delivery`, `400` in
 
 ---
 
+`new` alerts also carry an `enrichment` outcome from the Python enrichment service:
+
+```json
+"enrichment": {
+  "status": "enriched",
+  "summary": { "verdict": "malicious", "maxScore": 100, "malicious": 3, "suspicious": 0,
+               "enriched": 3, "skipped": 3, "providerErrors": 0 }
+}
+```
+
+`status` is `enriched`, `failed` (service down, timeout, or contract violation — the alert is
+still ingested), `disabled` (`ENRICHMENT_URL` unset) or `not_applicable` (suppressed or
+duplicate deliveries are never enriched). The full per-indicator result is stored in
+`security_alerts.enrichment`.
+
+---
+
 ### Ingest Normalized Alert
 
 Producers that already emit the `SecurityAlert` contract (see `packages/shared-types/src/security.ts`):
@@ -228,6 +245,36 @@ GET /api/alerts/fingerprints/:fingerprint
 ```
 
 Returns the aggregate (occurrence/suppressed counts, first/last seen, max severity) and the 50 most recent occurrences.
+
+---
+
+## Enrichment Service (port 3003, Python)
+
+### Enrich Indicators
+
+```
+POST /enrich
+Content-Type: application/json
+x-webhook-secret: <WEBHOOK_SECRET>
+
+{
+  "alertId": "splunk:sid:abc",
+  "indicators": [
+    { "type": "ip", "value": "203.0.113.7", "role": "source" },
+    { "type": "file_hash", "value": "44d88612fea8a8f36de82e1278abb02f" }
+  ]
+}
+```
+
+Returns per-indicator provider results plus a summary. A full example is
+[`apps/enrichment-service/contract/enrich-response.example.json`](../apps/enrichment-service/contract/enrich-response.example.json)
+(the golden contract file both test suites verify). Interactive OpenAPI docs: `http://localhost:3003/docs`.
+
+### Health
+
+```
+GET /health  ->  { "status": "ok", "mode": "mock", "providers": ["abuseipdb", "virustotal", "geoip"] }
+```
 
 ---
 
