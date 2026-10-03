@@ -135,6 +135,102 @@ Content-Type: application/json
 
 ---
 
+### Ingest Splunk Alert
+
+Accepts the payload of Splunk's **Webhook** alert action. `result` fields follow the Splunk CIM.
+
+```
+POST /api/alerts/splunk
+Content-Type: application/json
+x-webhook-secret: <WEBHOOK_SECRET>
+
+{
+  "sid": "scheduler__admin__SplunkEnterpriseSecuritySuite__RMD5a1b2_at_1759500000_123",
+  "search_name": "Access - Brute Force Access Behavior Detected - Rule",
+  "app": "SplunkEnterpriseSecuritySuite",
+  "results_link": "https://splunk.example.com/app/search/@go?sid=...",
+  "result": {
+    "_time": "1759500000.000",
+    "signature": "Brute Force Access Behavior Detected",
+    "src": "203.0.113.7",
+    "dest": "WS-042.corp.example.com",
+    "user": "CORP\\jdoe",
+    "count": "57",
+    "urgency": "high",
+    "annotations.mitre_attack": ["T1110", "T1110.001"]
+  }
+}
+```
+
+Response (`201` for `new`/`suppressed`, `200` for `duplicate_delivery`, `400` invalid payload):
+
+```json
+{
+  "alertId": "splunk:scheduler__admin__...:3f9c2a1b7d4e",
+  "fingerprint": "<64-char sha256>",
+  "fingerprintLabel": "security-alert-fingerprint-<12 hex>",
+  "status": "new",
+  "occurrenceCount": 1,
+  "suppressedCount": 0,
+  "firstSeenAt": "2025-10-03T14:00:00.000Z",
+  "lastSeenAt": "2025-10-03T14:00:00.000Z"
+}
+```
+
+---
+
+### Ingest Normalized Alert
+
+Producers that already emit the `SecurityAlert` contract (see `packages/shared-types/src/security.ts`):
+
+```
+POST /api/alerts
+Content-Type: application/json
+x-webhook-secret: <WEBHOOK_SECRET>
+
+{
+  "schemaVersion": "1.0.0",
+  "alertId": "idp-2025-10-03-0001",
+  "source": { "vendor": "generic", "product": "idp" },
+  "ruleId": "impossible-travel",
+  "ruleName": "Impossible travel",
+  "title": "Impossible travel for jdoe",
+  "severity": "medium",
+  "detectedAt": "2025-10-03T14:00:00Z",
+  "user": "jdoe",
+  "indicators": [{ "type": "ip", "value": "203.0.113.7", "role": "source" }],
+  "mitre": { "tactics": ["Initial Access"], "techniques": ["T1078"] }
+}
+```
+
+---
+
+### List Alerts
+
+```
+GET /api/alerts?limit=20&offset=0&status=suppressed
+```
+
+---
+
+### Get Alert
+
+```
+GET /api/alerts/:alertId
+```
+
+---
+
+### Get Alert Fingerprint
+
+```
+GET /api/alerts/fingerprints/:fingerprint
+```
+
+Returns the aggregate (occurrence/suppressed counts, first/last seen, max severity) and the 50 most recent occurrences.
+
+---
+
 ## Mock Integrations (port 3002)
 
 ### Jira Endpoints
