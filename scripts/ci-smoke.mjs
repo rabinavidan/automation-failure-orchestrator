@@ -107,6 +107,12 @@ if (
 ) {
   throw new Error(`Alert enrichment smoke failed: ${JSON.stringify(alertResult.enrichment)}`);
 }
+if (
+  alertResult.triage?.disposition !== 'true_positive' ||
+  alertResult.triage.recommendedAction !== 'escalate'
+) {
+  throw new Error(`Alert triage smoke failed: ${JSON.stringify(alertResult.triage)}`);
+}
 const alertRetry = await (await postAlert()).json();
 if (alertRetry.status !== 'duplicate_delivery') {
   throw new Error(`Alert idempotency smoke failed: ${JSON.stringify(alertRetry)}`);
@@ -121,5 +127,6 @@ console.log(
     runId,
     classification: result.failures[0].classification,
     alertEnrichment: alertResult.enrichment.summary.verdict,
+    alertTriage: `${alertResult.triage.disposition}/${alertResult.triage.priority}`,
   })
 );

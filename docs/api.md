@@ -196,6 +196,27 @@ duplicate deliveries are never enriched). The full per-indicator result is store
 
 ---
 
+New and suppressed alerts also carry a deterministic `triage` decision (see
+[`docs/soc-automation-roadmap.md`](soc-automation-roadmap.md#m3--deterministic-soc-triage-done)):
+
+```json
+"triage": {
+  "disposition": "true_positive",
+  "recommendedAction": "escalate",
+  "priority": "P1",
+  "riskScore": 100,
+  "reasons": [
+    "Threat intel: ip 203.0.113.9 (abuseipdb 100, virustotal 90) is malicious",
+    "severity high (+70)", "threat intel malicious (+20)",
+    "late kill-chain tactic: Credential Access (+10)"
+  ],
+  "mitre": { "tactics": ["Credential Access"], "techniques": ["T1110"], "inferred": true },
+  "policyVersion": "2026.10.1"
+}
+```
+
+---
+
 ### Ingest Normalized Alert
 
 Producers that already emit the `SecurityAlert` contract (see `packages/shared-types/src/security.ts`):
@@ -225,8 +246,22 @@ x-webhook-secret: <WEBHOOK_SECRET>
 ### List Alerts
 
 ```
-GET /api/alerts?limit=20&offset=0&status=suppressed
+GET /api/alerts?limit=20&offset=0&status=new&disposition=needs_investigation&priority=P2
 ```
+
+`disposition`: `false_positive | duplicate | true_positive | benign_true_positive | needs_investigation`;
+`priority`: `P1`–`P4`.
+
+---
+
+### Get Triage Policy
+
+```
+GET /api/alerts/triage-policy
+```
+
+Returns the active policy (`config/soc-triage-policy.json`), its version, and an `error` field if
+the file failed validation (in which case an empty, nothing-auto-closed policy is in force).
 
 ---
 

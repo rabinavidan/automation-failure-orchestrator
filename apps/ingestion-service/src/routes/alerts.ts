@@ -1,16 +1,24 @@
 import { Router } from 'express';
 import type { Response } from 'express';
-import { SecurityAlertSchema, SplunkAlertWebhookSchema } from '@orchestrator/shared-types';
+import {
+  SecurityAlertSchema,
+  SplunkAlertWebhookSchema,
+  TriageDispositionSchema,
+  TriagePrioritySchema,
+} from '@orchestrator/shared-types';
 import type { SecurityAlert } from '@orchestrator/shared-types';
 import { query } from '../db/client';
 import { processAlert } from '../services/alert-processor';
 import { enrichIngestedAlert } from '../services/alert-enrichment';
+import { getTriagePolicy, triageIngestedAlert } from '../services/alert-triage';
 import { normalizeSplunkAlert } from '../services/alert-normalizers/splunk';
 import { webhookSecret } from '../middleware/webhook-secret';
 
 const router = Router();
 
 const ALERT_STATUSES = ['new', 'suppressed'] as const;
+const DISPOSITIONS = TriageDispositionSchema.options;
+const PRIORITIES = TriagePrioritySchema.options;
 
 async function ingest(alert: SecurityAlert, res: Response): Promise<void> {
   try {
@@ -18,7 +26,10 @@ async function ingest(alert: SecurityAlert, res: Response): Promise<void> {
     // Runs after the ingestion transaction commits, so a slow or failing
     // enrichment service never holds locks or loses the alert.
     const enrichment = await enrichIngestedAlert(alert, result.status);
-    res.status(result.status === 'duplicate_delivery' ? 200 : 201).json({ ...result, enrichment });
+    const triage = await triageIngestedAlert(alert, result, enrichment.response);
+    res
+      .status(result.status === 'duplicate_delivery' ? 200 : 201)
+      .json({ ...result, enrichment: enrichment.outcome, ...(triage ? { triage } : {}) });
   } catch (err) {
     console.error('[Alerts] Processing error:', err);
     res.status(500).json({ error: 'Internal server error processing alert' });
@@ -57,31 +68,43 @@ router.post('/splunk', webhookSecret, async (req, res) => {
   await ingest(normalized.data, res);
 });
 
-// GET /api/alerts — list recent alerts, optionally filtered by status
+// GET /api/alerts — list recent alerts, filterable by status, disposition and priority
 router.get('/', async (req, res) => {
   const limit = Math.min(parseInt(String(req.query.limit ?? '20'), 10) || 20, 100);
   const offset = parseInt(String(req.query.offset ?? '0'), 10) || 0;
-  const status = req.query.status as string | undefined;
 
-  if (status && !ALERT_STATUSES.includes(status as (typeof ALERT_STATUSES)[number])) {
-    res.status(400).json({ error: `status must be one of: ${ALERT_STATUSES.join(', ')}` });
-    return;
+  const filters: Array<[column: string, value: string | undefined, allowed: readonly string[]]> = [
+    ['status', req.query.status as string | undefined, ALERT_STATUSES],
+    ['triage_disposition', req.query.disposition as string | undefined, DISPOSITIONS],
+    ['triage_priority', req.query.priority as string | undefined, PRIORITIES],
+  ];
+  const conditions: string[] = [];
+  const filterParams: unknown[] = [];
+  for (const [column, value, allowed] of filters) {
+    if (value === undefined) continue;
+    if (!allowed.includes(value)) {
+      res.status(400).json({ error: `${column} must be one of: ${allowed.join(', ')}` });
+      return;
+    }
+    filterParams.push(value);
+    conditions.push(`${column} = $${filterParams.length}`);
   }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   try {
-    const where = status ? 'WHERE status = $3' : '';
-    const params: unknown[] = status ? [limit, offset, status] : [limit, offset];
+    const n = filterParams.length;
     const alerts = await query(
       `SELECT alert_id, fingerprint, vendor, rule_id, title, severity, status, host, user_name,
-              indicators, mitre, enrichment_status, enrichment_verdict, detected_at, received_at
+              indicators, mitre, enrichment_status, enrichment_verdict, triage_disposition,
+              triage_priority, risk_score, detected_at, received_at
        FROM security_alerts ${where}
        ORDER BY received_at DESC
-       LIMIT $1 OFFSET $2`,
-      params
+       LIMIT $${n + 1} OFFSET $${n + 2}`,
+      [...filterParams, limit, offset]
     );
     const total = await query<{ count: string }>(
-      `SELECT COUNT(*) AS count FROM security_alerts ${status ? 'WHERE status = $1' : ''}`,
-      status ? [status] : []
+      `SELECT COUNT(*) AS count FROM security_alerts ${where}`,
+      filterParams
     );
 
     res.json({ alerts, total: parseInt(total[0]?.count ?? '0', 10), limit, offset });
@@ -89,6 +112,16 @@ router.get('/', async (req, res) => {
     console.error('[Alerts] List error:', err);
     res.status(500).json({ error: 'Failed to list alerts' });
   }
+});
+
+// GET /api/alerts/triage-policy — active policy version and entries (policy-as-code audit)
+router.get('/triage-policy', (_req, res) => {
+  const { policy, source, error } = getTriagePolicy();
+  res.json({
+    ...policy,
+    source: source.split('/').slice(-2).join('/'),
+    ...(error ? { error } : {}),
+  });
 });
 
 // GET /api/alerts/fingerprints/:fingerprint — aggregate + recent occurrences

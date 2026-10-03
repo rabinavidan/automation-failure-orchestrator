@@ -27,7 +27,7 @@ For reviewers scanning quickly: this repository is a working implementation of t
 | Tool-using agents with bounded authority | Three allowlisted tools, no free-form code execution or unbounded external calls                                                                                                                                                                   |
 | Production delivery for AI systems       | Docker Compose, GitHub Actions quality/security gates, container vulnerability scanning, semantic-versioned releases                                                                                                                               |
 | API & event-contract design              | Zod-validated webhook contract shared across the API and n8n paths                                                                                                                                                                                 |
-| SOC alert automation (SIEM ingestion)    | Splunk webhook normalization, entity fingerprinting, idempotent dedup and suppression windows ([SOC automation track](#soc-automation-track))                                                                                                      |
+| SOC alert automation (SIEM ingestion)    | Splunk webhook normalization, entity fingerprinting, dedup, threat-intel enrichment, policy-as-code triage with MITRE ATT&CK ([SOC automation track](#soc-automation-track))                                                                       |
 | Low-code + code-first orchestration      | Equivalent n8n visual workflow alongside the TypeScript service                                                                                                                                                                                    |
 
 ## Why this project exists
@@ -172,8 +172,11 @@ Shipped so far (M1):
 
 - **Python threat-intel enrichment service** (M2, `apps/enrichment-service`, FastAPI): AbuseIPDB, VirusTotal and GeoIP lookups for every **new** alert. Internal IPs and identities never leave the network, defanged IOCs are refanged, lookups are cached with single-flight to respect API rate limits, and every provider is timeout-isolated. Enrichment is fail-open, so a degraded intel provider never drops an alert. A golden contract file is verified by both pytest and the TypeScript Zod schema.
 
+- **Deterministic SOC triage** (M3): a strict priority chain (false positive → duplicate → true positive → known benign → needs investigation) with an explainable evidence trail, a 0–100 risk score, P1–P4 priority, MITRE ATT&CK tactic mapping (inferred from the rule name when the SIEM gives none) and a recommended action. Allowlists and known-benign rules are **policy-as-code** (`config/soc-triage-policy.json`): every entry has an owner and an expiry date, and an invalid policy fails safe so nothing is auto-closed.
+
 ```bash
 npm run demo:soc-brute-force   # new -> duplicate_delivery -> suppressed -> new
+npm run demo:soc-triage        # one alert per triage disposition
 npm run demo:soc-malware       # C2 IP + EICAR hash + defanged URL enriched as malicious; internal entities skipped
 ```
 
@@ -361,6 +364,7 @@ automation-failure-orchestrator/
 |   |-- failure-classifier/      # Deterministic classification rules
 |   |-- fingerprint-engine/      # Normalization and SHA-256 identity
 |   `-- shared-types/            # Zod schemas and shared contracts
+|-- config/                      # SOC triage policy-as-code
 |-- database/migrations/         # PostgreSQL schema and indexes
 |-- n8n/workflows/               # Importable visual workflow
 |-- scripts/                     # Repeatable behavioral demos
@@ -491,6 +495,9 @@ npm run demo:soc-brute-force
 
 # SOC: malware alert enriched with threat intel (Python service)
 npm run demo:soc-malware
+
+# SOC: one alert per triage disposition (policy-as-code)
+npm run demo:soc-triage
 ```
 
 Inspect results:
@@ -576,20 +583,21 @@ Change them outside local development.
 
 ### Ingestion service (`:3001`)
 
-| Method | Endpoint                                | Purpose                         |
-| ------ | --------------------------------------- | ------------------------------- |
-| `GET`  | `/health`                               | Service and database readiness  |
-| `POST` | `/api/runs`                             | Validate and process a test run |
-| `GET`  | `/api/runs`                             | Paginated run history           |
-| `GET`  | `/api/runs/:runId`                      | Run and individual results      |
-| `GET`  | `/api/failures`                         | Paginated failure aggregates    |
-| `GET`  | `/api/failures/:fingerprint`            | History and recent occurrences  |
-| `POST` | `/api/failures/:fingerprint/reclassify` | Human/manual correction         |
-| `POST` | `/api/alerts/splunk`                    | Ingest a Splunk webhook alert   |
-| `POST` | `/api/alerts`                           | Ingest a normalized alert       |
-| `GET`  | `/api/alerts`                           | Paginated alerts (`?status=`)   |
-| `GET`  | `/api/alerts/:alertId`                  | Full normalized alert           |
-| `GET`  | `/api/alerts/fingerprints/:fingerprint` | Alert aggregate + occurrences   |
+| Method | Endpoint                                | Purpose                                    |
+| ------ | --------------------------------------- | ------------------------------------------ |
+| `GET`  | `/health`                               | Service and database readiness             |
+| `POST` | `/api/runs`                             | Validate and process a test run            |
+| `GET`  | `/api/runs`                             | Paginated run history                      |
+| `GET`  | `/api/runs/:runId`                      | Run and individual results                 |
+| `GET`  | `/api/failures`                         | Paginated failure aggregates               |
+| `GET`  | `/api/failures/:fingerprint`            | History and recent occurrences             |
+| `POST` | `/api/failures/:fingerprint/reclassify` | Human/manual correction                    |
+| `POST` | `/api/alerts/splunk`                    | Ingest a Splunk webhook alert              |
+| `POST` | `/api/alerts`                           | Ingest a normalized alert                  |
+| `GET`  | `/api/alerts`                           | Alerts (`?status=&disposition=&priority=`) |
+| `GET`  | `/api/alerts/triage-policy`             | Active triage policy (policy-as-code)      |
+| `GET`  | `/api/alerts/:alertId`                  | Full normalized alert                      |
+| `GET`  | `/api/alerts/fingerprints/:fingerprint` | Alert aggregate + occurrences              |
 
 `POST /api/runs` and `POST /api/alerts*` require:
 

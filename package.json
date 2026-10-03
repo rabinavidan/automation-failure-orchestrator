@@ -24,6 +24,7 @@
     "demo:duplicate-delivery": "tsx scripts/demo-duplicate-delivery.ts",
     "demo:soc-brute-force": "tsx scripts/demo-soc-brute-force.ts",
     "demo:soc-malware": "tsx scripts/demo-soc-malware.ts",
+    "demo:soc-triage": "tsx scripts/demo-soc-triage.ts",
     "test:python": "cd apps/enrichment-service && ruff check . && ruff format --check . && mypy && pytest -q"
   },
   "devDependencies": {

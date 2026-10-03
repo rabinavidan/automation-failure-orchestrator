@@ -14,6 +14,7 @@ COPY packages/failure-classifier ./packages/failure-classifier/
 # Copy app and migrations
 COPY apps/ingestion-service ./apps/ingestion-service/
 COPY database ./database/
+COPY config ./config/
 COPY README.md ./README.md
 COPY docs ./docs/
 
@@ -50,6 +51,7 @@ COPY --from=builder /app/packages/shared-types/src ./packages/shared-types/src
 COPY --from=builder /app/packages/fingerprint-engine/src ./packages/fingerprint-engine/src
 COPY --from=builder /app/packages/failure-classifier/src ./packages/failure-classifier/src
 COPY --from=builder /app/database ./database
+COPY --from=builder /app/config ./config
 COPY --from=builder /app/README.md ./README.md
 COPY --from=builder /app/docs ./docs
 

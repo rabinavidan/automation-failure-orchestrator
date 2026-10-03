@@ -11,7 +11,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@orchestrator/shared-types": "*"
+    "@orchestrator/shared-types": "*",
+    "@orchestrator/fingerprint-engine": "*"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
