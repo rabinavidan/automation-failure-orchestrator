@@ -9,6 +9,7 @@ A local-first platform that turns CI test failures into engineering actions: val
 ## Repository structure (npm workspaces)
 
 ```
+apps/enrichment-service/  Python 3.12 FastAPI threat-intel enrichment (SOC track) — NOT an npm workspace; own pyproject/ruff/mypy/pytest
 apps/ingestion-service/   Express + Zod API, PostgreSQL, LangGraph multi-agent investigation, Jira/Slack policy actions
 apps/mock-integrations/   In-memory Jira- and Slack-compatible APIs for local dev/demo (no tests)
 apps/dashboard/           React 19 + Vite + Tailwind ops console (separate toolchain: oxlint, not the root ESLint config)
@@ -36,6 +37,7 @@ npm run test:unit                 # vitest run at the root (packages + ingestion
 npm run test:evaluations          # deterministic agent-evaluation + multi-agent-investigation suites only
 npm run quality                   # lint + format:check + build + test:unit + test:evaluations — the full local gate
 npm run test:smoke                # scripts/ci-smoke.mjs
+npm run test:python               # ruff + mypy + pytest for apps/enrichment-service (needs its venv: pip install -e '.[dev]')
 ```
 
 Single-workspace / single-test:

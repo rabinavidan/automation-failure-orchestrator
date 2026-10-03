@@ -72,7 +72,54 @@ if (!duplicate.ok || duplicateResult.duplicateRun !== true) {
   throw new Error(`Idempotency smoke check failed: ${JSON.stringify(duplicateResult)}`);
 }
 
+// SOC track: a Splunk alert is ingested, deduplicated, and enriched by the Python service.
+const alertSid = `ci-smoke-${Date.now()}`;
+const splunkAlert = {
+  sid: alertSid,
+  search_name: 'CI Smoke - Brute Force Access Behavior Detected',
+  app: 'SplunkEnterpriseSecuritySuite',
+  result: {
+    _time: String(Math.floor(Date.now() / 1000)),
+    signature: 'Brute Force Access Behavior Detected',
+    src: `203.0.113.${(Date.now() % 250) + 1}`,
+    dest: `ci-smoke-${alertSid}`,
+    user: 'ci-smoke',
+    urgency: 'high',
+  },
+};
+
+async function postAlert() {
+  return fetch(`${ingestionUrl}/api/alerts/splunk`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-webhook-secret': secret },
+    body: JSON.stringify(splunkAlert),
+  });
+}
+
+const alertResponse = await postAlert();
+const alertResult = await alertResponse.json();
+if (alertResponse.status !== 201 || alertResult.status !== 'new') {
+  throw new Error(`Alert ingestion smoke failed: ${JSON.stringify(alertResult)}`);
+}
+if (
+  alertResult.enrichment?.status !== 'enriched' ||
+  alertResult.enrichment.summary?.verdict !== 'malicious'
+) {
+  throw new Error(`Alert enrichment smoke failed: ${JSON.stringify(alertResult.enrichment)}`);
+}
+const alertRetry = await (await postAlert()).json();
+if (alertRetry.status !== 'duplicate_delivery') {
+  throw new Error(`Alert idempotency smoke failed: ${JSON.stringify(alertRetry)}`);
+}
+
 const proxyHealth = await fetch(`${dashboardUrl}/api/ingestion/health`);
 if (!proxyHealth.ok) throw new Error(`Dashboard ingestion proxy returned ${proxyHealth.status}`);
 
-console.log(JSON.stringify({ ok: true, runId, classification: result.failures[0].classification }));
+console.log(
+  JSON.stringify({
+    ok: true,
+    runId,
+    classification: result.failures[0].classification,
+    alertEnrichment: alertResult.enrichment.summary.verdict,
+  })
+);

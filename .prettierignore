@@ -7,3 +7,7 @@ playwright-report/
 allure-results/
 package-lock.json
 n8n/workflows/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

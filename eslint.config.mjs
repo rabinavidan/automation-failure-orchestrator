@@ -5,7 +5,13 @@ import globals from 'globals';
 
 export default [
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**', 'n8n/workflows/**'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/coverage/**',
+      'n8n/workflows/**',
+      '**/.venv/**',
+    ],
   },
   {
     files: ['**/*.ts', '**/*.tsx'],

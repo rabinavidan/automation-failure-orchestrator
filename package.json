@@ -22,7 +22,9 @@
     "demo:automation-failure": "tsx scripts/demo-automation-failure.ts",
     "demo:recovered-bug": "tsx scripts/demo-recovered-bug.ts",
     "demo:duplicate-delivery": "tsx scripts/demo-duplicate-delivery.ts",
-    "demo:soc-brute-force": "tsx scripts/demo-soc-brute-force.ts"
+    "demo:soc-brute-force": "tsx scripts/demo-soc-brute-force.ts",
+    "demo:soc-malware": "tsx scripts/demo-soc-malware.ts",
+    "test:python": "cd apps/enrichment-service && ruff check . && ruff format --check . && mypy && pytest -q"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.0",

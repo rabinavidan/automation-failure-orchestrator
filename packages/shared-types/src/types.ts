@@ -15,6 +15,9 @@ import {
   AlertSourceSchema,
   SecurityAlertSchema,
   SplunkAlertWebhookSchema,
+  EnrichmentVerdictSchema,
+  EnrichmentSummarySchema,
+  EnrichmentResponseSchema,
 } from './security';
 
 export type TestError = z.infer<typeof TestErrorSchema>;
@@ -114,6 +117,20 @@ export type MitreAttack = z.infer<typeof MitreAttackSchema>;
 export type AlertSource = z.infer<typeof AlertSourceSchema>;
 export type SecurityAlert = z.infer<typeof SecurityAlertSchema>;
 export type SplunkAlertWebhook = z.infer<typeof SplunkAlertWebhookSchema>;
+export type EnrichmentVerdict = z.infer<typeof EnrichmentVerdictSchema>;
+export type EnrichmentSummary = z.infer<typeof EnrichmentSummarySchema>;
+export type EnrichmentResponse = z.infer<typeof EnrichmentResponseSchema>;
+
+/**
+ * Enrichment runs only for `new` alerts (suppressed repeats and duplicate
+ * deliveries never spend threat-intel quota) and is fail-open: an unavailable
+ * enrichment service never blocks ingestion.
+ */
+export interface AlertEnrichmentOutcome {
+  status: 'enriched' | 'failed' | 'disabled' | 'not_applicable';
+  summary?: EnrichmentSummary;
+  error?: string;
+}
 
 export interface AlertFingerprintInput {
   vendor: AlertSource['vendor'];
@@ -139,4 +156,5 @@ export interface AlertProcessingResult {
   suppressedCount: number;
   firstSeenAt: string;
   lastSeenAt: string;
+  enrichment?: AlertEnrichmentOutcome;
 }

@@ -17,7 +17,7 @@ Design principles carried over from the CI track:
 | #   | Milestone                        | Status  | Scope                                                                                                                      |
 | --- | -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------- |
 | M1  | Security alert ingestion         | ✅ Done | `SecurityAlert` contract, Splunk webhook normalizer, `/api/alerts`, entity fingerprinting, idempotency, suppression window |
-| M2  | Python enrichment service        | Planned | FastAPI service: IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with mock mode, caching, pytest/ruff/mypy                   |
+| M2  | Python enrichment service        | ✅ Done | FastAPI service: IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with mock mode, caching, pytest/ruff/mypy                   |
 | M3  | Deterministic SOC classifier     | Planned | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping    |
 | M4  | AI SOC triage agents             | Planned | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates             |
 | M5  | Response playbooks + approval    | Planned | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit               |
@@ -77,4 +77,38 @@ and `alert_id` is unique, so parallel retries produce exactly one `new` and the 
 docker compose up --build -d
 npm run demo:soc-brute-force
 curl 'http://localhost:3001/api/alerts?status=suppressed'
+```
+
+## M2 — Python enrichment service (done)
+
+`apps/enrichment-service` is a FastAPI service (Python 3.12, pydantic v2, httpx) that
+enriches alert indicators with threat intel. The ingestion service calls it for every
+**new** alert after the ingestion transaction commits.
+
+```text
+POST /api/alerts/splunk ─► dedup/suppression ─► status = new? ─► POST enrichment-service /enrich
+                                                    │                    │
+                                                    │ suppressed /       ├─ AbuseIPDB  (IP reputation)
+                                                    │ duplicate:         ├─ VirusTotal (IP, domain, URL, hash)
+                                                    │ no lookup, no quota└─ ipinfo    (geo / ASN context)
+                                                    ▼
+                         security_alerts.enrichment (JSONB) + enrichment_verdict
+```
+
+| Concern         | Behaviour                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------- |
+| Data protection | Private/loopback/link-local IPs and internal identities (user, host, process, email) are never sent out         |
+| IOC hygiene     | Refangs `hxxp://evil[.]com`, validates domains/URLs, detects MD5/SHA-1/SHA-256                                  |
+| Rate limits     | Per-provider TTL cache with single-flight: concurrent identical lookups share one upstream call                 |
+| Resilience      | Per-provider timeout; a failing provider yields `unknown` + `error`, never fails the request                    |
+| Fail-open       | If the service is down or violates the contract, the alert is still ingested (`enrichment.status=failed`)       |
+| Secret hygiene  | Exception text (which may contain URLs/keys) is never returned to callers                                       |
+| Verdict         | Most severe provider verdict wins: unknown < benign < suspicious < malicious                                    |
+| Modes           | `ENRICHMENT_MODE=mock` (default, deterministic offline intel) or `live` (real APIs, keys from env)              |
+| Contract        | Golden `contract/enrich-response.example.json` is asserted by pytest **and** parsed by the TS Zod schema        |
+| Quality gates   | ruff (incl. bandit `S` rules), ruff format, mypy `--strict`, pytest (respx-mocked HTTP) in CI; Trivy image scan |
+
+```bash
+npm run demo:soc-malware     # C2 IP + EICAR hash + defanged URL -> malicious; internal IP/host/user skipped
+npm run test:python          # ruff + mypy + pytest (needs the service venv: pip install -e '.[dev]')
 ```

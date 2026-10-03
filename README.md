@@ -170,8 +170,11 @@ Shipped so far (M1):
 - **Entity fingerprinting**: `SHA256(vendor | rule | host | user | sorted indicators)` with identity normalization (`CORP\jdoe` = `jdoe@corp.example.com`, FQDN → short host).
 - **Idempotency + suppression**: webhook retries return `duplicate_delivery`; repeats inside `ALERT_SUPPRESSION_WINDOW_MINUTES` are `suppressed` and counted; the aggregate keeps first/last seen and max severity. Race-safe under concurrent deliveries.
 
+- **Python threat-intel enrichment service** (M2, `apps/enrichment-service`, FastAPI): AbuseIPDB, VirusTotal and GeoIP lookups for every **new** alert. Internal IPs and identities never leave the network, defanged IOCs are refanged, lookups are cached with single-flight to respect API rate limits, and every provider is timeout-isolated. Enrichment is fail-open, so a degraded intel provider never drops an alert. A golden contract file is verified by both pytest and the TypeScript Zod schema.
+
 ```bash
 npm run demo:soc-brute-force   # new -> duplicate_delivery -> suppressed -> new
+npm run demo:soc-malware       # C2 IP + EICAR hash + defanged URL enriched as malicious; internal entities skipped
 ```
 
 ## Agent design
@@ -334,6 +337,7 @@ The first 12 fingerprint characters become a Jira label such as `automation-fing
 | Retrieval         | LlamaIndex TS + nomic-embed-text       | Local semantic chunking and embeddings with cited repository evidence                |
 | Domain language   | TypeScript 5                           | Shared contracts and strict typing across packages and services                      |
 | API               | Node.js 24 + Express                   | Explicit service boundary with native `fetch` support                                |
+| Threat intel      | Python 3.12 + FastAPI + httpx          | Async IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with pydantic contracts          |
 | Validation        | Zod                                    | Runtime validation aligned with TypeScript types                                     |
 | State             | PostgreSQL 16 + LangGraph checkpointer | Durable graph threads, restart-safe checkpoints, relational history, and JSONB audit |
 | Orchestration     | n8n                                    | Inspectable event workflow and integration routing                                   |
@@ -349,6 +353,7 @@ The first 12 fingerprint characters become a Jira label such as `automation-fing
 ```text
 automation-failure-orchestrator/
 |-- apps/
+|   |-- enrichment-service/      # Python FastAPI threat-intel enrichment (SOC track)
 |   |-- ingestion-service/       # API, DB, policy actions, Ollama agent
 |   |-- mock-integrations/       # In-memory Jira and Slack-compatible APIs
 |   `-- test-suite/              # Playwright scenarios and JSON reporter
@@ -370,6 +375,7 @@ automation-failure-orchestrator/
 Every pull request and main-branch update is evaluated as a deployable system, not only as a collection of source files:
 
 - **Quality gate**: ESLint, Prettier, TypeScript builds, unit tests, and deterministic Agent evaluation suites.
+- **Python gate**: ruff (lint + bandit security rules), ruff format, `mypy --strict`, and pytest for the enrichment service.
 - **Supply-chain controls**: GitHub dependency review, weekly Dependabot updates, and a high-severity production dependency audit.
 - **Runtime verification**: Docker Compose boots the core platform and validates health, ingestion, policy actions, idempotency, and the dashboard API proxy.
 - **Container security**: Trivy blocks critical vulnerabilities in the production ingestion and dashboard images.
@@ -482,6 +488,9 @@ npm run demo:duplicate-delivery
 
 # SOC: Splunk brute-force alert -> retry -> suppressed repeat -> new attacker
 npm run demo:soc-brute-force
+
+# SOC: malware alert enriched with threat intel (Python service)
+npm run demo:soc-malware
 ```
 
 Inspect results:

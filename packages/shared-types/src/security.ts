@@ -76,3 +76,46 @@ export const SplunkAlertWebhookSchema = z.object({
   results_link: z.string().url().optional(),
   result: z.record(z.unknown()),
 });
+
+/**
+ * Response of the Python enrichment service (`POST /enrich`,
+ * apps/enrichment-service). Validated at the boundary so a contract drift in
+ * the Python service fails loudly instead of persisting malformed data.
+ */
+export const EnrichmentVerdictSchema = z.enum(['malicious', 'suspicious', 'benign', 'unknown']);
+
+export const ProviderResultSchema = z.object({
+  provider: z.string(),
+  verdict: EnrichmentVerdictSchema,
+  score: z.number().int().min(0).max(100),
+  summary: z.string(),
+  details: z.record(z.unknown()).default({}),
+  cached: z.boolean().default(false),
+  error: z.string().nullable().optional(),
+});
+
+export const IndicatorEnrichmentSchema = z.object({
+  indicator: IndicatorSchema.extend({ role: IndicatorSchema.shape.role.nullable() }),
+  normalizedValue: z.string(),
+  verdict: EnrichmentVerdictSchema,
+  score: z.number().int().min(0).max(100),
+  skippedReason: z.string().nullable().optional(),
+  results: z.array(ProviderResultSchema),
+});
+
+export const EnrichmentSummarySchema = z.object({
+  verdict: EnrichmentVerdictSchema,
+  maxScore: z.number().int().min(0).max(100),
+  malicious: z.number().int().nonnegative(),
+  suspicious: z.number().int().nonnegative(),
+  enriched: z.number().int().nonnegative(),
+  skipped: z.number().int().nonnegative(),
+  providerErrors: z.number().int().nonnegative(),
+});
+
+export const EnrichmentResponseSchema = z.object({
+  alertId: z.string().nullable().optional(),
+  mode: z.enum(['mock', 'live']),
+  summary: EnrichmentSummarySchema,
+  enrichments: z.array(IndicatorEnrichmentSchema),
+});

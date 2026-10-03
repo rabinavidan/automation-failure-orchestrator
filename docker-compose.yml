@@ -34,6 +34,35 @@ services:
       timeout: 5s
       retries: 3
 
+  enrichment-service:
+    build:
+      context: apps/enrichment-service
+    container_name: orchestrator-enrichment
+    restart: unless-stopped
+    ports:
+      - '3003:3003'
+    environment:
+      PORT: '3003'
+      ENRICHMENT_MODE: ${ENRICHMENT_MODE:-mock}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      IPINFO_TOKEN: ${IPINFO_TOKEN:-}
+      ENRICHMENT_PROVIDER_TIMEOUT_SECONDS: ${ENRICHMENT_PROVIDER_TIMEOUT_SECONDS:-5}
+      ENRICHMENT_CACHE_TTL_SECONDS: ${ENRICHMENT_CACHE_TTL_SECONDS:-3600}
+      WEBHOOK_SECRET: local-dev-secret
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:3003/health', timeout=4)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   ingestion-service:
     build:
       context: .
@@ -55,6 +84,8 @@ services:
       RECOVERY_PASS_THRESHOLD: '3'
       FLAKY_HISTORY_WINDOW: '5'
       ALERT_SUPPRESSION_WINDOW_MINUTES: ${ALERT_SUPPRESSION_WINDOW_MINUTES:-60}
+      ENRICHMENT_URL: ${ENRICHMENT_URL:-http://enrichment-service:3003}
+      ENRICHMENT_TIMEOUT_MS: ${ENRICHMENT_TIMEOUT_MS:-8000}
       AI_ENABLED: ${AI_ENABLED:-false}
       MULTI_AGENT_ENABLED: ${MULTI_AGENT_ENABLED:-true}
       OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
@@ -67,6 +98,8 @@ services:
       postgres:
         condition: service_healthy
       mock-integrations:
+        condition: service_healthy
+      enrichment-service:
         condition: service_healthy
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:3001/health || exit 1']
