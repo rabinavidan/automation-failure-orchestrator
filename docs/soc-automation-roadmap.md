@@ -19,7 +19,7 @@ Design principles carried over from the CI track:
 | M1  | Security alert ingestion         | ✅ Done | `SecurityAlert` contract, Splunk webhook normalizer, `/api/alerts`, entity fingerprinting, idempotency, suppression window |
 | M2  | Python enrichment service        | ✅ Done | FastAPI service: IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with mock mode, caching, pytest/ruff/mypy                   |
 | M3  | Deterministic SOC classifier     | ✅ Done | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping    |
-| M4  | AI SOC triage agents             | Planned | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates             |
+| M4  | AI SOC triage agents             | ✅ Done | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates             |
 | M5  | Response playbooks + approval    | Planned | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit               |
 | M6  | SOAR / SIEM interoperability     | Planned | n8n security playbook, optional Wazuh profile, Sentinel normalizer, real Splunk adapter                                    |
 | M7  | AWS deployment                   | Planned | Terraform: Lambda/Fargate, SQS/EventBridge, RDS, Secrets Manager; GitHub Actions deploy                                    |
@@ -157,3 +157,30 @@ no annotation, a technique is inferred from the rule name (`inferred: true`), e.
 npm run demo:soc-triage   # one alert per disposition
 curl 'http://localhost:3001/api/alerts?disposition=needs_investigation&priority=P2'
 ```
+
+## M4 — Advisory SOC agents (done)
+
+`services/soc-investigation.ts` is a LangGraph supervisor (`soc-supervisor-v1`) over three
+specialists. It runs only for `true_positive` and `needs_investigation` alerts, after the
+webhook response (in-process; a durable queue arrives with the AWS milestone), and persists to
+`security_alerts.ai_investigation` / `ai_evaluation` (migration 012). Executions, graph events,
+and per-call model telemetry share the CI track's audit tables, so
+`GET /api/observability/summary` covers both tracks.
+
+```text
+triage_analyst ─► threat_intel ─► response_planner ─► supervisor ─► guardrails (code)
+ alert + triage    enrichment only    selected runbooks    reconcile      approval / conflict flags
+```
+
+| Safety property             | How it is enforced                                                                                  |
+| --------------------------- | --------------------------------------------------------------------------------------------------- |
+| Triage is authoritative     | The disposition is never changed; disagreement sets `conflictsWithTriage` + `requiresHumanApproval` |
+| No autonomous containment   | `contain` or a high-risk plan always sets `requiresHumanApproval` (code, not prompt)                |
+| Prompt-injection resistance | Alert fields are declared untrusted in every system prompt; the raw SIEM payload is never sent      |
+| Grounded responses          | Runbooks selected deterministically by ATT&CK technique (`docs/runbooks/`); citations are verified  |
+| No hallucinated IOCs        | Evaluation extracts every IP/hash/URL from the output and fails on any not in the alert/enrichment  |
+| Fail-open                   | Model down, timeout, or schema-invalid output → `ai_investigation_status = failed`; triage stands   |
+| Cost control                | No model calls for false positives, duplicates, or known-benign alerts                              |
+
+The evaluation gate (`soc-agent-evaluation.ts`) is deterministic code, part of
+`npm run test:evaluations`, and its result is stored with every investigation.

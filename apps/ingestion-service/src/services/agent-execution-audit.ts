@@ -1,4 +1,4 @@
-import type { AgentInvestigation } from '@orchestrator/shared-types';
+import type { AgentInvestigation, SocInvestigation } from '@orchestrator/shared-types';
 import { query } from '../db/client';
 
 export interface AgentAuditEvent {
@@ -53,12 +53,30 @@ export async function startAgentExecution(input: {
 export async function finishAgentExecution(
   threadId: string,
   status: 'completed' | 'bounded' | 'failed' | 'paused' | 'rejected',
-  result?: AgentInvestigation
+  result?: AgentInvestigation | SocInvestigation
 ): Promise<void> {
   await query(
     `UPDATE agent_executions
      SET status = $2, final_result = $3::jsonb, finished_at = NOW()
      WHERE thread_id = $1`,
     [threadId, status, result ? JSON.stringify(result) : null]
+  );
+}
+
+/** SOC alert investigations share the audit/telemetry tables with CI investigations (migration 012). */
+export async function startAlertAgentExecution(input: {
+  threadId: string;
+  alertId: string;
+  fingerprint: string;
+  model: string;
+  graphVersion: string;
+}): Promise<void> {
+  await query(
+    `INSERT INTO agent_executions
+       (thread_id, alert_id, subject, fingerprint, model, orchestration, graph_version)
+     VALUES ($1, $2, 'security_alert', $3, $4, 'supervisor', $5)
+     ON CONFLICT (thread_id) DO UPDATE SET
+       status = 'running', final_result = NULL, finished_at = NULL, started_at = NOW()`,
+    [input.threadId, input.alertId, input.fingerprint, input.model, input.graphVersion]
   );
 }

@@ -18,7 +18,7 @@ For reviewers scanning quickly: this repository is a working implementation of t
 | Competency area                          | Where it shows up in this repo                                                                                                                                                                                                                     |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | LLM orchestration & agentic workflows    | LangGraph.js supervisor coordinating specialist agents ([Agent design](#agent-design))                                                                                                                                                             |
-| Multi-agent system design                | Scoped triage / repository / action specialists with explicit forbidden responsibilities                                                                                                                                                           |
+| Multi-agent system design                | Scoped triage / repository / action specialists (CI) and triage-analyst / threat-intel / response-planner specialists (SOC), each with explicit forbidden responsibilities                                                                         |
 | Retrieval-augmented generation           | Local LlamaIndex + `nomic-embed-text` embeddings with cited repository evidence                                                                                                                                                                    |
 | Structured output & validation           | Zod-validated `AgentInvestigation` contract; malformed output triggers deterministic fallback                                                                                                                                                      |
 | Human-in-the-loop safety                 | Durable LangGraph interrupts + dashboard approve/reject before any Jira/Slack side effect                                                                                                                                                          |
@@ -172,6 +172,7 @@ Shipped so far (M1):
 
 - **Python threat-intel enrichment service** (M2, `apps/enrichment-service`, FastAPI): AbuseIPDB, VirusTotal and GeoIP lookups for every **new** alert. Internal IPs and identities never leave the network, defanged IOCs are refanged, lookups are cached with single-flight to respect API rate limits, and every provider is timeout-isolated. Enrichment is fail-open, so a degraded intel provider never drops an alert. A golden contract file is verified by both pytest and the TypeScript Zod schema.
 
+- **Advisory SOC agents** (M4): a LangGraph supervisor over triage-analyst, threat-intel and response-planner specialists, grounded in [incident-response runbooks](docs/runbooks/) selected by ATT&CK technique. Code (not the model) requires human approval for containment or any disagreement with triage, and an evaluation gate flags hallucinated IOCs before they could reach a block list. See [SOC supervisor team](#soc-supervisor-team-security-alerts).
 - **Deterministic SOC triage** (M3): a strict priority chain (false positive → duplicate → true positive → known benign → needs investigation) with an explainable evidence trail, a 0–100 risk score, P1–P4 priority, MITRE ATT&CK tactic mapping (inferred from the rule name when the SIEM gives none) and a recommended action. Allowlists and known-benign rules are **policy-as-code** (`config/soc-triage-policy.json`): every entry has an owner and an expiry date, and an invalid policy fails safe so nothing is auto-closed.
 
 ```bash
@@ -196,6 +197,19 @@ The dashboard renders that checkpointed state directly — this is the actual La
 | `repository` | Ground hypotheses in locally retrieved code and documentation                       | Inventing code or choosing Jira/Slack actions |
 | `action`     | Assess risk and propose the safest action from collected evidence                   | Executing the proposed action                 |
 | `supervisor` | Reconcile reports, surface conflicts, and produce the final validated investigation | Bypassing deterministic policy or HITL        |
+
+### SOC supervisor team (security alerts)
+
+The SOC track runs a second LangGraph supervisor (`soc-supervisor-v1`) for alerts the deterministic triage marks `true_positive` or `needs_investigation`. It runs **after** the webhook responds, so SIEM delivery never waits on model latency.
+
+| Agent              | Scoped responsibility                                                    | Forbidden responsibility                         |
+| ------------------ | ------------------------------------------------------------------------ | ------------------------------------------------ |
+| `triage_analyst`   | Explain the detection, ATT&CK stage, and entity relationships            | Judging IOC reputation or proposing responses    |
+| `threat_intel`     | Assess only the supplied enrichment verdicts and their gaps              | Inventing indicators or proposing responses      |
+| `response_planner` | Propose the safest response from the selected incident-response runbooks | Executing anything; containment without approval |
+| `supervisor`       | Reconcile reports, cite runbooks, explain any disagreement with triage   | Changing the deterministic disposition           |
+
+Code-owned guardrails run after the supervisor: containment, high-risk plans, and any disagreement with the deterministic triage set `requiresHumanApproval`. Alert fields are treated as untrusted (prompt-injection) data and the raw SIEM payload never reaches the model. A deterministic evaluation gate checks every result for **hallucinated IOCs** (IPs, hashes or URLs absent from the alert and enrichment), runbook grounding, safe containment, and respect for triage.
 
 ### Agent goal
 

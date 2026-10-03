@@ -113,6 +113,10 @@ if (
 ) {
   throw new Error(`Alert triage smoke failed: ${JSON.stringify(alertResult.triage)}`);
 }
+// AI is disabled in CI; the advisory investigation must report that rather than fail.
+if (alertResult.investigation?.status !== 'disabled') {
+  throw new Error(`Alert investigation smoke failed: ${JSON.stringify(alertResult.investigation)}`);
+}
 const alertRetry = await (await postAlert()).json();
 if (alertRetry.status !== 'duplicate_delivery') {
   throw new Error(`Alert idempotency smoke failed: ${JSON.stringify(alertRetry)}`);

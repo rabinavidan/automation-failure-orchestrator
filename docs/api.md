@@ -217,6 +217,14 @@ New and suppressed alerts also carry a deterministic `triage` decision (see
 
 ---
 
+With `AI_ENABLED=true`, `true_positive` and `needs_investigation` alerts also return
+`"investigation": { "status": "queued", "threadId": "alert:<alertId>" }`. The advisory result
+appears on `GET /api/alerts/:alertId` as `ai_investigation` (recommended response, response
+steps, cited runbooks, `requiresHumanApproval`, `conflictsWithTriage`, specialist reports) and
+`ai_evaluation` (deterministic quality gate, including `ungroundedIndicators`).
+
+---
+
 ### Ingest Normalized Alert
 
 Producers that already emit the `SecurityAlert` contract (see `packages/shared-types/src/security.ts`):
