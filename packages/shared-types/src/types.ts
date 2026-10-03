@@ -18,6 +18,11 @@ import {
   EnrichmentVerdictSchema,
   EnrichmentSummarySchema,
   EnrichmentResponseSchema,
+  TriagePolicySchema,
+  TriagePolicyEntrySchema,
+  TriageDispositionSchema,
+  TriagePrioritySchema,
+  TriageActionSchema,
 } from './security';
 
 export type TestError = z.infer<typeof TestErrorSchema>;
@@ -157,4 +162,43 @@ export interface AlertProcessingResult {
   firstSeenAt: string;
   lastSeenAt: string;
   enrichment?: AlertEnrichmentOutcome;
+  triage?: AlertTriage;
+}
+
+export type TriagePolicy = z.infer<typeof TriagePolicySchema>;
+export type TriagePolicyEntry = z.infer<typeof TriagePolicyEntrySchema>;
+export type TriageDisposition = z.infer<typeof TriageDispositionSchema>;
+export type TriagePriority = z.infer<typeof TriagePrioritySchema>;
+export type TriageAction = z.infer<typeof TriageActionSchema>;
+
+export interface TriageInput {
+  alert: SecurityAlert;
+  ingestionStatus: 'new' | 'suppressed';
+  /** Full enrichment response for `new` alerts, when enrichment succeeded. */
+  enrichment?: EnrichmentResponse | null;
+  /** Times this fingerprint has been seen, including this alert. */
+  occurrenceCount: number;
+  policy: TriagePolicy;
+  now?: Date;
+}
+
+/**
+ * Deterministic, explainable triage decision. `reasons` is the evidence trail
+ * an analyst (or the M4 agents) reads; `matchedPolicyId` names the policy
+ * entry that decided an allowlist/known-benign outcome.
+ */
+export interface AlertTriage {
+  disposition: TriageDisposition;
+  recommendedAction: TriageAction;
+  priority: TriagePriority;
+  riskScore: number;
+  reasons: string[];
+  matchedPolicyId?: string;
+  mitre: {
+    tactics: string[];
+    techniques: string[];
+    /** True when techniques were inferred from the rule name rather than supplied by the SIEM. */
+    inferred: boolean;
+  };
+  policyVersion: string;
 }

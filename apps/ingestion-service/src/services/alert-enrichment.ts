@@ -48,11 +48,11 @@ export async function enrichIngestedAlert(
   alert: SecurityAlert,
   status: AlertIngestionStatus,
   fetchImpl: typeof fetch = fetch
-): Promise<AlertEnrichmentOutcome> {
-  if (status !== 'new') return { status: 'not_applicable' };
+): Promise<{ outcome: AlertEnrichmentOutcome; response: EnrichmentResponse | null }> {
+  if (status !== 'new') return { outcome: { status: 'not_applicable' }, response: null };
 
   const baseUrl = process.env.ENRICHMENT_URL;
-  if (!baseUrl) return { status: 'disabled' };
+  if (!baseUrl) return { outcome: { status: 'disabled' }, response: null };
 
   let outcome: AlertEnrichmentOutcome;
   let enrichment: EnrichmentResponse | null = null;
@@ -84,7 +84,7 @@ export async function enrichIngestedAlert(
     );
   }
 
-  return outcome;
+  return { outcome, response: enrichment };
 }
 
 function describeError(err: unknown): string {

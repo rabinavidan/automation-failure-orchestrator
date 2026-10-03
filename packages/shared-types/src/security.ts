@@ -119,3 +119,53 @@ export const EnrichmentResponseSchema = z.object({
   summary: EnrichmentSummarySchema,
   enrichments: z.array(IndicatorEnrichmentSchema),
 });
+
+// ---------------------------------------------------------------------------
+// SOC triage (M3): policy-as-code + deterministic triage result
+// ---------------------------------------------------------------------------
+
+/**
+ * Criteria are ANDed; every field is optional but at least one must be set.
+ * `ruleId` supports `*` wildcards. `indicator.value` for type `ip` may be an
+ * IPv4 CIDR. Hosts/users are compared after identity normalization
+ * (FQDN -> short host, DOMAIN\user / UPN -> user).
+ */
+export const TriageMatchSchema = z
+  .object({
+    ruleId: z.string().min(1).optional(),
+    host: z.string().min(1).optional(),
+    user: z.string().min(1).optional(),
+    indicator: z.object({ type: IndicatorTypeSchema, value: z.string().min(1) }).optional(),
+  })
+  .refine((m) => Object.values(m).some((v) => v !== undefined), {
+    message: 'a policy entry must set at least one match criterion',
+  });
+
+export const TriagePolicyEntrySchema = z.object({
+  id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+  description: z.string().min(1),
+  owner: z.string().min(1),
+  /** Allowlists must expire; reviewed entries are renewed, stale ones stop matching. */
+  expiresAt: z.string().datetime({ offset: true }),
+  match: TriageMatchSchema,
+});
+
+export const TriagePolicySchema = z.object({
+  version: z.string().min(1),
+  /** Activity that is never a threat (e.g. our own vulnerability scanner) -> false_positive. */
+  allowlist: z.array(TriagePolicyEntrySchema).default([]),
+  /** Real detections of expected, sanctioned activity -> benign_true_positive. */
+  knownBenign: z.array(TriagePolicyEntrySchema).default([]),
+});
+
+export const TriageDispositionSchema = z.enum([
+  'false_positive',
+  'duplicate',
+  'true_positive',
+  'benign_true_positive',
+  'needs_investigation',
+]);
+
+export const TriagePrioritySchema = z.enum(['P1', 'P2', 'P3', 'P4']);
+
+export const TriageActionSchema = z.enum(['escalate', 'investigate', 'close', 'suppress']);

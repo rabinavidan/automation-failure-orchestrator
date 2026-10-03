@@ -1,0 +1,35 @@
+{
+  "version": "2026.10.1",
+  "allowlist": [
+    {
+      "id": "internal-vuln-scanner",
+      "description": "Nessus vulnerability scanner; scheduled authenticated scans trigger brute-force and port-scan rules",
+      "owner": "secops-vuln-mgmt",
+      "expiresAt": "2027-04-01T00:00:00Z",
+      "match": { "indicator": { "type": "ip", "value": "192.0.2.10" } }
+    },
+    {
+      "id": "red-team-range-q4",
+      "description": "Authorized red-team engagement source range (ticket SEC-1234)",
+      "owner": "secops-red-team",
+      "expiresAt": "2026-12-31T23:59:59Z",
+      "match": { "indicator": { "type": "ip", "value": "192.0.2.128/26" } }
+    }
+  ],
+  "knownBenign": [
+    {
+      "id": "synthetic-login-monitor",
+      "description": "Synthetic login monitor intentionally generates failed logins against the SSO health endpoint",
+      "owner": "sre-platform",
+      "expiresAt": "2027-04-01T00:00:00Z",
+      "match": { "ruleId": "*Brute Force*", "user": "svc_healthcheck" }
+    },
+    {
+      "id": "backup-agent-powershell",
+      "description": "Backup agent runs signed PowerShell maintenance scripts nightly",
+      "owner": "it-infrastructure",
+      "expiresAt": "2027-04-01T00:00:00Z",
+      "match": { "ruleId": "*PowerShell*", "user": "svc_backup" }
+    }
+  ]
+}

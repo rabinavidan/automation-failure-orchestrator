@@ -18,7 +18,7 @@ Design principles carried over from the CI track:
 | --- | -------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------- |
 | M1  | Security alert ingestion         | ✅ Done | `SecurityAlert` contract, Splunk webhook normalizer, `/api/alerts`, entity fingerprinting, idempotency, suppression window |
 | M2  | Python enrichment service        | ✅ Done | FastAPI service: IOC enrichment (AbuseIPDB, VirusTotal, GeoIP) with mock mode, caching, pytest/ruff/mypy                   |
-| M3  | Deterministic SOC classifier     | Planned | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping    |
+| M3  | Deterministic SOC classifier     | ✅ Done | Allowlisted FP → duplicate → known benign → true positive → needs investigation; severity scoring; MITRE ATT&CK mapping    |
 | M4  | AI SOC triage agents             | Planned | LangGraph specialists (triage analyst, threat intel, response planner), runbook RAG, security evaluation gates             |
 | M5  | Response playbooks + approval    | Planned | YAML playbook engine, mock EDR (isolate host, kill process, block IP), case/ticket creation, rollback, audit               |
 | M6  | SOAR / SIEM interoperability     | Planned | n8n security playbook, optional Wazuh profile, Sentinel normalizer, real Splunk adapter                                    |
@@ -111,4 +111,49 @@ POST /api/alerts/splunk ─► dedup/suppression ─► status = new? ─► POS
 ```bash
 npm run demo:soc-malware     # C2 IP + EICAR hash + defanged URL -> malicious; internal IP/host/user skipped
 npm run test:python          # ruff + mypy + pytest (needs the service venv: pip install -e '.[dev]')
+```
+
+## M3 — Deterministic SOC triage (done)
+
+Every `new` or `suppressed` alert gets an explainable triage decision from
+`triageAlert()` in `packages/failure-classifier/src/alert-triage/`. The decision is
+persisted on `security_alerts` (migration 011) and returned by the ingestion API. As in
+the CI track, rules decide; the LLM agents (M4) will only add evidence.
+
+**Priority chain (first match wins)**
+
+| #   | Disposition            | When                                                                                                              | Action        |
+| --- | ---------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------- |
+| 1   | `false_positive`       | Allowlist policy match (e.g. our own vulnerability scanner, an authorized red team)                               | `close`       |
+| 2   | `duplicate`            | Fingerprint suppressed within the dedup window                                                                    | `suppress`    |
+| 3   | `true_positive`        | Any indicator enriched as **malicious**, or a **critical** high-confidence ATT&CK technique (T1003, T1486, T1490) | `escalate`    |
+| 4   | `benign_true_positive` | Known-benign policy match (sanctioned activity, e.g. a synthetic login monitor)                                   | `close`       |
+| 5   | `needs_investigation`  | Everything else, ranked by risk score                                                                             | `investigate` |
+
+Malicious intel deliberately outranks known-benign policy: a sanctioned service account
+talking to a known-bad IP is escalated, not closed.
+
+**Risk score (0–100) and priority**
+
+`severity base (info 10 / low 25 / medium 50 / high 70 / critical 90)` + `malicious intel +20`
+or `suspicious +10` + `late kill-chain tactic +10` (Credential Access, Lateral Movement,
+C2, Exfiltration, Impact) + `recurrence +5 (≥5) / +10 (≥20)`, capped at 100.
+P1 ≥ 85, P2 ≥ 65, P3 ≥ 40, else P4. True positives are never ranked below P2.
+
+**MITRE ATT&CK**: SIEM-supplied techniques are kept and mapped to tactics; when a rule has
+no annotation, a technique is inferred from the rule name (`inferred: true`), e.g.
+"Brute Force" → T1110 / Credential Access, "Ransomware" → T1486 / Impact.
+
+**Policy-as-code** (`config/soc-triage-policy.json`, Zod-validated):
+
+- Every entry needs an `id`, `description`, `owner` and **`expiresAt`**: allowlists must be
+  reviewed and renewed; expired entries silently stop matching.
+- Match criteria are ANDed: `ruleId` (wildcards), `host`, `user` (identity-normalized),
+  `indicator` (IPv4 CIDR for IPs).
+- **Fail-safe**: an invalid or missing policy file falls back to an empty policy, so nothing is
+  auto-closed. `GET /api/alerts/triage-policy` shows the active version and any load error.
+
+```bash
+npm run demo:soc-triage   # one alert per disposition
+curl 'http://localhost:3001/api/alerts?disposition=needs_investigation&priority=P2'
 ```

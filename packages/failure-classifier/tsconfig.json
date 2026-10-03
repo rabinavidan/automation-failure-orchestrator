@@ -5,10 +5,11 @@
     "outDir": "./dist",
     "composite": true,
     "paths": {
-      "@orchestrator/shared-types": ["../shared-types/src/index.ts"]
+      "@orchestrator/shared-types": ["../shared-types/src/index.ts"],
+      "@orchestrator/fingerprint-engine": ["../fingerprint-engine/src/index.ts"]
     }
   },
-  "references": [{ "path": "../shared-types" }],
+  "references": [{ "path": "../shared-types" }, { "path": "../fingerprint-engine" }],
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

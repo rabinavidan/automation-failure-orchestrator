@@ -59,6 +59,13 @@ describe('alerts routes', () => {
     expect(res.status).toBe(201);
     expect(res.body.status).toBe('new');
     expect(res.body.enrichment).toEqual({ status: 'disabled' });
+    // high-severity brute force, no enrichment -> analyst queue, inferred Credential Access
+    expect(res.body.triage).toMatchObject({
+      disposition: 'needs_investigation',
+      recommendedAction: 'investigate',
+      priority: 'P2',
+      riskScore: 80,
+    });
     const alert = processAlert.mock.calls[0]![0];
     expect(alert.source.vendor).toBe('splunk');
     expect(alert.severity).toBe('high');
@@ -75,6 +82,7 @@ describe('alerts routes', () => {
     const dup = await request(app).post('/api/alerts/splunk').send(splunkBruteForceAlert);
     expect(dup.status).toBe(200);
     expect(dup.body.status).toBe('duplicate_delivery');
+    expect(dup.body.triage).toBeUndefined();
   });
 
   it('rejects a malformed Splunk payload with 400', async () => {
@@ -110,8 +118,17 @@ describe('alerts routes', () => {
     expect(JSON.stringify(res.body)).not.toContain('hunter2');
   });
 
-  it('rejects unknown status filters on GET /api/alerts', async () => {
-    const res = await request(app).get('/api/alerts?status=bogus');
-    expect(res.status).toBe(400);
+  it('rejects unknown status, disposition and priority filters on GET /api/alerts', async () => {
+    for (const q of ['status=bogus', 'disposition=bogus', 'priority=P9']) {
+      expect((await request(app).get(`/api/alerts?${q}`)).status).toBe(400);
+    }
+  });
+
+  it('exposes the active triage policy', async () => {
+    const res = await request(app).get('/api/alerts/triage-policy');
+    expect(res.status).toBe(200);
+    expect(res.body.version).toMatch(/^\d{4}\.\d{2}\.\d+$/);
+    expect(res.body.allowlist.length).toBeGreaterThan(0);
+    expect(res.body.error).toBeUndefined();
   });
 });
