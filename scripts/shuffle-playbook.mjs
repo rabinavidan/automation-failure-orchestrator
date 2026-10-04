@@ -7,6 +7,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 const SHUFFLE_URL = process.env.SHUFFLE_URL ?? 'http://localhost:5001';
 const API_KEY = process.env.SHUFFLE_APIKEY ?? '3f6d3b8e-5c1a-4f6e-9d2b-7a1c0e4b9f21';
@@ -64,6 +65,30 @@ async function findWorkflow() {
   return (Array.isArray(workflows) ? workflows : []).find((w) => w.name === WORKFLOW_NAME);
 }
 
+/**
+ * Shuffle's Orborus runs apps as Docker Swarm services on its own overlay network, where
+ * Compose service names do not resolve. Playbook steps therefore call the orchestrator
+ * through the ports published on the Docker host, reached via the default bridge gateway.
+ */
+function dockerHostUrl(port) {
+  let gateway = '172.17.0.1';
+  try {
+    gateway =
+      execFileSync('docker', [
+        'network',
+        'inspect',
+        'bridge',
+        '--format',
+        '{{(index .IPAM.Config 0).Gateway}}',
+      ])
+        .toString()
+        .trim() || gateway;
+  } catch {
+    // docker CLI unavailable: keep the Linux default gateway.
+  }
+  return `http://${gateway}:${port}`;
+}
+
 async function setup() {
   console.log(
     `Waiting for Shuffle at ${SHUFFLE_URL} and its HTTP app (first start downloads apps)...`
@@ -75,11 +100,14 @@ async function setup() {
     .replaceAll('{{HTTP_APP_ID}}', httpApp.id)
     .replaceAll(
       '{{ORCHESTRATOR_URL}}',
-      process.env.PLAYBOOK_ORCHESTRATOR_URL ?? 'http://ingestion-service:3001'
+      process.env.PLAYBOOK_ORCHESTRATOR_URL ?? dockerHostUrl(3001)
     )
-    .replaceAll('{{MOCK_URL}}', process.env.PLAYBOOK_MOCK_URL ?? 'http://mock-integrations:3002')
+    .replaceAll('{{MOCK_URL}}', process.env.PLAYBOOK_MOCK_URL ?? dockerHostUrl(3002))
     .replaceAll('{{WEBHOOK_SECRET}}', process.env.WEBHOOK_SECRET ?? 'local-dev-secret');
   const definition = JSON.parse(template);
+  console.log(
+    `  playbook targets ${definition.actions.map((a) => a.parameters.find((p) => p.name === 'url')?.value).join(', ')}`
+  );
 
   let workflow = await findWorkflow();
   if (!workflow) {

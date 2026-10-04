@@ -21,6 +21,12 @@ Open <http://localhost:3080> and log in as `admin@orchestrator.local` / `Shuffle
 Shuffle needs about 4 GB of free RAM (OpenSearch). Stop it with
 `docker compose -f docker-compose.yml -f docker-compose.shuffle.yml down`.
 
+> **Networking note.** Shuffle runs each app as a Docker Swarm service on its own overlay
+> network, so Compose names like `ingestion-service` do not resolve from playbook steps. Steps
+> call the orchestrator through the ports published on the Docker host, via the default bridge
+> gateway (`docker network inspect bridge`, usually `172.17.0.1`). `shuffle:setup` fills this in;
+> override it with `PLAYBOOK_ORCHESTRATOR_URL` / `PLAYBOOK_MOCK_URL` if your Docker differs.
+
 ## 1. Read the imported playbook
 
 Open **Workflows → SOC Alert Triage (Orchestrator)**.
@@ -71,15 +77,15 @@ commit it under `shuffle/` to keep a record of your work.
 2. **Second route.** Add a node that, for `needs_investigation`, posts a different message
    (“analyst review required”) with the priority and risk score.
 3. **Human approval from the SOAR.** Add a node that lists pending containment for the alert:
-   `GET http://ingestion-service:3001/api/responses/actions?alertId=$ingest.body.alertId&status=pending_approval`.
+   `GET http://172.17.0.1:3001/api/responses/actions?alertId=$ingest.body.alertId&status=pending_approval`.
    Then add a **User Input** (or a second, manually triggered workflow) that approves one action with
-   `POST http://ingestion-service:3001/api/responses/actions/<id>/decision`
+   `POST http://172.17.0.1:3001/api/responses/actions/<id>/decision`
    body `{"decision":"approved","reviewer":"shuffle-lab"}`. Verify the mock firewall:
    <http://localhost:3002/firewall/blocks>.
 4. **Webhook trigger.** Replace the manual start with a **Webhook** trigger, copy its URL, and send
    an alert to it with `curl -X POST <webhook-url> -d @alert.json`. This is how a SIEM would call it.
 5. **Enrichment inside the SOAR.** Call the Python enrichment service directly from Shuffle
-   (`POST http://enrichment-service:3003/enrich` with the alert's indicators) and include the
+   (`POST http://172.17.0.1:3003/enrich` with the alert's indicators) and include the
    verdict in the ChatOps message. Note the trade-off: is enrichment better in the SOAR or in the
    pipeline? (Hint: quota, retries, testability.)
 6. **Error handling.** Stop the ingestion service (`docker stop orchestrator-ingestion`) and run

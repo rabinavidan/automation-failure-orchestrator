@@ -104,7 +104,8 @@ services:
     depends_on: [shuffle-backend]
     restart: unless-stopped
 
-  # Orchestrator services also join the shuffle network so playbook steps can reach them.
+  # Orchestrator services also join the shuffle network (backend/UI reachability). Playbook
+  # steps run as swarm services and reach them via published host ports instead.
   ingestion-service:
     networks: [default, shuffle]
 
