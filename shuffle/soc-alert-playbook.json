@@ -1,0 +1,194 @@
+{
+  "name": "SOC Alert Triage (Orchestrator)",
+  "description": "Splunk alert -> orchestrator (dedup, threat intel, policy triage, playbooks) -> ChatOps notification. Execution argument: a native Splunk webhook payload.",
+  "start": "6f1b2c3d-1111-4a5b-8c9d-000000000001",
+  "is_valid": true,
+  "actions": [
+    {
+      "app_name": "http",
+      "app_version": "1.4.0",
+      "app_id": "{{HTTP_APP_ID}}",
+      "name": "POST",
+      "label": "ingest",
+      "id": "6f1b2c3d-1111-4a5b-8c9d-000000000001",
+      "environment": "Shuffle",
+      "is_valid": true,
+      "isStartNode": true,
+      "position": {
+        "x": 200,
+        "y": 200
+      },
+      "parameters": [
+        {
+          "description": "The URL to post to",
+          "id": "",
+          "name": "url",
+          "example": "",
+          "value": "{{ORCHESTRATOR_URL}}/api/alerts/splunk",
+          "multiline": false,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "The body to use",
+          "id": "",
+          "name": "body",
+          "example": "",
+          "value": "$exec",
+          "multiline": true,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "Headers to use",
+          "id": "",
+          "name": "headers",
+          "example": "",
+          "value": "Content-Type: application/json\nx-webhook-secret: {{WEBHOOK_SECRET}}",
+          "multiline": true,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "Check certificate",
+          "id": "",
+          "name": "verify",
+          "example": "",
+          "value": "false",
+          "multiline": false,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": false,
+          "schema": {
+            "type": "bool"
+          }
+        },
+        {
+          "description": "Request timeout in seconds",
+          "id": "",
+          "name": "timeout",
+          "example": "",
+          "value": "30",
+          "multiline": false,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    {
+      "app_name": "http",
+      "app_version": "1.4.0",
+      "app_id": "{{HTTP_APP_ID}}",
+      "name": "POST",
+      "label": "notify",
+      "id": "6f1b2c3d-2222-4a5b-8c9d-000000000002",
+      "environment": "Shuffle",
+      "is_valid": true,
+      "isStartNode": false,
+      "position": {
+        "x": 500,
+        "y": 200
+      },
+      "parameters": [
+        {
+          "description": "The URL to post to",
+          "id": "",
+          "name": "url",
+          "example": "",
+          "value": "{{MOCK_URL}}/slack/services/T00/B00/xxx",
+          "multiline": false,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "The body to use",
+          "id": "",
+          "name": "body",
+          "example": "",
+          "value": "{\"text\": \"[Shuffle SOAR] $ingest.body.triage.priority $ingest.body.triage.disposition -> $ingest.body.triage.recommendedAction for $ingest.body.alertId\"}",
+          "multiline": true,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "Headers to use",
+          "id": "",
+          "name": "headers",
+          "example": "",
+          "value": "Content-Type: application/json",
+          "multiline": true,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "Check certificate",
+          "id": "",
+          "name": "verify",
+          "example": "",
+          "value": "false",
+          "multiline": false,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": false,
+          "schema": {
+            "type": "bool"
+          }
+        },
+        {
+          "description": "Request timeout in seconds",
+          "id": "",
+          "name": "timeout",
+          "example": "",
+          "value": "30",
+          "multiline": false,
+          "action_field": "",
+          "variant": "STATIC_VALUE",
+          "required": false,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ]
+    }
+  ],
+  "branches": [
+    {
+      "id": "6f1b2c3d-3333-4a5b-8c9d-000000000003",
+      "source_id": "6f1b2c3d-1111-4a5b-8c9d-000000000001",
+      "destination_id": "6f1b2c3d-2222-4a5b-8c9d-000000000002",
+      "label": "",
+      "has_errors": false,
+      "conditions": null
+    }
+  ],
+  "triggers": [],
+  "workflow_variables": null
+}
