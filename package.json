@@ -29,6 +29,8 @@
     "demo:soc-multi-siem": "tsx scripts/demo-soc-multi-siem.ts",
     "demo:aws-local": "tsx scripts/demo-aws-local.ts",
     "ollama:stub": "node scripts/ollama-demo-stub.mjs",
+    "shuffle:setup": "node scripts/shuffle-playbook.mjs setup",
+    "shuffle:run": "node scripts/shuffle-playbook.mjs run",
     "test:python": "cd apps/enrichment-service && ruff check . && ruff format --check . && mypy && pytest -q"
   },
   "devDependencies": {

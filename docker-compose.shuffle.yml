@@ -1,0 +1,121 @@
+# Shuffle (open-source SOAR) next to the orchestrator: zero cost, self-hosted.
+# Based on https://github.com/Shuffle/Shuffle/blob/main/docker-compose.yml, trimmed for a
+# laptop (1 GB OpenSearch heap) and moved off ports the orchestrator already uses.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.shuffle.yml up --build -d
+#   npm run shuffle:setup     # import the SOC playbook through Shuffle's REST API
+#   npm run shuffle:run       # execute it with a Splunk alert and print each step's result
+#   open http://localhost:3080   (admin@orchestrator.local / ShuffleLab123!)
+#
+# Shuffle runs each app action inside its worker's network namespace; the worker joins
+# the `shuffle` network, which the orchestrator API and mock integrations also join, so
+# playbook steps call them by service name.
+
+x-shuffle-env: &shuffle-env
+  SHUFFLE_DEFAULT_USERNAME: admin@orchestrator.local
+  SHUFFLE_DEFAULT_PASSWORD: ShuffleLab123!
+  SHUFFLE_DEFAULT_APIKEY: ${SHUFFLE_APIKEY:-3f6d3b8e-5c1a-4f6e-9d2b-7a1c0e4b9f21}
+  SHUFFLE_APP_DOWNLOAD_LOCATION: https://github.com/shuffle/python-apps
+  SHUFFLE_APP_HOTLOAD_FOLDER: /shuffle-apps
+  SHUFFLE_FILE_LOCATION: /shuffle-files
+  SHUFFLE_OPENSEARCH_URL: https://shuffle-opensearch:9200
+  SHUFFLE_OPENSEARCH_USERNAME: admin
+  SHUFFLE_OPENSEARCH_PASSWORD: StrongShufflePassword321!
+  SHUFFLE_OPENSEARCH_SKIPSSL_VERIFY: 'true'
+  SHUFFLE_ELASTIC: 'true'
+  SHUFFLE_LOGS_DISABLED: 'true'
+  SHUFFLE_STATS_DISABLED: 'true'
+  SHUFFLE_SKIPSSL_VERIFY: 'true'
+  BASE_URL: http://shuffle-backend:5001
+  ENVIRONMENT_NAME: Shuffle
+  TZ: UTC
+
+services:
+  shuffle-opensearch:
+    image: opensearchproject/opensearch:3.2.0
+    container_name: shuffle-opensearch
+    hostname: shuffle-opensearch
+    environment:
+      OPENSEARCH_JAVA_OPTS: -Xms1g -Xmx1g
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: StrongShufflePassword321!
+      DISABLE_PERFORMANCE_ANALYZER_AGENT_CLI: 'true'
+      cluster.routing.allocation.disk.threshold_enabled: 'false'
+      cluster.name: shuffle-cluster
+      node.name: shuffle-opensearch
+      node.store.allow_mmap: 'false'
+      discovery.type: single-node
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - shuffle-database:/usr/share/opensearch/data
+    networks: [shuffle]
+    restart: unless-stopped
+
+  shuffle-backend:
+    image: ghcr.io/shuffle/shuffle-backend:latest
+    container_name: shuffle-backend
+    hostname: shuffle-backend
+    ports:
+      - '5001:5001'
+    environment:
+      <<: *shuffle-env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - shuffle-apps:/shuffle-apps
+      - shuffle-files:/shuffle-files
+    networks: [shuffle]
+    depends_on: [shuffle-opensearch]
+    restart: unless-stopped
+
+  shuffle-frontend:
+    image: ghcr.io/shuffle/shuffle-frontend:latest
+    container_name: shuffle-frontend
+    hostname: shuffle-frontend
+    ports:
+      - '3080:80'
+    environment:
+      BACKEND_HOSTNAME: shuffle-backend
+    networks: [shuffle]
+    depends_on: [shuffle-backend]
+    restart: unless-stopped
+
+  shuffle-orborus:
+    image: ghcr.io/shuffle/shuffle-orborus:latest
+    container_name: shuffle-orborus
+    hostname: shuffle-orborus
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      <<: *shuffle-env
+      ORG_ID: Shuffle
+      BASE_URL: http://shuffle-backend:5001
+      DOCKER_API_VERSION: '1.44'
+      SHUFFLE_APP_SDK_TIMEOUT: '300'
+      SHUFFLE_SWARM_CONFIG: run
+      SHUFFLE_WORKER_IMAGE: ghcr.io/shuffle/shuffle-worker:latest
+      SHUFFLE_PASS_WORKER_PROXY: 'TRUE'
+      SHUFFLE_PASS_APP_PROXY: 'TRUE'
+      CLEANUP: 'false'
+    security_opt:
+      - seccomp:unconfined
+    networks: [shuffle]
+    depends_on: [shuffle-backend]
+    restart: unless-stopped
+
+  # Orchestrator services also join the shuffle network so playbook steps can reach them.
+  ingestion-service:
+    networks: [default, shuffle]
+
+  mock-integrations:
+    networks: [default, shuffle]
+
+networks:
+  shuffle:
+    name: shuffle
+
+volumes:
+  shuffle-database:
+  shuffle-apps:
+  shuffle-files:
