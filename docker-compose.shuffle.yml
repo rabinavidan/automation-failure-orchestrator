@@ -111,6 +111,9 @@ services:
   mock-integrations:
     networks: [default, shuffle]
 
+  enrichment-service:
+    networks: [default, shuffle]
+
 networks:
   shuffle:
     name: shuffle
