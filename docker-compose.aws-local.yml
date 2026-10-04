@@ -1,0 +1,98 @@
+# Zero-cost AWS demo: runs the AWS code path (SQS queue + dead-letter queue, separate
+# investigation worker) against moto, an open-source AWS emulator. No AWS account,
+# no cloud resources, no cost. Advisory agents run against a deterministic
+# Ollama-protocol stub (no GPU); swap OLLAMA_HOST for a real local Ollama if you have one.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.aws-local.yml up --build -d
+#   npm run demo:aws-local
+#
+# The real deployment (ECS Fargate, RDS, WAF, KMS...) lives in infra/terraform and is
+# validated + security-scanned in CI without ever being applied.
+
+x-aws-local-env: &aws-local-env
+  AWS_ENDPOINT_URL: http://moto:5000
+  AWS_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  INVESTIGATION_QUEUE: sqs
+  INVESTIGATION_QUEUE_URL: http://moto:5000/123456789012/soc-investigations
+
+services:
+  moto:
+    image: motoserver/moto:latest
+    container_name: orchestrator-moto
+    ports:
+      - '4566:5000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request; urllib.request.urlopen('http://localhost:5000/moto-api/', timeout=3)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  aws-init:
+    build:
+      context: .
+      dockerfile: apps/ingestion-service/Dockerfile
+    working_dir: /app
+    command: ['node', 'scripts/aws-local-init.mjs']
+    volumes:
+      - ./scripts/aws-local-init.mjs:/app/scripts/aws-local-init.mjs:ro
+    environment:
+      AWS_ENDPOINT_URL: http://moto:5000
+      AWS_REGION: us-east-1
+    depends_on:
+      moto:
+        condition: service_healthy
+    restart: 'no'
+
+  ollama-stub:
+    image: node:24-alpine
+    container_name: orchestrator-ollama-stub
+    command: ['node', '/stub/ollama-demo-stub.mjs']
+    volumes:
+      - ./scripts/ollama-demo-stub.mjs:/stub/ollama-demo-stub.mjs:ro
+    environment:
+      PORT: '11434'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:11434/ || exit 1']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ingestion-service:
+    environment:
+      <<: *aws-local-env
+      AI_ENABLED: 'true'
+      RAG_ENABLED: 'false'
+      OLLAMA_HOST: http://ollama-stub:11434
+    depends_on:
+      aws-init:
+        condition: service_completed_successfully
+      ollama-stub:
+        condition: service_healthy
+
+  investigation-worker:
+    build:
+      context: .
+      dockerfile: apps/ingestion-service/Dockerfile
+    container_name: orchestrator-investigation-worker
+    command: ['node', 'dist/workers/investigation-worker.js']
+    restart: unless-stopped
+    environment:
+      <<: *aws-local-env
+      DATABASE_URL: postgresql://orchestrator:orchestrator@postgres:5432/orchestrator
+      AI_ENABLED: 'true'
+      RAG_ENABLED: 'false'
+      MULTI_AGENT_ENABLED: 'true'
+      OLLAMA_HOST: http://ollama-stub:11434
+      OLLAMA_MODEL: demo-stub
+      WEBHOOK_SECRET: local-dev-secret
+    depends_on:
+      ingestion-service:
+        condition: service_healthy

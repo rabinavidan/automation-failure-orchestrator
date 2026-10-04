@@ -122,6 +122,36 @@ jobs:
         if: always()
         run: docker compose down --volumes
 
+  aws-local-demo:
+    name: Zero-cost AWS demo (SQS worker on moto)
+    runs-on: ubuntu-latest
+    needs: [quality, python-quality]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Start platform with the aws-local override (no AWS account, no cost)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.aws-local.yml up -d --build \
+            postgres mock-integrations enrichment-service moto aws-init ollama-stub \
+            ingestion-service investigation-worker
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3001/health > /dev/null && break
+            sleep 3
+          done
+      - name: API -> SQS -> investigation worker -> persisted result
+        run: npm run demo:aws-local
+      - name: Capture container diagnostics
+        if: failure()
+        run: docker compose -f docker-compose.yml -f docker-compose.aws-local.yml logs --no-color --tail=200
+      - name: Stop platform
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.aws-local.yml down --volumes
+
   image-security:
     name: Runtime image security
     runs-on: ubuntu-latest
@@ -190,7 +220,7 @@ jobs:
   notify-n8n:
     name: Optional n8n delivery
     runs-on: ubuntu-latest
-    needs: [container-smoke, playwright-smoke]
+    needs: [container-smoke, playwright-smoke, aws-local-demo]
     if: always()
     steps:
       - name: Send CI quality result

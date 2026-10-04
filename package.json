@@ -27,6 +27,8 @@
     "demo:soc-triage": "tsx scripts/demo-soc-triage.ts",
     "demo:soc-response": "tsx scripts/demo-soc-response.ts",
     "demo:soc-multi-siem": "tsx scripts/demo-soc-multi-siem.ts",
+    "demo:aws-local": "tsx scripts/demo-aws-local.ts",
+    "ollama:stub": "node scripts/ollama-demo-stub.mjs",
     "test:python": "cd apps/enrichment-service && ruff check . && ruff format --check . && mypy && pytest -q"
   },
   "devDependencies": {
