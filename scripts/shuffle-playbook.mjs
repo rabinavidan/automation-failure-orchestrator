@@ -74,13 +74,11 @@ function dockerHostUrl(port) {
   let gateway = '172.17.0.1';
   try {
     gateway =
-      execFileSync('docker', [
-        'network',
-        'inspect',
-        'bridge',
-        '--format',
-        '{{(index .IPAM.Config 0).Gateway}}',
-      ])
+      execFileSync(
+        'docker',
+        ['network', 'inspect', 'bridge', '--format', '{{(index .IPAM.Config 0).Gateway}}'],
+        { stdio: ['ignore', 'pipe', 'ignore'] }
+      )
         .toString()
         .trim() || gateway;
   } catch {
