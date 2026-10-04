@@ -57,6 +57,10 @@ npm run demo:soc-triage        # one alert per triage disposition
 npm run demo:soc-response      # playbook → approve firewall block → rollback, audited
 npm run demo:soc-multi-siem    # Splunk, Sentinel and Wazuh → same decision
 open http://localhost:4173     # SignalOps → SOC console
+
+# AWS code path (SQS + worker) at zero cost, no AWS account
+docker compose -f docker-compose.yml -f docker-compose.aws-local.yml up --build -d
+npm run demo:aws-local
 ```
 
 Full design, milestones and safety properties: [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md) · interview walkthrough: [`docs/soc-interview-guide.md`](docs/soc-interview-guide.md).
@@ -229,6 +233,7 @@ What it includes:
 - **Python threat-intel enrichment service** (M2, `apps/enrichment-service`, FastAPI): AbuseIPDB, VirusTotal and GeoIP lookups for every **new** alert. Internal IPs and identities never leave the network, defanged IOCs are refanged, lookups are cached with single-flight to respect API rate limits, and every provider is timeout-isolated. Enrichment is fail-open, so a degraded intel provider never drops an alert. A golden contract file is verified by both pytest and the TypeScript Zod schema.
 
 - **SOC console** (M8): the SignalOps dashboard's SOC view shows 24h KPIs (automation rate, median/p95 time to triage, containment state), triage outcome mix, top ATT&CK techniques, an analyst queue sorted by priority and risk, a per-alert evidence drawer (triage reasons, intel, AI investigation and evaluation, actions), and approve / reject / roll back controls for containment. Backed by `GET /api/alerts/metrics`.
+- **Zero-cost AWS demo**: `docker compose -f docker-compose.yml -f docker-compose.aws-local.yml up --build -d && npm run demo:aws-local` runs the SQS queue, dead-letter queue and investigation worker against moto (open-source AWS emulator) with no AWS account; CI runs it on every PR.
 - **AWS deployment** (M7): Terraform for ECS Fargate, RDS PostgreSQL (forced TLS), an SQS-backed investigation worker with a dead-letter queue, AWS WAF, KMS encryption, Secrets Manager and keyless GitHub OIDC deploys, gated in CI by `terraform validate` and a Checkov IaC security scan. See [`infra/terraform`](infra/terraform/README.md).
 - **Multi-SIEM interoperability** (M6): native **Splunk**, **Microsoft Sentinel** and **Wazuh** alert payloads (`POST /api/alerts/:vendor`) normalize onto one contract and get the same triage and playbooks. An n8n SOC workflow (`/webhook/soc-alerts`) acts as the SOAR front door: it detects the SIEM, delegates every decision to the service, and posts ChatOps approval requests for pending containment.
 - **Response playbooks with human approval** (M5): YAML playbooks (policy-as-code) open fingerprint-correlated tickets and notify Slack immediately, while containment (block IP, isolate host, kill process via mock EDR/firewall APIs) waits for an analyst's decision. Blast-radius guards refuse to block private or allowlisted IPs or isolate protected hosts, re-checked at execution time; decisions are exactly-once, containment is reversible, and every step lands in an append-only audit trail.

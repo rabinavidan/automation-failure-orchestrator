@@ -43,7 +43,34 @@ SIEMs (Splunk / Sentinel / Wazuh)
 | Audit            | ALB access logs (S3, TLS-only bucket policy), WAF logs, flow logs, service logs (1 year)                                                                                      |
 | IaC quality gate | CI runs `terraform fmt/validate` and **Checkov** (fails on any unskipped finding; 13 skips documented inline with reasons)                                                    |
 
-## Deploy
+## Zero-cost demo (no AWS account)
+
+You do not need to apply this Terraform to demonstrate the AWS design. The same
+containers and code paths run locally against [moto](https://github.com/getmoto/moto), an
+open-source AWS emulator:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.aws-local.yml up --build -d
+npm run demo:aws-local
+```
+
+This starts the SQS investigation queue + dead-letter queue (same settings as `sqs.tf`), the
+separate **investigation worker** (the container ECS would run), and a deterministic
+Ollama-protocol stub so the advisory agents run without a GPU or paid model. The demo ingests
+an alert, shows the API enqueueing to SQS, the worker consuming it, the persisted
+investigation, and an empty queue afterwards. CI runs this exact flow on every PR
+(`Zero-cost AWS demo` job), and runs `terraform validate` + Checkov on this directory, so the
+infrastructure is verified without ever being applied or billed.
+
+| Cloud component    | Zero-cost stand-in                                     |
+| ------------------ | ------------------------------------------------------ |
+| SQS + DLQ          | moto (open source, local)                              |
+| ECS worker service | `investigation-worker` container (same image/cmd)      |
+| RDS PostgreSQL     | local PostgreSQL 16 container                          |
+| LLM (GPU instance) | `scripts/ollama-demo-stub.mjs`, or real Ollama locally |
+| ALB / WAF / KMS    | not emulated: validated + Checkov-scanned in CI        |
+
+## Deploy (billable, optional)
 
 ```bash
 cd infra/terraform
@@ -77,3 +104,5 @@ set `ai_enabled = true`.
 | **Total**                                 |     **~130** |
 
 Tear down when not demoing: set `deletion_protection = false`, apply, then `terraform destroy`.
+For portfolio purposes the zero-cost demo above is sufficient; nothing in this repository applies
+the Terraform automatically.
