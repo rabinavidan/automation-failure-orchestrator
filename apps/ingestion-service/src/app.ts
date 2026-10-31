@@ -1,6 +1,7 @@
 import express from 'express';
 import { requestLogger } from './middleware/request-logger';
 import capabilitiesRouter from './routes/capabilities';
+import { createMcpRouter } from './routes/mcp';
 import healthRouter from './routes/health';
 import runsRouter from './routes/runs';
 import failuresRouter from './routes/failures';
@@ -22,6 +23,7 @@ app.use(requestLogger);
 // Routes
 app.use('/', healthRouter);
 app.use('/api/capabilities', capabilitiesRouter);
+app.use('/mcp', createMcpRouter());
 app.use('/api/runs', runsRouter);
 app.use('/api/failures', failuresRouter);
 app.use('/api/approvals', approvalsRouter);

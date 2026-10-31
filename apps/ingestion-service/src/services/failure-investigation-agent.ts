@@ -1,4 +1,6 @@
 import { currentModelBackend } from './runtime-capabilities';
+import { createMcpEvidenceProvider, type EvidenceProvider } from '../mcp/evidence-client';
+import { mcpScopeSecret, mintScopeToken } from '../mcp/scope-token';
 import {
   Annotation,
   Command,
@@ -36,6 +38,56 @@ import {
 import { createDatabaseTelemetrySink } from './agent-telemetry';
 
 const MAX_REASONING_STEPS = 4;
+
+/**
+ * EVIDENCE_TRANSPORT=mcp routes the agent's evidence tools through the MCP evidence server with a
+ * scope token minted for this investigation. A connection failure is recorded as a visible
+ * limitation and the tools return "unavailable"; deterministic processing is unaffected.
+ */
+async function openEvidenceProvider(
+  context: InvestigationContext,
+  threadId: string,
+  audit: AgentAuditSink
+): Promise<EvidenceProvider | { unavailable: string } | undefined> {
+  if (process.env.EVIDENCE_TRANSPORT !== 'mcp') return undefined;
+  const secret = mcpScopeSecret();
+  const reason = (detail: string) => `MCP evidence unavailable: ${detail}`;
+  if (!secret) {
+    await audit.record({
+      node: 'mcp_evidence',
+      status: 'failed',
+      details: { reason: 'MCP_SCOPE_SECRET not set' },
+    });
+    return { unavailable: reason('MCP_SCOPE_SECRET not set') };
+  }
+  const token = mintScopeToken(
+    {
+      threadId,
+      runId: context.run.runId,
+      fingerprint: context.fingerprint,
+      testId: context.test.testId,
+    },
+    secret
+  );
+  const url = process.env.MCP_EVIDENCE_URL ?? `http://localhost:${process.env.PORT ?? '3001'}/mcp`;
+  try {
+    const provider = await createMcpEvidenceProvider({
+      scope: { runId: context.run.runId, fingerprint: context.fingerprint },
+      url,
+      token,
+    });
+    await audit.record({ node: 'mcp_evidence', status: 'completed', details: { connected: true } });
+    return provider;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'connection failed';
+    await audit.record({ node: 'mcp_evidence', status: 'failed', details: { reason: detail } });
+    return { unavailable: reason(detail) };
+  }
+}
+
+function describeEvidenceError(error: unknown): string {
+  return `evidence unavailable: ${error instanceof Error ? error.message : 'lookup failed'}`;
+}
 
 const InvestigationSchema = z.object({
   suspectedRootCause: z.string().min(1),
@@ -130,6 +182,8 @@ export interface InvestigationGraphOptions {
   audit?: AgentAuditSink;
   requireApproval?: boolean;
   knowledgeSearch?: typeof searchRepositoryKnowledge;
+  /** Evidence source for tool calls; absent = read the in-memory context directly (legacy). */
+  evidence?: EvidenceProvider | { unavailable: string };
 }
 
 export interface FailureInvestigationOutcome {
@@ -273,12 +327,30 @@ export function createFailureInvestigationGraph(
       const name = call.function.name;
       used.push(name);
       let result: unknown;
-      if (name === 'get_failure_history') result = state.context.history ?? { found: false };
-      else if (name === 'get_related_jira_issue')
-        result = state.context.existingIssue ?? { found: false };
-      else if (name === 'search_repository_context') {
+      const evidence = options.evidence;
+      if (evidence && 'unavailable' in evidence && name !== 'search_repository_context') {
+        result = { available: false, reason: evidence.unavailable };
+      } else if (name === 'get_failure_history') {
+        result =
+          evidence && 'transport' in evidence
+            ? await evidence.getFailureHistory().catch((error: unknown) => ({
+                available: false,
+                reason: describeEvidenceError(error),
+              }))
+            : (state.context.history ?? { found: false });
+      } else if (name === 'get_related_jira_issue') {
+        result =
+          evidence && 'transport' in evidence
+            ? await evidence.getRelatedIssue().catch((error: unknown) => ({
+                available: false,
+                reason: describeEvidenceError(error),
+              }))
+            : (state.context.existingIssue ?? { found: false });
+      } else if (name === 'search_repository_context') {
         if (process.env.RAG_ENABLED !== 'true')
           result = { available: false, reason: 'RAG is disabled' };
+        else if (evidence && 'unavailable' in evidence)
+          result = { available: false, reason: evidence.unavailable };
         else {
           try {
             const requestedQuery = String(call.function.arguments?.query ?? '').trim();
@@ -292,10 +364,13 @@ export function createFailureInvestigationGraph(
               ]
                 .filter(Boolean)
                 .join(' ');
-            const matches = await (options.knowledgeSearch ?? searchRepositoryKnowledge)(
-              searchText,
-              4
-            );
+            const matches =
+              evidence && 'transport' in evidence
+                ? await evidence.searchRepository(searchText, 4).then((r) => {
+                    if (!r.available) throw new Error(r.reason);
+                    return r.matches;
+                  })
+                : await (options.knowledgeSearch ?? searchRepositoryKnowledge)(searchText, 4);
             for (const match of matches) {
               ragSources.push({
                 path: match.sourcePath,
@@ -317,7 +392,15 @@ export function createFailureInvestigationGraph(
     await options.audit?.record({
       node: 'execute_tools',
       status: 'completed',
-      details: { tools: state.pendingCalls.map((call) => call.function.name) },
+      details: {
+        tools: state.pendingCalls.map((call) => call.function.name),
+        evidenceTransport:
+          options.evidence && 'transport' in options.evidence
+            ? options.evidence.transport
+            : options.evidence
+              ? 'unavailable'
+              : 'direct',
+      },
     });
     return {
       messages: [...state.messages, ...toolMessages],
@@ -465,6 +548,7 @@ export async function investigateFailure(
   if (process.env.AI_ENABLED !== 'true') return {};
   const { client, model } = createOllamaClient();
   const threadId = `${context.run.runId}:${context.fingerprint}`;
+  let evidence: EvidenceProvider | { unavailable: string } | undefined;
   try {
     const checkpointer = await getAgentCheckpointer();
     await startAgentExecution({
@@ -479,12 +563,24 @@ export async function investigateFailure(
       modelBackend: await currentModelBackend(),
     });
     const useMultiAgent = process.env.MULTI_AGENT_ENABLED === 'true';
+    const audit = createDatabaseAuditSink(threadId);
+    evidence = await openEvidenceProvider(context, threadId, audit);
     const graphOptions = {
       checkpointer,
       threadId,
-      audit: createDatabaseAuditSink(threadId),
+      audit,
       requireApproval: true,
       telemetry: createDatabaseTelemetrySink(threadId),
+      ...(evidence ? { evidence } : {}),
+      ...(evidence && 'transport' in evidence
+        ? {
+            knowledgeSearch: async (text: string, topK = 4) => {
+              const r = await (evidence as EvidenceProvider).searchRepository(text, topK);
+              if (!r.available) throw new Error(r.reason);
+              return r.matches;
+            },
+          }
+        : {}),
     };
     const graph = useMultiAgent
       ? createMultiAgentInvestigationGraph(client, graphOptions)
@@ -527,6 +623,8 @@ export async function investigateFailure(
       error
     );
     return {};
+  } finally {
+    if (evidence && 'close' in evidence) await evidence.close().catch(() => undefined);
   }
 }
 
