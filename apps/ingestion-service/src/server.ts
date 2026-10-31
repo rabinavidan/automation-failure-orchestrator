@@ -1,3 +1,5 @@
+// Must load first so HTTP, Express and pg are instrumented (no-op unless OTEL_ENABLED=true).
+import { shutdownTelemetry } from './observability/register';
 import app from './app';
 import { runMigrations } from './db/migrations';
 import { closePool } from './db/client';
@@ -26,6 +28,7 @@ async function main(): Promise<void> {
     console.log(`[Server] ${signal} received, shutting down...`);
     server.close(async () => {
       await closePool();
+      await shutdownTelemetry();
       process.exit(0);
     });
   };

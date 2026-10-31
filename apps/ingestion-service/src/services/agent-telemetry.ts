@@ -1,4 +1,5 @@
 import { query } from '../db/client';
+import { recordModelCall } from '../observability/telemetry';
 
 export interface AgentModelCallMetric {
   node: string;
@@ -16,6 +17,7 @@ export interface AgentTelemetrySink {
 export function createDatabaseTelemetrySink(threadId: string): AgentTelemetrySink {
   return {
     async recordModelCall(metric) {
+      recordModelCall(metric);
       await query(
         `INSERT INTO agent_model_calls
           (thread_id, node, prompt_version, model, prompt_tokens, completion_tokens, duration_ms)

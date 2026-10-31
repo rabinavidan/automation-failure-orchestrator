@@ -14,6 +14,8 @@ import type { InvestigationContext, InvestigationModel } from './failure-investi
 import type { AgentAuditSink } from './agent-execution-audit';
 import { searchRepositoryKnowledge } from './repository-knowledge';
 import type { AgentTelemetrySink } from './agent-telemetry';
+import { recordGuardrailOverride } from '../observability/telemetry';
+import { GUARDRAIL_REASONS, type GuardrailReason } from './guardrail-reasons';
 
 export const MULTI_AGENT_GRAPH_VERSION = 'failure-supervisor-v1';
 
@@ -135,11 +137,11 @@ export function applyActionGuardrails(
 ): { recommendedAction: FailureAction; override?: { from: FailureAction; reason: string } } {
   if (recommended === 'human_review') return { recommendedAction: recommended };
   const action = reports.find((report) => report.agent === 'action');
-  const reason =
+  const reason: GuardrailReason | undefined =
     action?.risk === 'high'
-      ? 'action specialist assessed risk as high'
+      ? GUARDRAIL_REASONS[0]
       : action?.proposedAction === 'human_review'
-        ? 'action specialist proposed human_review'
+        ? GUARDRAIL_REASONS[1]
         : undefined;
   return reason
     ? { recommendedAction: 'human_review', override: { from: recommended, reason } }
@@ -311,6 +313,7 @@ export function createMultiAgentInvestigationGraph(
     await recordModelCall('supervisor', 'supervisor-v1', state.model, startedAt, response);
     const parsed = FinalSchema.parse(JSON.parse(response.message.content));
     const guarded = applyActionGuardrails(parsed.recommendedAction, state.reports);
+    if (guarded.override) recordGuardrailOverride(guarded.override.from, guarded.override.reason);
     const result: AgentInvestigation = {
       ...parsed,
       recommendedAction: guarded.recommendedAction,

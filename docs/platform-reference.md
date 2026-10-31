@@ -774,6 +774,8 @@ GitHub Actions performs linting, formatting checks, workspace builds, unit tests
 | `OLLAMA_MODEL`                     | `qwen3:4b`                       | Tool-capable model                        |
 | `OLLAMA_TIMEOUT_MS`                | `30000`                          | Per-request AI timeout                    |
 | `RAG_ENABLED`                      | `true`                           | Enable bounded repository retrieval       |
+| `OTEL_ENABLED`                     | `false`                          | OpenTelemetry trace and metric export     |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`      | SDK default                      | OTLP/HTTP endpoint                        |
 | `OLLAMA_EMBEDDING_MODEL`           | `nomic-embed-text`               | Local semantic embedding model            |
 | `PORT`                             | `3001`                           | Ingestion port                            |
 | `MOCK_PORT`                        | `3002`                           | Mock service port                         |
@@ -813,7 +815,7 @@ Planned evolution:
 1. Extend local RAG with Git diff, log, and trace ingestion.
 2. Grow the LLM-as-judge human-labeled set with adversarial and near-miss examples, and schedule the production sampling script as a recurring job.
 3. Add semantic clustering after exact fingerprint matching.
-4. Export traces and metrics through OpenTelemetry collectors.
+4. Export logs over OTLP with trace correlation, and add an ADOT collector to the AWS deployment (traces and metrics are already exported over OpenTelemetry; see [observability.md](observability.md)).
 5. Add retries, circuit breakers, and a transactional action outbox.
 6. Add production authentication and role-based approval policies.
 

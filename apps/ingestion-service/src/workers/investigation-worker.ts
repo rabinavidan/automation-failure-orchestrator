@@ -1,3 +1,5 @@
+// Must load first so outgoing HTTP and pg are instrumented (no-op unless OTEL_ENABLED=true).
+import { shutdownTelemetry } from '../observability/register';
 import {
   ChangeMessageVisibilityCommand,
   DeleteMessageCommand,
@@ -137,6 +139,7 @@ if (require.main === module) {
   process.on('SIGINT', () => controller.abort());
   runWorker({ queueUrl, signal: controller.signal })
     .then(() => closePool())
+    .then(() => shutdownTelemetry())
     .then(() => process.exit(0))
     .catch((err) => {
       console.error('[Worker] fatal:', err);
