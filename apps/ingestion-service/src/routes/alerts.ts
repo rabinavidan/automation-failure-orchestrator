@@ -246,9 +246,16 @@ router.get('/fingerprints/:fingerprint', async (req, res) => {
 // GET /api/alerts/:alertId — full normalized alert
 router.get('/:alertId', async (req, res) => {
   try {
-    const rows = await query('SELECT * FROM security_alerts WHERE alert_id = $1', [
-      req.params.alertId,
-    ]);
+    const rows = await query(
+      `SELECT sa.*, ae.model AS ai_model, ae.model_backend AS ai_model_backend
+       FROM security_alerts sa
+       LEFT JOIN LATERAL (
+         SELECT model, model_backend FROM agent_executions
+         WHERE alert_id = sa.alert_id ORDER BY started_at DESC LIMIT 1
+       ) ae ON TRUE
+       WHERE sa.alert_id = $1`,
+      [req.params.alertId]
+    );
     if (rows.length === 0) {
       res.status(404).json({ error: 'Alert not found' });
       return;

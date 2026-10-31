@@ -89,12 +89,14 @@ router.get('/:fingerprint/agent-executions', async (req, res) => {
       run_id: string;
       test_id: string;
       model: string;
+      model_backend: string | null;
       status: string;
       final_result: unknown;
       started_at: string;
       finished_at: string | null;
     }>(
-      `SELECT thread_id, run_id, test_id, model, status, final_result, started_at, finished_at
+      `SELECT thread_id, run_id, test_id, model, model_backend, status, final_result, started_at,
+              finished_at
        FROM agent_executions
        WHERE fingerprint = $1
        ORDER BY started_at DESC

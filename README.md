@@ -1,34 +1,71 @@
-# Agentic SOC Automation Orchestrator
+# SignalOps: AI investigation and automation platform
 
-**SIEM alert in → deduplicated, enriched, triaged, investigated → human-approved response out.**
-Deterministic code owns every decision and side effect; AI agents only advise.
+**Noisy operational signals in → evidence-backed investigations and controlled engineering actions out.**
+Deterministic code owns every decision and side effect. AI agents gather evidence and advise, and a
+human approves anything risky.
 
 [![CI](https://github.com/rabinavidan/automation-failure-orchestrator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/rabinavidan/automation-failure-orchestrator/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12_FastAPI-3776AB?logo=python&logoColor=white)](apps/enrichment-service)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Node_24-3178C6?logo=typescript&logoColor=white)](apps/ingestion-service)
-[![SIEM](https://img.shields.io/badge/SIEM-Splunk_·_Sentinel_·_Wazuh-65A637)](apps/ingestion-service/src/services/alert-normalizers)
+[![Agents](https://img.shields.io/badge/AI_agents-LangGraph_+_Ollama-black)](apps/ingestion-service/src/services/multi-agent-investigation.ts)
 [![SOAR](https://img.shields.io/badge/SOAR-Shuffle_·_n8n-EA4B71)](docs/shuffle-soar-lab.md)
-[![Agents](https://img.shields.io/badge/AI_agents-LangGraph_+_Ollama-black)](apps/ingestion-service/src/services/soc-investigation.ts)
 [![AWS](https://img.shields.io/badge/AWS-Terraform_·_Checkov--gated-FF9900?logo=amazonwebservices&logoColor=white)](infra/terraform/README.md)
 
 ![SOC console: alert KPIs (automation rate, time to triage), triage outcome mix, top ATT&CK techniques, and the containment approval queue](docs/screenshots/soc-console.png)
 
 ---
 
-## The 60-second pitch
+## The problem
 
-|                       |                                                                                                                                                                                                                                                                                                                                                                        |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Problem**           | SOC teams drown in duplicate, low-value alerts. Analysts spend their time re-checking the same IP and pasting context between tools. Handing that work to an LLM is risky, because a confident hallucination can block the wrong IP or isolate the wrong host.                                                                                                         |
-| **What I built**      | An end-to-end SOC automation platform. It normalizes Splunk, Sentinel and Wazuh alerts onto one contract, collapses duplicates by entity fingerprint, enriches them with threat intel in Python, and triages them with policy-as-code mapped to MITRE ATT&CK. Advisory LangGraph agents investigate, and YAML playbooks respond. Containment always waits for a human. |
-| **Why it's credible** | **320 automated tests** (275 TypeScript + 45 Python) and an agent-evaluation gate that fails on hallucinated IOCs. A real **Shuffle SOAR** playbook and a **zero-cost AWS SQS worker path** both run end-to-end in CI, and the Terraform is **Checkov-gated with 0 failed checks**. The key claims below each have a CI job behind them.                               |
+Engineering and security teams both drown in repetitive signals: the same flaky test failing for
+the fifth time, the same brute-force alert retried by the SIEM. Someone re-reads logs, pastes
+context between tools and files a ticket. Handing that to an LLM is risky, because a confident
+hallucination can file the wrong bug, page the wrong team or block the wrong IP.
+
+SignalOps keeps decisions deterministic and testable, and uses agents for the part they are good
+at: collecting and explaining evidence.
+
+## Two tracks, one engine
+
+|                        | Engineering failures (primary)                                                             | Security alerts (second domain)                                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Input                  | CI test results (Playwright reporter, `POST /api/runs`, n8n)                               | Splunk, Sentinel, Wazuh (`POST /api/alerts/:vendor`, Shuffle, n8n)                                                                   |
+| Identity               | SHA-256 failure fingerprint, `runId` idempotency                                           | Entity fingerprint and suppression window                                                                                            |
+| Deterministic decision | known bug > infrastructure > automation > flaky > new regression                           | false positive > duplicate > true positive > benign > needs investigation                                                            |
+| Advisory agents        | LangGraph supervisor: triage, repository (RAG), action                                     | LangGraph supervisor with runbook grounding and hallucinated-IOC gate                                                                |
+| Actions                | Jira issue and Slack notification, by policy; `human_review` pauses for dashboard approval | Ticket and Slack immediately; containment (block IP, isolate host, kill process) **always** requires analyst approval, with rollback |
+
+Shared: Zod contracts, fingerprinting, the decision-chain pattern, durable LangGraph approvals,
+model-call telemetry, deterministic evaluators and the dashboard.
+
+## Execution modes
+
+Three independent settings. `GET /api/capabilities` reports what each is configured to do and
+what is actually reachable. It never returns secret values. The dashboard header shows the same.
+
+| Dimension    | Values                                                                                                                                                                                                          | Set by                                                                      |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Model        | `disabled` (deterministic only) · `stub` (scripts/ollama-demo-stub.mjs, **not a language model**) · `real` (local Ollama, reports model and whether it is pulled) · `unreachable` (falls back to deterministic) | `AI_ENABLED`, `OLLAMA_HOST`, `OLLAMA_MODEL`, `MULTI_AGENT_ENABLED`          |
+| Integrations | `mock` (in-memory Jira/Slack/EDR/firewall) · `live`                                                                                                                                                             | `INTEGRATION_MODE`; adapters route by `JIRA_BASE_URL` / `SLACK_WEBHOOK_URL` |
+| Queue        | `in_process` · `sqs_local_emulator` (moto) · `sqs_aws`                                                                                                                                                          | `INVESTIGATION_QUEUE`, `AWS_ENDPOINT_URL`                                   |
+
+Each investigation records the model backend that answered it (`agent_executions.model_backend`).
+Stub-backed or failed investigations are labeled in the UI and are never shown as a completed
+real-model investigation. With AI off or unreachable, classification and policy actions still run.
+
+## Why it's credible
+
+TypeScript and Python test suites, deterministic agent-evaluation gates, a real Shuffle SOAR
+playbook and a zero-cost AWS SQS worker path all run in CI. The Terraform is Checkov-gated. The
+key claims below each have a CI job behind them. Current evidence levels are tracked in
+[`docs/flagship-baseline.md`](docs/flagship-baseline.md).
 
 ## Proof, not claims: what CI runs on every push
 
 | CI job                                               | What it proves                                                                                                                                     |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Quality and agent evaluations                        | Lint, format, typecheck, 275 unit/service tests, deterministic agent-evaluation suites (including the hallucinated-IOC gate)                       |
-| Python enrichment service                            | `ruff` + `mypy --strict` + 45 `pytest` tests; a golden response contract is shared with the TypeScript consumer                                    |
+| Quality and agent evaluations                        | Lint, format, typecheck, unit/service tests, deterministic agent-evaluation suites (including the hallucinated-IOC gate)                           |
+| Python enrichment service                            | `ruff` + `mypy --strict` + `pytest`; a golden response contract is shared with the TypeScript consumer                                             |
 | **Shuffle SOAR playbook (open source, self-hosted)** | Imports a playbook through Shuffle's REST API and runs it on real Shuffle. Asserts Splunk alert → orchestrator → `true_positive` → ChatOps message |
 | **Zero-cost AWS demo (SQS worker on moto)**          | API → SQS → investigation worker → persisted result, with no AWS account and no cost                                                               |
 | Terraform validate and IaC security scan             | `terraform validate` + Checkov: any unskipped finding fails the build (each skip is documented inline with a reason)                               |
@@ -73,7 +110,7 @@ A Splunk **"Brute Force Access Behavior Detected"** alert for source IP `203.0.1
 3. **Enrich.** The Python service queries threat-intel providers through a single-flight TTL cache. Private IPs and internal identities **never leave the network**. If enrichment fails, triage still runs (fail-open).
 4. **Triage.** A priority-ordered rule chain (false positive → duplicate → true positive → known benign → needs investigation) returns **`true_positive`**, a risk score, P1–P4 and ATT&CK **T1110**, each with a recorded reason.
 5. **Investigate (advisory).** A LangGraph supervisor and three specialists write a recommendation grounded in [`credential-brute-force.md`](docs/runbooks/credential-brute-force.md). An evaluator rejects any IOC that isn't present in the alert or its enrichment.
-6. **Respond.** The [`brute-force-response`](config/playbooks/brute-force-response.yaml) playbook opens a ticket and pages Slack immediately. **`firewall.block_ip` waits for an analyst.** Blast-radius guards are re-checked at execution, the decision is exactly-once (a repeat returns 409), the action can be rolled back, and everything lands in an append-only audit log.
+6. **Respond.** The [`brute-force-response`](config/playbooks/brute-force-response.yaml) playbook opens a ticket and pages Slack immediately. **`firewall.block_ip` waits for an analyst.** Blast-radius guards are re-checked at execution, the approval decision is a single atomic transition (a repeat returns 409), the action can be rolled back, and everything lands in an append-only audit log.
 
 ![SOC alert detail: triage reasons and risk factors, threat-intel verdicts, the advisory AI investigation with its cited runbook and passed evaluation, and executed response actions](docs/screenshots/soc-alert-detail.png)
 
@@ -90,13 +127,22 @@ A Splunk **"Brute Force Access Behavior Detected"** alert for source IP `203.0.1
 
 ## Run it in 5 minutes
 
+No API keys, accounts or GPU needed. The default `.env` runs deterministic-only with mock integrations.
+
 ```bash
 cp .env.example .env && docker compose up --build -d
+curl localhost:3001/api/capabilities   # configured vs. available modes
+npm run demo:new-regression    # engineering track: failing test → fingerprint → Jira + Slack (mock)
 npm run demo:soc-triage        # five alerts, five dispositions (noise reduction)
 npm run demo:soc-multi-siem    # Splunk, Sentinel and Wazuh → the same decision
 npm run demo:soc-response      # playbook → approve firewall block → roll back, audited
-open http://localhost:4173     # SOC console: KPIs, approval queue, evidence drawer
+open http://localhost:4173     # SignalOps: CI ops console and SOC console
+npm run demo:cleanup -- --confirm   # remove demo-owned CI runs only (dry run without --confirm)
 ```
+
+AI modes: run `npm run ollama:stub` with `AI_ENABLED=true` to exercise the agent code paths at zero
+cost (labeled **stub**, not real AI). For real inference, run Ollama locally, `ollama pull qwen3:4b`,
+and point `OLLAMA_HOST` at it.
 
 Optional, all zero cost:
 
@@ -132,11 +178,8 @@ Interviewers respect a clear boundary, so here is what this project is and isn't
 - **Simulated:** EDR, firewall, Jira and Slack are mock services ([`apps/mock-integrations`](apps/mock-integrations)). Threat intel runs in mock mode by default (`ENRICHMENT_MODE=live` plus API keys for real providers).
 - **Not deployed:** the Terraform is validated and security-scanned but has never been applied (the demo is deliberately zero cost).
 - **SOAR experience:** this is hands-on Shuffle work plus SOAR-style engineering, not production experience on Torq, XSOAR or Splunk SOAR. The [Shuffle lab](docs/shuffle-soar-lab.md) is the hands-on part.
+- **Not yet:** reviewer identity on approvals is a free-text field (no authentication), and no model-quality benchmark has been run on a real model yet. Both are tracked in [`docs/flagship-progress.md`](docs/flagship-progress.md).
 - **Next steps I'd take:** SSO-backed reviewer identity and two-person approval for P1 isolation, SIEM write-back (closing incidents in Sentinel), OpenTelemetry trace export, and a semantic near-duplicate layer.
-
-## Also inside: the same engine for CI failures
-
-The project started as a **CI-failure orchestrator**: Playwright results → fingerprint → classify (known bug, infrastructure, automation, flaky, new regression) → multi-agent investigation → Jira/Slack, with LangGraph human-in-the-loop interrupts and LLM-as-judge evaluation. The SOC track reuses its contracts, fingerprinting, deterministic decision chain, agents, approvals and observability. Details are in the [platform reference](docs/platform-reference.md).
 
 ## Go deeper
 

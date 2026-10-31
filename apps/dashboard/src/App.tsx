@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BackendBadge, RuntimeModes } from './RuntimeModes';
 import { SocConsole } from './SocConsole';
 import {
   Activity,
@@ -63,6 +64,7 @@ type AgentExecution = {
   thread_id: string;
   run_id: string;
   model: string;
+  model_backend?: string | null;
   status: string;
   started_at: string;
   finished_at?: string;
@@ -596,6 +598,7 @@ function App() {
             <h1 className="text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
               {navItems.find((item) => item.id === view)?.label}
             </h1>
+            <RuntimeModes />
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden font-mono text-[10px] uppercase text-slate-500 sm:block">
@@ -1394,8 +1397,20 @@ function App() {
                   <Network size={14} /> LangGraph execution timeline
                 </p>
                 {agentExecutions[0] && (
-                  <span className="border border-emerald-300 bg-emerald-50 px-2 py-1 font-mono text-[9px] uppercase text-emerald-700">
+                  <span
+                    className={`border px-2 py-1 font-mono text-[9px] uppercase ${
+                      agentExecutions[0].status === 'completed' &&
+                      agentExecutions[0].model_backend === 'real'
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                        : agentExecutions[0].status === 'failed'
+                          ? 'border-red-300 bg-red-50 text-red-800'
+                          : 'border-amber-400 bg-amber-50 text-amber-900'
+                    }`}
+                  >
                     {agentExecutions[0].status}
+                    {agentExecutions[0].status === 'completed' &&
+                      agentExecutions[0].model_backend !== 'real' &&
+                      ' · not real-model evidence'}
                   </span>
                 )}
               </div>
@@ -1404,7 +1419,10 @@ function App() {
               ) : agentExecutions.length > 0 ? (
                 <div className="mt-5">
                   <div className="mb-4 flex items-center justify-between text-[10px] text-slate-500">
-                    <span className="font-mono">{agentExecutions[0].model}</span>
+                    <span className="flex items-center gap-2 font-mono">
+                      {agentExecutions[0].model}
+                      <BackendBadge backend={agentExecutions[0].model_backend} />
+                    </span>
                     <span>{formatTime(agentExecutions[0].started_at)}</span>
                   </div>
                   <ol className="relative border-l border-slate-300 pl-5">
