@@ -80,8 +80,8 @@ jobs:
       OLLAMA_MODEL: ${{ inputs.model }}
       OLLAMA_TIMEOUT_MS: '600000'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
@@ -102,7 +102,7 @@ jobs:
         run: |
           npm run benchmark -- --configs="$CONFIG" --subset="$SUBSET" --reps="$REPS" \
             --shard="$SHARD" --timeout-ms=900000 --out=benchmark/results/part
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: benchmark-part-${{ matrix.config }}-${{ matrix.shard }}
@@ -116,13 +116,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: benchmark-part-*
           path: benchmark/results/parts
@@ -137,7 +137,7 @@ jobs:
             echo "> **Incomplete:** at least one shard job failed; the merged report covers only the shards that finished." >> "$GITHUB_STEP_SUMMARY"
           fi
           cat benchmark/results/merged/report.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: benchmark-results
           path: benchmark/results/merged
