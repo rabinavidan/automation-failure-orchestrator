@@ -1,0 +1,175 @@
+# Azure DevOps pipeline: the same quality and security gates as .github/workflows/ci.yml, for
+# teams that run Azure Pipelines. GitHub Actions remains this repository's primary CI.
+#
+# Stage 1 (Quality) runs in parallel: Node quality gate + agent evaluations, Python enrichment
+# service, Terraform validate + Checkov, production dependency audit.
+# Stage 2 (Containers) needs stage 1: Docker Compose smoke test, runtime image build + Trivy scan.
+# On main, the scanned images are saved as a versioned pipeline artifact.
+#
+# Pinned versions must match ci.yml; azure-pipelines.test.ts fails CI when they drift.
+# Nothing here deploys, calls a paid service or needs a secret.
+
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include: [main]
+
+pr:
+  branches:
+    include: [main]
+
+variables:
+  nodeVersion: '24'
+  pythonVersion: '3.12'
+  terraformVersion: '1.9.8'
+  checkovVersion: '3.3.22'
+  trivyVersion: '0.64.1'
+  npm_config_cache: $(Pipeline.Workspace)/.npm
+  imageTag: $(Build.BuildNumber)
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: Quality
+    displayName: Quality and security gates
+    jobs:
+      - job: node_quality
+        displayName: Quality and agent evaluations
+        timeoutInMinutes: 15
+        steps:
+          - template: .azure-pipelines/templates/node-setup.yml
+            parameters:
+              nodeVersion: $(nodeVersion)
+          - script: npm run quality
+            displayName: Lint, format, build, unit tests, agent evaluations
+
+      - job: python_quality
+        displayName: Python enrichment service
+        timeoutInMinutes: 10
+        steps:
+          - task: UsePythonVersion@0
+            displayName: Use Python $(pythonVersion)
+            inputs:
+              versionSpec: $(pythonVersion)
+          - script: pip install -e '.[dev]'
+            displayName: Install service with dev tools
+            workingDirectory: apps/enrichment-service
+          - script: |
+              set -e
+              ruff check .
+              ruff format --check .
+              mypy
+              pytest -q
+            displayName: ruff, mypy, pytest
+            workingDirectory: apps/enrichment-service
+
+      - job: terraform
+        displayName: Terraform validate and IaC security scan
+        timeoutInMinutes: 10
+        steps:
+          - script: |
+              set -e
+              curl -sSfLo terraform.zip \
+                "https://releases.hashicorp.com/terraform/$(terraformVersion)/terraform_$(terraformVersion)_linux_amd64.zip"
+              unzip -q -o terraform.zip -d "$(Agent.ToolsDirectory)/terraform"
+              echo "##vso[task.prependpath]$(Agent.ToolsDirectory)/terraform"
+            displayName: Install Terraform $(terraformVersion)
+          - script: |
+              set -e
+              terraform fmt -check -recursive
+              terraform init -backend=false -input=false
+              terraform validate
+            displayName: terraform fmt, init (no backend), validate
+            workingDirectory: infra/terraform
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(pythonVersion)
+          - script: |
+              set -e
+              pip install --quiet checkov==$(checkovVersion)
+              checkov -d . --framework terraform --quiet --compact
+            displayName: Checkov IaC security scan (fails on any unskipped finding)
+            workingDirectory: infra/terraform
+
+      - job: production_dependencies
+        displayName: Production dependency audit
+        timeoutInMinutes: 10
+        steps:
+          - template: .azure-pipelines/templates/node-setup.yml
+            parameters:
+              nodeVersion: $(nodeVersion)
+          - script: npm audit --omit=dev --audit-level=high
+            displayName: npm audit (production, high and above)
+
+  - stage: Containers
+    displayName: Containers
+    dependsOn: Quality
+    jobs:
+      - job: container_smoke
+        displayName: Docker build and smoke test
+        timeoutInMinutes: 20
+        variables:
+          AI_ENABLED: 'false'
+          RAG_ENABLED: 'false'
+        steps:
+          - template: .azure-pipelines/templates/node-setup.yml
+            parameters:
+              nodeVersion: $(nodeVersion)
+          - script: docker compose config --quiet
+            displayName: Validate Compose configuration
+          - script: >-
+              docker compose up -d --build postgres mock-integrations enrichment-service
+              ingestion-service dashboard
+            displayName: Build and start core platform
+          - script: npm run test:smoke
+            displayName: API, proxy, action and idempotency smoke checks
+          - script: docker compose logs --no-color --tail=300
+            displayName: Capture container diagnostics
+            condition: failed()
+          - script: docker compose down --volumes
+            displayName: Stop platform
+            condition: always()
+
+      - job: image_security
+        displayName: Runtime image build, scan and versioned artifact
+        timeoutInMinutes: 25
+        steps:
+          - script: |
+              set -e
+              docker build -f apps/ingestion-service/Dockerfile -t orchestrator-ingestion:$(imageTag) .
+              docker build -f apps/dashboard/Dockerfile -t orchestrator-dashboard:$(imageTag) .
+              docker build -t orchestrator-enrichment:$(imageTag) apps/enrichment-service
+            displayName: Build runtime images tagged $(imageTag)
+          - template: .azure-pipelines/templates/image-scan.yml
+            parameters:
+              image: orchestrator-ingestion:$(imageTag)
+              trivyVersion: $(trivyVersion)
+          - template: .azure-pipelines/templates/image-scan.yml
+            parameters:
+              image: orchestrator-dashboard:$(imageTag)
+              trivyVersion: $(trivyVersion)
+          - template: .azure-pipelines/templates/image-scan.yml
+            parameters:
+              image: orchestrator-enrichment:$(imageTag)
+              trivyVersion: $(trivyVersion)
+          # Only scanned images are kept, and only from main: a PR build never produces a
+          # versioned artifact.
+          - script: |
+              set -e
+              mkdir -p "$(Build.ArtifactStagingDirectory)/images"
+              docker save \
+                orchestrator-ingestion:$(imageTag) \
+                orchestrator-dashboard:$(imageTag) \
+                orchestrator-enrichment:$(imageTag) \
+                | gzip > "$(Build.ArtifactStagingDirectory)/images/orchestrator-$(imageTag).tar.gz"
+              git rev-parse HEAD > "$(Build.ArtifactStagingDirectory)/images/COMMIT"
+            displayName: Save scanned images
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+          - task: PublishPipelineArtifact@1
+            displayName: Publish images-$(imageTag)
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/images
+              artifact: images-$(imageTag)
