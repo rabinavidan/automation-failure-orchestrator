@@ -278,6 +278,9 @@ export function createFailureInvestigationGraph(
       tools,
       format: outputFormat,
       stream: false,
+      // Same as the supervisor and SOC graphs: no hidden reasoning tokens. With a "thinking"
+      // model they made calls exceed fetch's 300 s header timeout ("fetch failed").
+      think: false,
     });
     await recordSingleAgentCall(options, 'reason', state.model, reasonStarted, response);
     const calls = response.message.tool_calls ?? [];
@@ -451,6 +454,7 @@ export function createFailureInvestigationGraph(
       ],
       format: outputFormat,
       stream: false,
+      think: false,
     });
     await recordSingleAgentCall(options, 'finalize', state.model, finalizeStarted, response);
     try {

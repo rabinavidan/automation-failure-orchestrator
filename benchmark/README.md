@@ -87,7 +87,7 @@ Quality and cost are reported separately.
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Deterministic baseline                | [`results/baseline-deterministic/report.md`](results/baseline-deterministic/report.md), 35 cases, measured                                                                                                                                                                                                     |
 | First real-model run (smoke, 1 rep)   | [`results/real-2026-10-31-qwen3-4b-smoke/report.md`](results/real-2026-10-31-qwen3-4b-smoke/report.md): qwen3:4b (Qwen3 4B Thinking 2507, digest `359d7dd4`), 20 cases, 4-core CPU runner, workflow run [41198119333](https://github.com/rabinavidan/automation-failure-orchestrator/actions/runs/41198119333) |
-| Full run (35 cases x 3 reps, sharded) | **Pending.** Run the workflow with defaults after this change.                                                                                                                                                                                                                                                 |
+| Full run (35 cases x 3 reps, sharded) | [`results/real-2026-10-31-qwen3-4b-full/report.md`](results/real-2026-10-31-qwen3-4b-full/report.md): same model and digest, 12 parallel shards, run [41225652048](https://github.com/rabinavidan/automation-failure-orchestrator/actions/runs/41225652048). See the reading notes below.                      |
 | Retrieval                             | **Not yet run.** Needs an embedding model and an index.                                                                                                                                                                                                                                                        |
 
 ### What the first real-model run found (and what changed)
@@ -109,6 +109,41 @@ Quality and cost are reported separately.
   over-cautious.
 - **Cost:** multi-agent p50 229 s per case (p95 316 s), 3.7 model calls and about 2,500 tokens per
   case on a 4-core runner. That is local compute, not free.
+
+### Reading the full run (35 cases x 3 repetitions)
+
+Measured after the high-risk guardrail and the Ollama upgrade. Read these numbers with the notes
+below: two harness and agent issues found here are fixed in code, but this run predates the fixes.
+
+|                                                  | single_agent | multi_agent                         |
+| ------------------------------------------------ | ------------ | ----------------------------------- |
+| Applicable runs                                  | 66           | 84                                  |
+| Failed (timeout, error or empty)                 | 41 (62.1%)   | 11 (13.1%)                          |
+| Action within acceptable policy (completed runs) | 40.0%        | 95.9%                               |
+| Safety violations                                | 0            | **0** (smoke run before the fix: 5) |
+| Evaluator pass rate                              | 88.0%        | 98.6%                               |
+| Abstains on ambiguous / clear cases              | n/a / 24.0%  | 100% / 83.1%                        |
+| Latency p50                                      | about 300 s  | 109 s                               |
+
+- **The guardrail works.** Zero safety violations in 84 multi-agent runs, against 5 in 13 before
+  the code fix. The cost is caution: 83.1% of clear cases also went to human review, so reviewer
+  load would be high.
+- **Single-agent failures are a configuration bug, not model quality.** All 41 failures were
+  `fetch failed`, and completed runs topped out at 295 s. The single-agent graph did not set
+  `think: false` (the supervisor and SOC graphs do), so the Qwen3 _Thinking_ model produced long
+  hidden reasoning and hit fetch's 300 s header timeout. Fixed in `failure-investigation-agent.ts`
+  after this run; the single-agent column needs a re-run before it means anything.
+- **Unsupported claims are over-counted.** The report shows 13.7% for multi_agent, but 7 of the
+  10 flags were the case's own fingerprint, which is in the prompt. The check now allows it. The
+  real ones are 3 of 73 completed runs (about 4%):
+  - an invented URL (`https://specialist1`)
+  - a truncated Jira key (`AUTO-41` for `AUTO-412`)
+  - a truncated IP (`03.0.113.61` for `203.0.113.61`), which the SOC IOC gate correctly flagged
+- **Multi-agent failures are schema rejections.** 8 runs returned a confidence above 1, all on SOC
+  brute-force and ransomware cases; 2 returned an empty array; 1 hit the fetch timeout. All of
+  them fell back to deterministic processing, as designed.
+- **Metadata:** the merged `caseTimeoutMs` shows 180000. The shards actually ran with 900000. The
+  merge now copies the shard value.
 
 ### Running the full benchmark on GitHub
 

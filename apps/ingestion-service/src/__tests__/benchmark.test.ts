@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Message } from 'ollama';
 import {
   BenchmarkDatasetSchema,
+  buildCiInputs,
   loadDataset,
   shardCases,
   smokeSubset,
@@ -205,5 +206,38 @@ describe('sharding for parallel benchmark jobs', () => {
     });
     expect(mergeOutcomes([[outcome('a', 0)], [outcome('a', 1), outcome('b', 0)]])).toHaveLength(3);
     expect(() => mergeOutcomes([[outcome('a', 0)], [outcome('a', 0)]])).toThrow(/duplicate/);
+  });
+});
+
+describe('unsupported-claim check', () => {
+  it("treats the case's own fingerprint as grounded but flags an invented hash", async () => {
+    const ciCase = dataset.cases.find((c) => c.id === 'ci-regress-assert-01') as CiCase;
+    const { fingerprint } = buildCiInputs(ciCase);
+    const invented = 'f'.repeat(64);
+    const report = (summary: string, extra: Record<string, unknown> = {}): Message => ({
+      role: 'assistant',
+      content: JSON.stringify({ summary, findings: [summary], confidence: 0.7, ...extra }),
+    });
+    const responses: Message[] = [
+      report(`Fingerprint ${fingerprint} recurs`),
+      report('repository'),
+      report('action', { proposedAction: 'create_issue', risk: 'low' }),
+      {
+        role: 'assistant',
+        content: JSON.stringify({
+          suspectedRootCause: 'Order endpoint returns 500',
+          evidence: [`fingerprint ${fingerprint}`, `matches build ${invented}`],
+          recommendedAction: 'create_issue',
+          confidence: 0.8,
+          explanation: 'New server error',
+        }),
+      },
+    ];
+    const outcome = await runCase(ciCase, 'multi_agent', 0, {
+      ...baseOptions,
+      client: { chat: async () => ({ message: responses.shift()! }) as never },
+      model: 'test-model',
+    });
+    expect(outcome.agent?.unsupportedClaims).toEqual([`ioc:${invented}`]);
   });
 });

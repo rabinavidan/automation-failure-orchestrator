@@ -237,3 +237,61 @@ describe('failure investigation LangGraph', () => {
     expect(modelCalls).toBe(1);
   });
 });
+
+describe('single-agent model calls', () => {
+  it('disable hidden thinking on every call, like the supervisor and SOC graphs', async () => {
+    const { runFailureInvestigationGraph } =
+      await import('../services/failure-investigation-agent');
+    const seen: Array<{ think?: boolean }> = [];
+    const final = {
+      role: 'assistant',
+      content: JSON.stringify({
+        suspectedRootCause: 'x',
+        evidence: ['e'],
+        recommendedAction: 'notify_only',
+        confidence: 0.5,
+        explanation: 'y',
+      }),
+    };
+    await runFailureInvestigationGraph(
+      {
+        test: {
+          testId: 't',
+          title: 't',
+          suite: 's',
+          file: 'f',
+          status: 'failed',
+          durationMs: 1,
+          retry: 0,
+          error: { name: 'Error', message: 'boom' },
+        },
+        run: {
+          schemaVersion: '1.0.0',
+          runId: 'r',
+          repository: 'x',
+          branch: 'main',
+          commitSha: 'abc',
+          environment: 'ci',
+          triggeredBy: 't',
+          startedAt: '2026-10-31T00:00:00Z',
+          finishedAt: '2026-10-31T00:00:01Z',
+          summary: { total: 1, passed: 0, failed: 1, skipped: 0 },
+          tests: [],
+        },
+        fingerprint: 'f'.repeat(64),
+        deterministicClassification: 'new_regression',
+        history: null,
+        existingIssue: null,
+      },
+      {
+        chat: async (input) => {
+          seen.push(input as { think?: boolean });
+          return { message: final } as never;
+        },
+      },
+      'test-model'
+    );
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((input) => input.think === false)).toBe(true);
+  });
+});
