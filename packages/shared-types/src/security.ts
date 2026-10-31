@@ -60,7 +60,7 @@ export const SecurityAlertSchema = z.object({
   indicators: z.array(IndicatorSchema).default([]),
   mitre: MitreAttackSchema.optional(),
   eventCount: z.number().int().nonnegative().optional(),
-  raw: z.record(z.unknown()).optional(),
+  raw: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
@@ -85,7 +85,7 @@ export const SentinelAlertSchema = z
     TimeGenerated: z.string().optional(),
     Tactics: z.union([z.string(), z.array(z.string())]).optional(),
     Techniques: z.union([z.string(), z.array(z.string())]).optional(),
-    Entities: z.union([z.string(), z.array(z.record(z.unknown()))]).optional(),
+    Entities: z.union([z.string(), z.array(z.record(z.string(), z.unknown()))]).optional(),
     AlertUri: z.string().url().optional(),
   })
   .passthrough();
@@ -110,8 +110,8 @@ export const WazuhAlertSchema = z
     agent: z
       .object({ id: z.string().optional(), name: z.string().optional(), ip: z.string().optional() })
       .optional(),
-    data: z.record(z.unknown()).optional(),
-    syscheck: z.record(z.unknown()).optional(),
+    data: z.record(z.string(), z.unknown()).optional(),
+    syscheck: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough();
 
@@ -121,7 +121,7 @@ export const SplunkAlertWebhookSchema = z.object({
   app: z.string().optional(),
   owner: z.string().optional(),
   results_link: z.string().url().optional(),
-  result: z.record(z.unknown()),
+  result: z.record(z.string(), z.unknown()),
 });
 
 /**
@@ -136,7 +136,7 @@ export const ProviderResultSchema = z.object({
   verdict: EnrichmentVerdictSchema,
   score: z.number().int().min(0).max(100),
   summary: z.string(),
-  details: z.record(z.unknown()).default({}),
+  details: z.record(z.string(), z.unknown()).default({}),
   cached: z.boolean().default(false),
   error: z.string().nullable().optional(),
 });
