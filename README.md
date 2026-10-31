@@ -11,6 +11,8 @@ human approves anything risky.
 [![SOAR](https://img.shields.io/badge/SOAR-Shuffle_·_n8n-EA4B71)](docs/shuffle-soar-lab.md)
 [![AWS](https://img.shields.io/badge/AWS-Terraform_·_Checkov--gated-FF9900?logo=amazonwebservices&logoColor=white)](infra/terraform/README.md)
 
+![Runtime mode strip: demo stub (not real AI), multi-agent graph, mock Jira/Slack, in-process queue, enrichment mode](docs/screenshots/runtime-modes.png)
+
 ![SOC console: alert KPIs (automation rate, time to triage), triage outcome mix, top ATT&CK techniques, and the containment approval queue](docs/screenshots/soc-console.png)
 
 ---
@@ -74,31 +76,43 @@ key claims below each have a CI job behind them. Current evidence levels are tra
 
 ## Architecture
 
+TypeScript owns ingestion, decisions, agents, MCP and actions. Python owns threat-intel enrichment.
+Everything left of the approval gate is read-only or advisory.
+
 ```mermaid
 flowchart LR
-    subgraph SIEM["SIEMs"]
-        S1[Splunk] & S2[Microsoft Sentinel] & S3[Wazuh]
+    subgraph IN["Signals"]
+        CI["CI test results<br/>(Playwright reporter, n8n)"]
+        SIEM["SIEM alerts<br/>(Splunk · Sentinel · Wazuh, Shuffle)"]
     end
-    SOAR["Shuffle / n8n<br/>(SOAR front door, ChatOps)"]
-    subgraph CORE["Ingestion service (TypeScript)"]
-        NORM["Vendor adapters<br/>→ SecurityAlert contract"]
-        DEDUP["Entity fingerprint<br/>idempotency + suppression"]
-        TRIAGE["Deterministic triage<br/>policy-as-code + ATT&CK + risk"]
-        PB["Response playbooks<br/>(YAML)"]
+    subgraph TS["Ingestion service (TypeScript)"]
+        VAL["Zod contract<br/>idempotency"]
+        FP["Fingerprint<br/>+ history / Jira lookup"]
+        DEC["Deterministic decision<br/>classification · triage policy"]
+        POL["Policy-gated actions<br/>+ response playbooks"]
     end
-    ENR["Threat-intel enrichment<br/>(Python FastAPI)<br/>AbuseIPDB · VirusTotal · GeoIP"]
-    AI["Advisory SOC agents<br/>(LangGraph supervisor)"]
-    HUMAN{{"Analyst approval<br/>(SOC console)"}}
-    ACT["Jira · Slack · EDR · Firewall"]
-    S1 & S2 & S3 --> NORM
-    S1 & S2 & S3 -.-> SOAR -.-> NORM
-    NORM --> DEDUP --> TRIAGE
-    DEDUP -- new alerts only --> ENR --> TRIAGE
-    TRIAGE -- TP / analyst queue --> AI
-    TRIAGE --> PB
-    PB -- ticket, notify --> ACT
-    PB -- containment --> HUMAN -- approve --> ACT
-    AI -. evidence only .-> HUMAN
+    ENR["Threat-intel enrichment<br/>(Python FastAPI)"]
+    subgraph AI["Advisory agents (LangGraph + Ollama)"]
+        SUP["Supervisor + specialists"]
+        MCP["MCP evidence server<br/>read-only, token-scoped"]
+        RAG["Repository RAG"]
+    end
+    GATE{{"Human approval<br/>role-checked, atomic"}}
+    ACT["Jira · Slack · EDR · Firewall<br/>(mock or live)"]
+    AUD[("PostgreSQL<br/>audit · telemetry · checkpoints")]
+    CI --> VAL
+    SIEM --> VAL
+    VAL --> FP --> DEC --> POL
+    FP -. SOC, new alerts .-> ENR -.-> DEC
+    DEC -- evidence request --> SUP
+    SUP <--> MCP
+    MCP --> RAG
+    SUP -. advice only .-> POL
+    POL -- low risk --> ACT
+    POL -- containment / human_review --> GATE -- approve --> ACT
+    POL --> AUD
+    SUP --> AUD
+    GATE --> AUD
 ```
 
 ## Follow one alert through the system
@@ -156,10 +170,14 @@ docker compose -f docker-compose.yml -f docker-compose.aws-local.yml up --build 
 npm run demo:aws-local
 ```
 
-## Mapped to a Security Automation Engineer role
+## Mapped to AI engineering and security automation roles
 
 | Role requirement                        | Evidence in this repo                                                                                                                                                               |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI evaluation and benchmarking          | Labeled 35-case benchmark, three configurations, stub-refusing harness, separate quality and cost metrics ([`benchmark/`](benchmark/README.md))                                     |
+| Agent tooling and MCP                   | Read-only MCP evidence server with server-minted scope tokens and per-call audit ([`docs/mcp-evidence.md`](docs/mcp-evidence.md))                                                   |
+| Human-in-the-loop and safe actions      | Durable LangGraph interrupts, role-checked approvals, atomic transitions, documented delivery semantics ([`docs/action-semantics.md`](docs/action-semantics.md))                    |
+| AI observability                        | Per-call model, tokens and latency; model backend recorded per investigation ([`GET /api/capabilities`](docs/api.md))                                                               |
 | SOC automation, alert-fatigue reduction | Dedup + suppression, policy-as-code triage, automation-rate and time-to-triage KPIs ([`alert-processor.ts`](apps/ingestion-service/src/services/alert-processor.ts))                |
 | SIEM integration                        | Splunk, Sentinel and Wazuh adapters onto one contract ([`alert-normalizers/`](apps/ingestion-service/src/services/alert-normalizers))                                               |
 | SOAR playbooks                          | Shuffle playbook run in CI ([`shuffle/`](shuffle/soc-alert-playbook.json)), n8n SOC workflow, YAML response playbooks ([`config/playbooks/`](config/playbooks))                     |
@@ -181,16 +199,24 @@ Interviewers respect a clear boundary, so here is what this project is and isn't
 - **Not yet:** reviewer identity is demo bearer-token auth with roles, not SSO ([action semantics](docs/action-semantics.md)). External actions after an approval are not exactly-once. No model-quality benchmark has been run on a real model yet ([benchmark](benchmark/README.md)).
 - **Next steps I'd take:** SSO-backed reviewer identity and two-person approval for P1 isolation, SIEM write-back (closing incidents in Sentinel), OpenTelemetry trace export, and a semantic near-duplicate layer.
 
+## Two demo paths
+
+- **Engineering (2 minutes):** [`docs/demo-two-minute.md`](docs/demo-two-minute.md) follows one CI failure from signal to evidence, then the SOC approval gate and the benchmark.
+- **SOC (10 minutes):** [`docs/soc-interview-guide.md`](docs/soc-interview-guide.md).
+
 ## Go deeper
 
-| Document                                                                      | For                                                                             |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| [`docs/soc-interview-guide.md`](docs/soc-interview-guide.md)                  | 10-minute demo script, design questions with answers, where to look in the code |
-| [`docs/platform-reference.md`](docs/platform-reference.md)                    | Full architecture, agent design, API surface, data model, configuration         |
-| [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md)            | SOC milestones M1–M8 and safety properties                                      |
-| [`docs/shuffle-soar-lab.md`](docs/shuffle-soar-lab.md)                        | Hands-on Shuffle SOAR exercises                                                 |
-| [`infra/terraform/README.md`](infra/terraform/README.md)                      | AWS architecture, security controls, the zero-cost demo                         |
-| [`docs/api.md`](docs/api.md) · [`docs/architecture.md`](docs/architecture.md) | API contracts · component details                                               |
+| Document                                                                                                            | For                                                                             |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [`benchmark/README.md`](benchmark/README.md)                                                                        | Labeled benchmark, metrics, deterministic baseline, how to run on a real model  |
+| [`docs/mcp-evidence.md`](docs/mcp-evidence.md) · [`docs/action-semantics.md`](docs/action-semantics.md)             | MCP security boundary · approvals, retries and guarantees                       |
+| [`docs/release-notes-rc1.md`](docs/release-notes-rc1.md) · [`docs/flagship-progress.md`](docs/flagship-progress.md) | Verification matrix (local / CI / real model / cloud) · milestone evidence      |
+| [`docs/soc-interview-guide.md`](docs/soc-interview-guide.md)                                                        | 10-minute demo script, design questions with answers, where to look in the code |
+| [`docs/platform-reference.md`](docs/platform-reference.md)                                                          | Full architecture, agent design, API surface, data model, configuration         |
+| [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md)                                                  | SOC milestones M1–M8 and safety properties                                      |
+| [`docs/shuffle-soar-lab.md`](docs/shuffle-soar-lab.md)                                                              | Hands-on Shuffle SOAR exercises                                                 |
+| [`infra/terraform/README.md`](infra/terraform/README.md)                                                            | AWS architecture, security controls, the zero-cost demo                         |
+| [`docs/api.md`](docs/api.md) · [`docs/architecture.md`](docs/architecture.md)                                       | API contracts · component details                                               |
 
 ```text
 apps/ingestion-service    TypeScript API: alert pipeline, triage, agents, playbooks
