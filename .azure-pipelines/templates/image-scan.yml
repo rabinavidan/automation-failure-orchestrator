@@ -1,0 +1,16 @@
+# Reusable steps: scan one local image with a pinned Trivy container. Fails on fixable CRITICAL
+# vulnerabilities, the same gate as the GitHub Actions image-security job.
+parameters:
+  - name: image
+    type: string
+  - name: trivyVersion
+    type: string
+    default: '0.64.1'
+
+steps:
+  - script: >-
+      docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+      aquasec/trivy:${{ parameters.trivyVersion }} image
+      --exit-code 1 --ignore-unfixed --severity CRITICAL --format table
+      ${{ parameters.image }}
+    displayName: Trivy scan ${{ parameters.image }}

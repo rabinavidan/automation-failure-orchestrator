@@ -187,6 +187,7 @@ npm run demo:aws-local
 | AI agents with guardrails               | LangGraph supervisor, code-owned guardrails, hallucinated-IOC gate, prompt-injection hardening ([`soc-investigation.ts`](apps/ingestion-service/src/services/soc-investigation.ts)) |
 | Cloud & IaC                             | Terraform for ECS Fargate, RDS, SQS + DLQ, WAF, KMS and GitHub OIDC; Checkov-gated ([`infra/terraform`](infra/terraform/README.md))                                                 |
 | DevSecOps                               | CI quality gates, Trivy image scanning, dependency review, no long-lived cloud credentials (OIDC)                                                                                   |
+| Azure DevOps pipelines                  | [`azure-pipelines.yml`](azure-pipelines.yml): the same gates as YAML stages with step templates and versioned image artifacts; a CI test fails if it drifts from GitHub Actions     |
 
 ## Honest scope
 
@@ -195,8 +196,9 @@ Interviewers respect a clear boundary, so here is what this project is and isn't
 - **Real:** the pipeline, triage engine, enrichment service, agents, evaluation gates, playbook engine, SOC console, and the Shuffle and AWS-on-moto runs in CI.
 - **Simulated:** EDR, firewall, Jira and Slack are mock services ([`apps/mock-integrations`](apps/mock-integrations)). Threat intel runs in mock mode by default (`ENRICHMENT_MODE=live` plus API keys for real providers).
 - **Not deployed:** the Terraform is validated and security-scanned but has never been applied (the demo is deliberately zero cost).
+- **Azure DevOps:** `azure-pipelines.yml` is validated against Microsoft's published pipeline schema and drift-tested against GitHub Actions in CI, but it has not been run in an Azure DevOps organization.
 - **SOAR experience:** this is hands-on Shuffle work plus SOAR-style engineering, not production experience on Torq, XSOAR or Splunk SOAR. The [Shuffle lab](docs/shuffle-soar-lab.md) is the hands-on part.
-- **Not yet:** reviewer identity is demo bearer-token auth with roles, not SSO ([action semantics](docs/action-semantics.md)). External actions after an approval are not exactly-once. Real-model evidence so far is one smoke run, which found a prompt-only safety rule that is now enforced in code; the full run is pending ([benchmark](benchmark/README.md)).
+- **Not yet:** reviewer identity is demo bearer-token auth with roles, not SSO ([action semantics](docs/action-semantics.md)). External actions after an approval are not exactly-once. Real-model evidence is one smoke run and one full run on a local 4B model. The smoke run found a prompt-only safety rule that is now enforced in code; the single-agent column is being re-run after a configuration fix ([benchmark](benchmark/README.md)).
 - **Next steps I'd take:** SSO-backed reviewer identity and two-person approval for P1 isolation, SIEM write-back (closing incidents in Sentinel), OpenTelemetry trace export, and a semantic near-duplicate layer.
 
 ## Two demo paths
