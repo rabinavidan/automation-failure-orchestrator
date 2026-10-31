@@ -152,6 +152,45 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.yml -f docker-compose.aws-local.yml down --volumes
 
+  observability:
+    name: OpenTelemetry traces and metrics (Grafana LGTM)
+    runs-on: ubuntu-latest
+    needs: [quality, python-quality]
+    timeout-minutes: 20
+    env:
+      COMPOSE_FILES: -f docker-compose.yml -f docker-compose.observability.yml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Start platform with OpenTelemetry export, Grafana LGTM and the Ollama demo stub
+        env:
+          COMPOSE_PROFILES: demo-stub
+          AI_ENABLED: 'true'
+          RAG_ENABLED: 'false'
+          OLLAMA_HOST: http://ollama-stub:11434
+          OLLAMA_MODEL: demo-stub
+        run: |
+          docker compose $COMPOSE_FILES up -d --build \
+            postgres mock-integrations enrichment-service ollama-stub otel-lgtm ingestion-service
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3001/health > /dev/null && break
+            sleep 3
+          done
+      - name: Run -> trace in Tempo (HTTP, pg, Jira, GenAI spans) -> metrics in Prometheus -> dashboard
+        env:
+          EXPECT_GENAI: 'true'
+        run: npm run demo:observability
+      - name: Capture diagnostics
+        if: failure()
+        run: docker compose $COMPOSE_FILES logs --no-color --tail=200 ingestion-service otel-lgtm
+      - name: Stop
+        if: always()
+        run: docker compose $COMPOSE_FILES down --volumes
+
   shuffle-soar:
     name: Shuffle SOAR playbook (open source, self-hosted)
     runs-on: ubuntu-latest

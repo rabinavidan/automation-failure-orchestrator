@@ -14,10 +14,33 @@ import { searchByLabel, createIssue, addComment } from './jira-adapter';
 import { sendSlackNotification } from './slack-adapter';
 import { investigateFailure } from './failure-investigation-agent';
 import { createApprovalRequest } from './approval-requests';
+import { inSpan, recordFailureClassified, recordRunProcessed } from '../observability/telemetry';
 
 const RECOVERY_THRESHOLD = parseInt(process.env.RECOVERY_PASS_THRESHOLD ?? '3', 10);
 
 export async function processRun(payload: WebhookPayload): Promise<ProcessingResult> {
+  return inSpan(
+    'signalops.process_run',
+    {
+      'signalops.run_id': payload.runId,
+      'signalops.repository': payload.repository,
+      'signalops.environment': payload.environment,
+      'signalops.tests': payload.tests.length,
+    },
+    async (span) => {
+      const result = await processRunUntraced(payload);
+      const duplicate = result.duplicateRun === true;
+      span.setAttributes({
+        'signalops.duplicate': duplicate,
+        'signalops.failures': result.failures.length,
+      });
+      recordRunProcessed(duplicate);
+      return result;
+    }
+  );
+}
+
+async function processRunUntraced(payload: WebhookPayload): Promise<ProcessingResult> {
   const { runId } = payload;
 
   // Check for duplicate run (idempotency)
@@ -67,7 +90,7 @@ export async function processRun(payload: WebhookPayload): Promise<ProcessingRes
         continue;
       }
 
-      await processTest(test, payload, failures);
+      await processTestTraced(test, payload, failures);
       processed++;
     } catch (err) {
       console.error(`[Processor] Error processing test ${test.testId}:`, err);
@@ -77,6 +100,34 @@ export async function processRun(payload: WebhookPayload): Promise<ProcessingRes
   }
 
   return { runId, processed, skipped, failures };
+}
+
+/** One span per non-skipped test, tagged with the deterministic decision it produced. */
+async function processTestTraced(
+  test: TestResult,
+  payload: WebhookPayload,
+  failures: FailureSummary[]
+): Promise<void> {
+  await inSpan(
+    'signalops.process_test',
+    { 'signalops.test_id': test.testId, 'signalops.test_status': test.status },
+    async (span) => {
+      const before = failures.length;
+      await processTest(test, payload, failures);
+      const failure = failures.length > before ? failures[failures.length - 1] : undefined;
+      if (!failure) return;
+      const approvalPending = failure.approval?.status === 'pending';
+      span.setAttributes({
+        'signalops.fingerprint': failure.fingerprint.slice(0, 12),
+        'signalops.classification': failure.classification,
+        'signalops.agent.recommended_action':
+          failure.agentInvestigation?.recommendedAction ?? 'none',
+        'signalops.approval_pending': approvalPending,
+        ...(failure.jiraKey ? { 'signalops.jira_key': failure.jiraKey } : {}),
+      });
+      recordFailureClassified(failure.classification, approvalPending);
+    }
+  );
 }
 
 async function processTest(

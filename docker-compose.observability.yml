@@ -1,0 +1,63 @@
+# OpenTelemetry + Grafana, all open source and local (no account, no cost).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml up --build -d
+#   open http://localhost:3000  ->  Dashboards -> SignalOps
+#   npm run demo:observability  # sends a run, then asserts traces in Tempo and metrics in Prometheus
+#
+# GenAI spans need an agent run. Without a local Ollama, the deterministic demo stub exercises the
+# wiring (it is not real inference; its latencies and tokens mean nothing):
+#   COMPOSE_PROFILES=demo-stub AI_ENABLED=true OLLAMA_HOST=http://ollama-stub:11434 \
+#     docker compose -f docker-compose.yml -f docker-compose.observability.yml up --build -d
+#   EXPECT_GENAI=true npm run demo:observability
+#
+# grafana/otel-lgtm bundles an OpenTelemetry Collector (OTLP on 4318), Tempo (traces),
+# Prometheus (metrics), Loki and Grafana in one container. It is a development image, not a
+# production deployment. The ingestion service and the investigation worker export over OTLP.
+
+services:
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.36.0
+    container_name: orchestrator-otel-lgtm
+    ports:
+      - '3000:3000' # Grafana (anonymous admin: local development only)
+      - '4318:4318' # OTLP/HTTP
+      - '3200:3200' # Tempo API
+      - '9090:9090' # Prometheus API
+    volumes:
+      - ./observability/grafana/signalops-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/signalops.yaml:ro
+      - ./observability/grafana/dashboards:/otel-lgtm/signalops-dashboards:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'curl -sf http://localhost:3000/api/health && curl -sf http://localhost:3200/ready',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  ollama-stub:
+    profiles: [demo-stub]
+    image: node:24-alpine
+    container_name: orchestrator-ollama-stub
+    command: ['node', '/stub/ollama-demo-stub.mjs']
+    volumes:
+      - ./scripts/ollama-demo-stub.mjs:/stub/ollama-demo-stub.mjs:ro
+    environment:
+      PORT: '11434'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:11434/ || exit 1']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ingestion-service:
+    environment:
+      OTEL_ENABLED: 'true'
+      OTEL_SERVICE_NAME: signalops-ingestion
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      OTEL_METRIC_EXPORT_INTERVAL: '5000'
+    depends_on:
+      otel-lgtm:
+        condition: service_healthy

@@ -10,6 +10,7 @@ import type {
 } from '@orchestrator/shared-types';
 import { triageAlert } from '@orchestrator/failure-classifier';
 import { query } from '../db/client';
+import { recordAlertTriaged } from '../observability/telemetry';
 
 const DEFAULT_POLICY_PATH = join(__dirname, '../../../../config/soc-triage-policy.json');
 
@@ -71,6 +72,8 @@ export async function triageIngestedAlert(
     occurrenceCount: result.occurrenceCount,
     policy,
   });
+
+  recordAlertTriaged(triage.disposition, alert.source.vendor);
 
   try {
     await query(
