@@ -251,7 +251,7 @@ async function main(): Promise<void> {
     triagePolicyVersion: policy.policy.version,
     ragEnabled: false,
     seed: 'not set (Ollama sampling is not seeded by the graphs)',
-    caseTimeoutMs,
+    caseTimeoutMs: mergeDir ? (first.caseTimeoutMs ?? null) : caseTimeoutMs,
     hardware: mergeDir
       ? (first.hardware ?? 'unknown')
       : `${platform()} ${release()}, ${cpus()[0]?.model ?? 'cpu'} x${cpus().length}, ${Math.round(totalmem() / 2 ** 30)} GiB`,
