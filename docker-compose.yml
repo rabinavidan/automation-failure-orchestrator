@@ -81,6 +81,10 @@ services:
       JIRA_API_TOKEN: mock-token
       SLACK_WEBHOOK_URL: http://mock-integrations:3002/slack/services/T00/B00/xxx
       WEBHOOK_SECRET: local-dev-secret
+      # Demo reviewer identities (name:roles:token). Replace for anything beyond a local demo.
+      REVIEWER_TOKENS: '${REVIEWER_TOKENS:-demo-soc-responder:soc_responder:demo-soc-responder-token-0001;demo-ci-reviewer:ci_reviewer:demo-ci-reviewer-token-00001;demo-admin:admin:demo-admin-token-0000000001}'
+      EVIDENCE_TRANSPORT: ${EVIDENCE_TRANSPORT:-direct}
+      MCP_SCOPE_SECRET: ${MCP_SCOPE_SECRET:-}
       RECOVERY_PASS_THRESHOLD: '3'
       FLAKY_HISTORY_WINDOW: '5'
       ALERT_SUPPRESSION_WINDOW_MINUTES: ${ALERT_SUPPRESSION_WINDOW_MINUTES:-60}

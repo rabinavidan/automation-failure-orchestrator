@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BackendBadge } from './RuntimeModes';
+import type { ReviewerSession } from './useReviewerSession';
 import {
   Crosshair,
   Gauge,
@@ -186,7 +187,7 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
  * SOC console: alert queue, deterministic triage + AI evidence, and the human
  * approval gate for containment (approve / reject / roll back).
  */
-export function SocConsole({ reviewer }: { reviewer: string }) {
+export function SocConsole({ session }: { session: ReviewerSession }) {
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [pending, setPending] = useState<ResponseAction[]>([]);
   const [executed, setExecuted] = useState<ResponseAction[]>([]);
@@ -245,8 +246,8 @@ export function SocConsole({ reviewer }: { reviewer: string }) {
     try {
       const response = await fetch(`${API}/responses/actions/${id}/${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reviewer, ...body }),
+        headers: { 'Content-Type': 'application/json', ...session.authHeader },
+        body: JSON.stringify(body),
       });
       const payload = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? `HTTP ${response.status}`);
@@ -356,7 +357,11 @@ export function SocConsole({ reviewer }: { reviewer: string }) {
             </h2>
             <p className="mt-1 text-xs text-slate-500">
               Playbooks never contain on their own. Guards are re-checked when you approve. Acting
-              as <span className="font-mono">{reviewer || '—'}</span>.
+              as{' '}
+              <span className="font-mono">
+                {session.identity?.name ?? 'nobody: sign in on the Approvals page'}
+              </span>
+              . The server checks your role on every decision.
             </p>
           </div>
           <button
@@ -386,14 +391,14 @@ export function SocConsole({ reviewer }: { reviewer: string }) {
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
-                    disabled={!reviewer.trim() || busyAction === a.id}
+                    disabled={!session.can('soc_responder') || busyAction === a.id}
                     onClick={() => void act(a.id, 'decision', { decision: 'rejected' })}
                     className="border border-ink px-3 py-2 text-xs font-bold disabled:opacity-50"
                   >
                     Reject
                   </button>
                   <button
-                    disabled={!reviewer.trim() || busyAction === a.id}
+                    disabled={!session.can('soc_responder') || busyAction === a.id}
                     onClick={() => void act(a.id, 'decision', { decision: 'approved' })}
                     className="bg-ink px-3 py-2 text-xs font-bold text-signal disabled:opacity-50"
                   >
@@ -417,7 +422,7 @@ export function SocConsole({ reviewer }: { reviewer: string }) {
                     <span className="text-slate-500">by {a.reviewer}</span>
                   </span>
                   <button
-                    disabled={!reviewer.trim() || busyAction === a.id}
+                    disabled={!session.can('soc_responder') || busyAction === a.id}
                     onClick={() =>
                       void act(a.id, 'rollback', { reason: 'Rolled back from SOC console' })
                     }

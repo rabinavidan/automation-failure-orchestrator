@@ -4,6 +4,7 @@ import { ResponseActionStatusSchema } from '@orchestrator/shared-types';
 import { query } from '../db/client';
 import { getPlaybooks } from '../services/playbooks';
 import { decideResponseAction, rollbackResponseAction } from '../services/response-engine';
+import { requireRole, type Reviewer } from '../middleware/reviewer-auth';
 
 const router = Router();
 
@@ -67,19 +68,25 @@ router.get('/actions/:id', async (req, res) => {
 
 const DecisionSchema = z.object({
   decision: z.enum(['approved', 'rejected']),
-  reviewer: z.string().trim().min(1).max(120),
+  // Ignored: the reviewer is the authenticated identity. Accepted for older clients.
+  reviewer: z.string().trim().max(120).optional(),
   comment: z.string().trim().max(1000).optional(),
 });
 
 // POST /api/responses/actions/:id/decision — human approval gate for containment
-router.post('/actions/:id/decision', async (req, res) => {
+router.post('/actions/:id/decision', requireRole('soc_responder'), async (req, res) => {
   const parsed = DecisionSchema.safeParse(req.body);
   if (!parsed.success || !/^\d+$/.test(req.params.id)) {
     res.status(400).json({ error: 'Invalid decision', details: parsed.error?.flatten() });
     return;
   }
   try {
-    const outcome = await decideResponseAction({ id: req.params.id, ...parsed.data });
+    const outcome = await decideResponseAction({
+      id: req.params.id,
+      decision: parsed.data.decision,
+      comment: parsed.data.comment,
+      reviewer: (res.locals.reviewer as Reviewer).name,
+    });
     if (!outcome.ok) {
       res.status(outcome.code).json({ error: outcome.error });
       return;
@@ -92,19 +99,23 @@ router.post('/actions/:id/decision', async (req, res) => {
 });
 
 const RollbackSchema = z.object({
-  reviewer: z.string().trim().min(1).max(120),
+  reviewer: z.string().trim().max(120).optional(),
   reason: z.string().trim().min(1).max(1000),
 });
 
 // POST /api/responses/actions/:id/rollback — undo a reversible containment action
-router.post('/actions/:id/rollback', async (req, res) => {
+router.post('/actions/:id/rollback', requireRole('soc_responder'), async (req, res) => {
   const parsed = RollbackSchema.safeParse(req.body);
   if (!parsed.success || !/^\d+$/.test(req.params.id)) {
     res.status(400).json({ error: 'Invalid rollback request', details: parsed.error?.flatten() });
     return;
   }
   try {
-    const outcome = await rollbackResponseAction({ id: req.params.id, ...parsed.data });
+    const outcome = await rollbackResponseAction({
+      id: req.params.id,
+      reason: parsed.data.reason,
+      reviewer: (res.locals.reviewer as Reviewer).name,
+    });
     if (!outcome.ok) {
       res.status(outcome.code).json({ error: outcome.error });
       return;

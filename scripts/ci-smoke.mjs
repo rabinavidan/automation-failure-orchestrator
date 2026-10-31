@@ -124,23 +124,51 @@ const block = actions.find((a) => a.action === 'firewall.block_ip');
 if (ticket?.status !== 'succeeded' || block?.status !== 'pending_approval') {
   throw new Error(`Response playbook smoke failed: ${JSON.stringify(alertResult.response)}`);
 }
-async function postJson(path, body) {
+const responderToken = process.env.SOC_RESPONDER_TOKEN ?? 'demo-soc-responder-token-0001';
+const ciReviewerToken = process.env.CI_REVIEWER_TOKEN ?? 'demo-ci-reviewer-token-00001';
+async function postJson(path, body, token = responderToken) {
   const response = await fetch(`${ingestionUrl}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify(body),
   });
   return { status: response.status, body: await response.json() };
 }
-const approval = await postJson(`/api/responses/actions/${block.id}/decision`, {
-  decision: 'approved',
-  reviewer: 'ci-smoke',
-});
-if (approval.body.status !== 'succeeded') {
-  throw new Error(`Containment approval smoke failed: ${JSON.stringify(approval.body)}`);
+// Flagship M5: approvals require an authenticated reviewer with the right role.
+const decisionPath = `/api/responses/actions/${block.id}/decision`;
+const anonymous = await postJson(decisionPath, { decision: 'approved', reviewer: 'mallory' }, null);
+const wrongRole = await postJson(decisionPath, { decision: 'approved' }, ciReviewerToken);
+if (anonymous.status !== 401 || wrongRole.status !== 403) {
+  throw new Error(
+    `Approval authorization smoke failed: anonymous ${anonymous.status}, wrong role ${wrongRole.status}`
+  );
+}
+// Concurrent approvals: exactly one transition wins, the rest are rejected with 409.
+const concurrent = await Promise.all(
+  Array.from({ length: 4 }, () =>
+    postJson(decisionPath, { decision: 'approved', reviewer: 'spoofed-name' })
+  )
+);
+const winners = concurrent.filter((r) => r.status === 200);
+const losers = concurrent.filter((r) => r.status === 409);
+if (winners.length !== 1 || losers.length !== 3 || winners[0].body.status !== 'succeeded') {
+  throw new Error(
+    `Concurrent approval smoke failed: ${JSON.stringify(concurrent.map((r) => [r.status, r.body]))}`
+  );
+}
+const decided = await (
+  await fetch(`${ingestionUrl}${decisionPath.replace('/decision', '')}`)
+).json();
+const executions = (decided.events ?? []).filter((e) => e.event === 'executed');
+if (decided.action?.reviewer !== 'demo-soc-responder' || executions.length !== 1) {
+  throw new Error(
+    `Approval audit smoke failed (reviewer must be the authenticated identity, one execution): ${JSON.stringify(decided)}`
+  );
 }
 const rollback = await postJson(`/api/responses/actions/${block.id}/rollback`, {
-  reviewer: 'ci-smoke',
   reason: 'smoke test cleanup',
 });
 if (rollback.body.status !== 'rolled_back') {

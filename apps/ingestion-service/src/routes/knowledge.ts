@@ -5,6 +5,7 @@ import {
   reindexRepositoryKnowledge,
   searchRepositoryKnowledge,
 } from '../services/repository-knowledge';
+import { requireRole } from '../middleware/reviewer-auth';
 
 const router = Router();
 
@@ -37,7 +38,7 @@ router.post('/search', async (req, res) => {
   }
 });
 
-router.post('/reindex', async (_req, res) => {
+router.post('/reindex', requireRole('admin'), async (_req, res) => {
   try {
     const result = await reindexRepositoryKnowledge();
     res.status(201).json(result);
