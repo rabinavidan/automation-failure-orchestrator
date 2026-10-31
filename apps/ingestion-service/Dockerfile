@@ -17,6 +17,7 @@ COPY database ./database/
 COPY config ./config/
 COPY README.md ./README.md
 COPY docs ./docs/
+COPY benchmark/results ./benchmark/results/
 
 # Install all dependencies
 RUN npm install --legacy-peer-deps
@@ -54,6 +55,7 @@ COPY --from=builder /app/database ./database
 COPY --from=builder /app/config ./config
 COPY --from=builder /app/README.md ./README.md
 COPY --from=builder /app/docs ./docs
+COPY --from=builder /app/benchmark/results ./benchmark/results
 
 # Amazon RDS CA bundle: lets the service verify the database certificate (DB_SSL=require).
 RUN wget -qO /etc/ssl/certs/rds-global-bundle.pem \

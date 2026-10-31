@@ -1,6 +1,7 @@
 import express from 'express';
 import { requestLogger } from './middleware/request-logger';
 import { whoami } from './middleware/reviewer-auth';
+import benchmarkRouter from './routes/benchmark';
 import capabilitiesRouter from './routes/capabilities';
 import { createMcpRouter } from './routes/mcp';
 import healthRouter from './routes/health';
@@ -25,6 +26,7 @@ app.use(requestLogger);
 app.use('/', healthRouter);
 app.use('/api/capabilities', capabilitiesRouter);
 app.get('/api/auth/whoami', whoami);
+app.use('/api/benchmark', benchmarkRouter);
 app.use('/mcp', createMcpRouter());
 app.use('/api/runs', runsRouter);
 app.use('/api/failures', failuresRouter);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackendBadge, RuntimeModes } from './RuntimeModes';
+import { BenchmarkSummary } from './BenchmarkSummary';
 import { ReviewerSignIn } from './ReviewerSession';
 import { useReviewerSession } from './useReviewerSession';
 import { SocConsole } from './SocConsole';
@@ -67,6 +68,12 @@ type AgentExecution = {
   run_id: string;
   model: string;
   model_backend?: string | null;
+  orchestration?: string;
+  graph_version?: string;
+  model_calls?: string;
+  prompt_tokens?: string;
+  completion_tokens?: string;
+  model_ms?: string;
   status: string;
   started_at: string;
   finished_at?: string;
@@ -997,6 +1004,7 @@ function App() {
 
         {!initialLoading && view === 'observability' && (
           <section className="page-enter space-y-6 py-7">
+            <BenchmarkSummary />
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <Metric
                 label="Agent executions"
@@ -1318,6 +1326,18 @@ function App() {
                 <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest">
                   <BrainCircuit size={14} /> Agent investigation
                 </p>
+                {!auditLoading && agentExecutions[0]?.model_backend !== 'real' && (
+                  <p
+                    role="note"
+                    className="mt-3 border-l-4 border-amber-400 bg-amber-50 p-3 text-xs text-amber-900"
+                  >
+                    {agentExecutions[0]?.model_backend === 'stub'
+                      ? 'Produced by the deterministic demo stub, not a language model. Not real-model evidence.'
+                      : agentExecutions[0]?.model_backend
+                        ? `Model backend was "${agentExecutions[0].model_backend}"; treat this output as unverified.`
+                        : 'Model backend not recorded for this investigation; treat it as unverified.'}
+                  </p>
+                )}
                 <h3 className="mt-4 text-xl font-extrabold">
                   {selectedFailure.agent_investigation.suspectedRootCause}
                 </h3>
@@ -1430,6 +1450,14 @@ function App() {
                     </span>
                     <span>{formatTime(agentExecutions[0].started_at)}</span>
                   </div>
+                  <p className="mb-4 font-mono text-[10px] text-slate-500">
+                    {agentExecutions[0].graph_version ?? 'graph unknown'} ·{' '}
+                    {agentExecutions[0].model_calls ?? 0} model calls ·{' '}
+                    {Number(agentExecutions[0].prompt_tokens ?? 0) +
+                      Number(agentExecutions[0].completion_tokens ?? 0)}{' '}
+                    tokens · {agentExecutions[0].model_ms ?? 0} ms model time · local compute (not
+                    billed, not free)
+                  </p>
                   <ol className="relative border-l border-slate-300 pl-5">
                     {agentExecutions[0].events.map((event) => (
                       <li key={event.id} className="relative pb-5 last:pb-0">

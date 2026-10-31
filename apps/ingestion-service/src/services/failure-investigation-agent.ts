@@ -28,6 +28,7 @@ import {
   startAgentExecution,
 } from './agent-execution-audit';
 import type { AgentAuditSink } from './agent-execution-audit';
+import type { AgentTelemetrySink } from './agent-telemetry';
 import { searchRepositoryKnowledge } from './repository-knowledge';
 import { query } from '../db/client';
 import {
@@ -83,6 +84,24 @@ async function openEvidenceProvider(
     await audit.record({ node: 'mcp_evidence', status: 'failed', details: { reason: detail } });
     return { unavailable: reason(detail) };
   }
+}
+
+/** Same per-call telemetry the supervisor graph records, so single-agent cost is not invisible. */
+async function recordSingleAgentCall(
+  options: InvestigationGraphOptions,
+  node: string,
+  model: string,
+  startedAt: number,
+  response: { prompt_eval_count?: number; eval_count?: number }
+): Promise<void> {
+  await options.telemetry?.recordModelCall({
+    node,
+    promptVersion: 'failure-agent-v1',
+    model,
+    promptTokens: response.prompt_eval_count ?? 0,
+    completionTokens: response.eval_count ?? 0,
+    durationMs: Date.now() - startedAt,
+  });
 }
 
 function describeEvidenceError(error: unknown): string {
@@ -182,6 +201,7 @@ export interface InvestigationGraphOptions {
   audit?: AgentAuditSink;
   requireApproval?: boolean;
   knowledgeSearch?: typeof searchRepositoryKnowledge;
+  telemetry?: AgentTelemetrySink;
   /** Evidence source for tool calls; absent = read the in-memory context directly (legacy). */
   evidence?: EvidenceProvider | { unavailable: string };
 }
@@ -251,6 +271,7 @@ export function createFailureInvestigationGraph(
       status: 'started',
       details: { step: state.reasoningSteps + 1 },
     });
+    const reasonStarted = Date.now();
     const response = await client.chat({
       model: state.model,
       messages: state.messages,
@@ -258,6 +279,7 @@ export function createFailureInvestigationGraph(
       format: outputFormat,
       stream: false,
     });
+    await recordSingleAgentCall(options, 'reason', state.model, reasonStarted, response);
     const calls = response.message.tool_calls ?? [];
     if (calls.length === 0) {
       if (
@@ -416,6 +438,7 @@ export function createFailureInvestigationGraph(
       status: 'started',
       details: { reason: 'tool_budget_exhausted' },
     });
+    const finalizeStarted = Date.now();
     const response = await client.chat({
       model: state.model,
       messages: [
@@ -429,6 +452,7 @@ export function createFailureInvestigationGraph(
       format: outputFormat,
       stream: false,
     });
+    await recordSingleAgentCall(options, 'finalize', state.model, finalizeStarted, response);
     try {
       const parsed = InvestigationSchema.parse(JSON.parse(response.message.content));
       await options.audit?.record({
