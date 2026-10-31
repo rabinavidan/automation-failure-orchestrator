@@ -178,7 +178,7 @@ Interviewers respect a clear boundary, so here is what this project is and isn't
 - **Simulated:** EDR, firewall, Jira and Slack are mock services ([`apps/mock-integrations`](apps/mock-integrations)). Threat intel runs in mock mode by default (`ENRICHMENT_MODE=live` plus API keys for real providers).
 - **Not deployed:** the Terraform is validated and security-scanned but has never been applied (the demo is deliberately zero cost).
 - **SOAR experience:** this is hands-on Shuffle work plus SOAR-style engineering, not production experience on Torq, XSOAR or Splunk SOAR. The [Shuffle lab](docs/shuffle-soar-lab.md) is the hands-on part.
-- **Not yet:** reviewer identity on approvals is a free-text field (no authentication), and no model-quality benchmark has been run on a real model yet. Both are tracked in [`docs/flagship-progress.md`](docs/flagship-progress.md).
+- **Not yet:** reviewer identity is demo bearer-token auth with roles, not SSO ([action semantics](docs/action-semantics.md)). External actions after an approval are not exactly-once. No model-quality benchmark has been run on a real model yet ([benchmark](benchmark/README.md)).
 - **Next steps I'd take:** SSO-backed reviewer identity and two-person approval for P1 isolation, SIEM write-back (closing incidents in Sentinel), OpenTelemetry trace export, and a semantic near-duplicate layer.
 
 ## Go deeper

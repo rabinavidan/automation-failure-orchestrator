@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { FailureClassification } from '@orchestrator/shared-types';
 import { query } from '../db/client';
+import { requireRole } from '../middleware/reviewer-auth';
 
 const router = Router();
 
@@ -142,7 +143,7 @@ const ReclassifySchema = z.object({
 });
 
 // POST /api/failures/:fingerprint/reclassify — manually reclassify
-router.post('/:fingerprint/reclassify', async (req, res) => {
+router.post('/:fingerprint/reclassify', requireRole('ci_reviewer'), async (req, res) => {
   const { fingerprint } = req.params;
   const parsed = ReclassifySchema.safeParse(req.body);
 

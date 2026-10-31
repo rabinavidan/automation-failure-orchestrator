@@ -72,18 +72,23 @@ async function main() {
   if (!block) throw new Error('expected a firewall block action');
 
   console.log(`\nFirewall before approval: ${JSON.stringify(await firewall())}`);
-  const approved = await post(`${BASE_URL}/api/responses/actions/${block.id}/decision`, {
-    decision: 'approved',
-    reviewer: 'alice',
-    comment: 'Attacker confirmed by threat intel',
-  });
+  // Approvals are authenticated: the audited reviewer is the token's identity.
+  const auth = {
+    authorization: `Bearer ${process.env.SOC_RESPONDER_TOKEN ?? 'demo-soc-responder-token-0001'}`,
+  };
+  const approved = await post(
+    `${BASE_URL}/api/responses/actions/${block.id}/decision`,
+    { decision: 'approved', comment: 'Attacker confirmed by threat intel' },
+    auth
+  );
   console.log(`Approve #${block.id}: ${JSON.stringify(approved)}`);
   console.log(`Firewall after approval:  ${JSON.stringify(await firewall())}`);
 
-  const rolledBack = await post(`${BASE_URL}/api/responses/actions/${block.id}/rollback`, {
-    reviewer: 'alice',
-    reason: 'Demo cleanup',
-  });
+  const rolledBack = await post(
+    `${BASE_URL}/api/responses/actions/${block.id}/rollback`,
+    { reason: 'Demo cleanup' },
+    auth
+  );
   console.log(`Rollback #${block.id}: ${JSON.stringify(rolledBack)}`);
   console.log(`Firewall after rollback:  ${JSON.stringify(await firewall())}`);
 

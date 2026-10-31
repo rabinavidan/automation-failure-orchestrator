@@ -9,6 +9,7 @@ import {
 } from '../services/approval-requests';
 import { resumeFailureInvestigation } from '../services/failure-investigation-agent';
 import { executeApprovedFailureActions } from '../services/run-processor';
+import { requireRole, type Reviewer } from '../middleware/reviewer-auth';
 
 const router = Router();
 
@@ -39,11 +40,13 @@ router.get('/', async (req, res) => {
 
 const DecisionSchema = z.object({
   decision: z.enum(['approved', 'rejected']),
-  reviewer: z.string().trim().min(1).max(120),
+  // Ignored: the reviewer is the authenticated identity. Accepted for older clients.
+  reviewer: z.string().trim().max(120).optional(),
   comment: z.string().trim().max(1000).optional(),
 });
 
-router.post('/:threadId/decision', async (req, res) => {
+router.post('/:threadId/decision', requireRole('ci_reviewer'), async (req, res) => {
+  const reviewer = (res.locals.reviewer as Reviewer).name;
   const parsed = DecisionSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid decision', details: parsed.error.flatten() });
@@ -63,7 +66,7 @@ router.post('/:threadId/decision', async (req, res) => {
   const decision = await decideApprovalRequest({
     threadId,
     decision: parsed.data.decision,
-    reviewer: parsed.data.reviewer,
+    reviewer,
     comment: parsed.data.comment,
   });
   if (!decision) {
@@ -76,7 +79,7 @@ router.post('/:threadId/decision', async (req, res) => {
     resumed = await resumeFailureInvestigation({
       threadId,
       approved: parsed.data.decision === 'approved',
-      reviewer: parsed.data.reviewer,
+      reviewer,
       comment: parsed.data.comment,
     });
   } catch (error) {
@@ -106,7 +109,7 @@ router.post('/:threadId/decision', async (req, res) => {
       return;
     }
   }
-  res.json({ threadId, status: resumed.status, actions });
+  res.json({ threadId, status: resumed.status, reviewer, actions });
 });
 
 export default router;

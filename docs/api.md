@@ -67,6 +67,17 @@ investigation in `agent_executions.model_backend` and returned by
 
 ---
 
+### Reviewer authentication
+
+Approval, containment, rollback, reclassify and reindex endpoints require
+`Authorization: Bearer <token>` for an identity in `REVIEWER_TOKENS` with the right role
+(`ci_reviewer`, `soc_responder` or `admin`). Responses: 503 if no identities are configured,
+401 for a missing or unknown token, 403 for the wrong role. The audited reviewer is the
+authenticated name; a `reviewer` body field is ignored. `GET /api/auth/whoami` returns
+`{ name, roles }` for a valid token. See [action-semantics.md](action-semantics.md).
+
+---
+
 ### Ingest Test Run
 
 ```

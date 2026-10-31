@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackendBadge, RuntimeModes } from './RuntimeModes';
+import { ReviewerSignIn } from './ReviewerSession';
+import { useReviewerSession } from './useReviewerSession';
 import { SocConsole } from './SocConsole';
 import {
   Activity,
@@ -368,7 +370,7 @@ function App() {
   const [selectedFailure, setSelectedFailure] = useState<Failure>();
   const [agentExecutions, setAgentExecutions] = useState<AgentExecution[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
-  const [reviewer, setReviewer] = useState('local-operator');
+  const session = useReviewerSession();
   const [decidingThread, setDecidingThread] = useState<string>();
   const [knowledgeQuery, setKnowledgeQuery] = useState('How are webhook payloads validated?');
   const [knowledgeMatches, setKnowledgeMatches] = useState<KnowledgeMatch[]>([]);
@@ -479,11 +481,14 @@ function App() {
         `/api/ingestion/api/approvals/${encodeURIComponent(threadId)}/decision`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ decision, reviewer }),
+          headers: { 'Content-Type': 'application/json', ...session.authHeader },
+          body: JSON.stringify({ decision }),
         }
       );
-      if (!response.ok) throw new Error('Approval decision failed');
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? `Approval decision failed (HTTP ${response.status})`);
+      }
       await loadData();
     } catch (decisionError) {
       setError(decisionError instanceof Error ? decisionError.message : 'Approval decision failed');
@@ -514,7 +519,10 @@ function App() {
   const reindexKnowledge = async () => {
     setKnowledgeBusy(true);
     try {
-      const response = await fetch('/api/ingestion/api/knowledge/reindex', { method: 'POST' });
+      const response = await fetch('/api/ingestion/api/knowledge/reindex', {
+        method: 'POST',
+        headers: session.authHeader,
+      });
       if (!response.ok) throw new Error('Knowledge reindex failed');
       await loadData();
     } catch (reindexError) {
@@ -914,7 +922,7 @@ function App() {
           </section>
         )}
 
-        {!initialLoading && view === 'soc' && <SocConsole reviewer={reviewer} />}
+        {!initialLoading && view === 'soc' && <SocConsole session={session} />}
 
         {!initialLoading && view === 'approvals' && (
           <section className="page-enter py-7">
@@ -925,14 +933,7 @@ function App() {
                   Decisions resume the exact persisted LangGraph thread.
                 </p>
               </div>
-              <label className="flex items-center gap-3 text-xs font-bold">
-                Reviewer
-                <input
-                  value={reviewer}
-                  onChange={(event) => setReviewer(event.target.value)}
-                  className="w-48 border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-ink"
-                />
-              </label>
+              <ReviewerSignIn session={session} />
             </div>
             {data.approvals.length === 0 ? (
               <EmptyState label="pending approvals" />
@@ -970,14 +971,18 @@ function App() {
                     <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-200 pt-5">
                       <button
                         onClick={() => void decideApproval(approval.thread_id, 'rejected')}
-                        disabled={!reviewer.trim() || decidingThread === approval.thread_id}
+                        disabled={
+                          !session.can('ci_reviewer') || decidingThread === approval.thread_id
+                        }
                         className="border border-ink px-4 py-2.5 text-xs font-bold disabled:opacity-50"
                       >
                         Reject
                       </button>
                       <button
                         onClick={() => void decideApproval(approval.thread_id, 'approved')}
-                        disabled={!reviewer.trim() || decidingThread === approval.thread_id}
+                        disabled={
+                          !session.can('ci_reviewer') || decidingThread === approval.thread_id
+                        }
                         className="bg-ink px-4 py-2.5 text-xs font-bold text-signal disabled:opacity-50"
                       >
                         Approve &amp; resume
