@@ -91,16 +91,29 @@ router.get('/:fingerprint/agent-executions', async (req, res) => {
       test_id: string;
       model: string;
       model_backend: string | null;
+      orchestration: string;
+      graph_version: string;
+      model_calls: string;
+      prompt_tokens: string;
+      completion_tokens: string;
+      model_ms: string;
       status: string;
       final_result: unknown;
       started_at: string;
       finished_at: string | null;
     }>(
-      `SELECT thread_id, run_id, test_id, model, model_backend, status, final_result, started_at,
-              finished_at
-       FROM agent_executions
-       WHERE fingerprint = $1
-       ORDER BY started_at DESC
+      `SELECT e.thread_id, e.run_id, e.test_id, e.model, e.model_backend, e.orchestration,
+              e.graph_version, e.status, e.final_result, e.started_at, e.finished_at,
+              COALESCE(c.calls, 0) AS model_calls, COALESCE(c.prompt_tokens, 0) AS prompt_tokens,
+              COALESCE(c.completion_tokens, 0) AS completion_tokens, COALESCE(c.ms, 0) AS model_ms
+       FROM agent_executions e
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) AS calls, SUM(prompt_tokens) AS prompt_tokens,
+                SUM(completion_tokens) AS completion_tokens, SUM(duration_ms) AS ms
+         FROM agent_model_calls WHERE thread_id = e.thread_id
+       ) c ON TRUE
+       WHERE e.fingerprint = $1
+       ORDER BY e.started_at DESC
        LIMIT 20`,
       [fingerprint]
     );
