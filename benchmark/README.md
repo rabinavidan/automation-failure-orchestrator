@@ -19,6 +19,8 @@ as not applicable, not as passes.
 npm run benchmark                                    # deterministic, any machine, seconds
 npm run benchmark -- --configs=deterministic,single_agent,multi_agent --reps=3   # full
 npm run benchmark -- --configs=multi_agent --subset=smoke --reps=1              # quick iteration
+npm run benchmark -- --configs=multi_agent --shard=2/6                          # one parallel slice
+npm run benchmark -- --merge=<dir with shard outputs>                           # combine slices + deterministic
 npm run benchmark:retrieval                          # Recall@k / MRR, needs an index built with the active embedding model
 ```
 
@@ -81,8 +83,37 @@ Quality and cost are reported separately.
 
 ## Results
 
-| Result                               | Status                                                                                                            |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| Deterministic baseline               | [`results/baseline-deterministic/report.md`](results/baseline-deterministic/report.md), measured                  |
-| Single / multi-agent on a real model | **Not yet run.** No Ollama in the development container. Run the manual workflow or a local Ollama to produce it. |
-| Retrieval                            | **Not yet run.** Needs an embedding model and an index.                                                           |
+| Result                                | Status                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deterministic baseline                | [`results/baseline-deterministic/report.md`](results/baseline-deterministic/report.md), 35 cases, measured                                                                                                                                                                                                     |
+| First real-model run (smoke, 1 rep)   | [`results/real-2026-10-31-qwen3-4b-smoke/report.md`](results/real-2026-10-31-qwen3-4b-smoke/report.md): qwen3:4b (Qwen3 4B Thinking 2507, digest `359d7dd4`), 20 cases, 4-core CPU runner, workflow run [41198119333](https://github.com/rabinavidan/automation-failure-orchestrator/actions/runs/41198119333) |
+| Full run (35 cases x 3 reps, sharded) | **Pending.** Run the workflow with defaults after this change.                                                                                                                                                                                                                                                 |
+| Retrieval                             | **Not yet run.** Needs an embedding model and an index.                                                                                                                                                                                                                                                        |
+
+### What the first real-model run found (and what changed)
+
+- **Safety gap, now fixed in code.** In 5 of 13 completed multi-agent CI runs, the action
+  specialist rated risk `high` but the supervisor still recommended `create_issue` or
+  `update_issue`. "High risk means human review" lived only in the prompt. It is now enforced by
+  `applyActionGuardrails()` (`multi-agent-investigation.ts`), mirroring the SOC
+  `applyGuardrails()`. The override is recorded as `guardrailOverride` and routes into the
+  durable approval interrupt. The run's numbers are from **before** this fix.
+- **Single-agent results are not model quality.** All 10 single-agent runs failed on Ollama 0.9.0
+  with `failed to create tool parser` (HTTP 500, about 25 ms). This reproduces locally with the
+  same model digest; Ollama 0.35.1 answers the same tool-calling request with HTTP 200 and a real
+  tool call. The workflow now pins `ollama/ollama:0.35.1`.
+- **2 SOC runs failed schema validation** (confidence above 1). The harness counted them as
+  failures, and production fails safe to deterministic triage in that case.
+- **What held up:** zero unsupported claims, every runbook citation was real, and the agent
+  abstained on 100% of ambiguous cases. It also abstained on 45.5% of clear cases, which is
+  over-cautious.
+- **Cost:** multi-agent p50 229 s per case (p95 316 s), 3.7 model calls and about 2,500 tokens per
+  case on a 4-core runner. That is local compute, not free.
+
+### Running the full benchmark on GitHub
+
+The workflow splits each agent configuration into `shards` parallel jobs (default 6). Each job
+runs its own CPU runner and Ollama, and stays well inside the per-job time limit. A merge job
+combines all shards with the deterministic baseline into one `benchmark-results` artifact and
+writes the report to the run summary. The merge refuses duplicate outcomes and shards that ran
+different models. If a shard fails, the summary marks the report as incomplete.

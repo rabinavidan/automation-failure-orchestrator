@@ -44,7 +44,7 @@ workflow and the owner.
 
 ## Known limitations
 
-- No real-model benchmark results. Run the **Real-model benchmark** workflow or a local Ollama.
+- Real-model evidence is one smoke run (qwen3:4b, 20 cases, 1 rep; [report](../benchmark/results/real-2026-10-31-qwen3-4b-smoke/report.md)). It exposed a prompt-only high-risk rule, now code-enforced. The full sharded run is pending.
 - Benchmark labels are synthetic and AI-authored (`humanValidated: false`).
 - External actions after an approval are not exactly-once (no outbox).
 - Reviewer auth is demo bearer tokens. The demo tokens are public.

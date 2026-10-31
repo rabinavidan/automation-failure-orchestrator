@@ -46,7 +46,7 @@ today, and the harness that will score a real model next."
 
 ## What not to claim
 
-- No real-model benchmark results yet. Agent quality has not been measured on a real model.
+- Only a smoke-sized real-model run exists (qwen3:4b, 20 cases, 1 repetition). It found a prompt-only safety rule, now enforced in code. Full real-model numbers are pending.
 - Benchmark labels are AI-authored and not human-validated.
 - The AWS path ran only on a local emulator (moto). Nothing is deployed to the cloud.
 - Reviewer auth is demo bearer tokens, not SSO. External actions after approval are not

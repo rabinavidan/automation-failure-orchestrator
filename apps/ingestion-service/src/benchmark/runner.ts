@@ -438,3 +438,19 @@ export function summarize(config: BenchmarkConfig, outcomes: CaseOutcome[]): Con
     },
   };
 }
+
+/**
+ * Combine shard outputs. Duplicate (config, case, repetition) records, e.g. from a re-run shard,
+ * are rejected rather than silently double-counted.
+ */
+export function mergeOutcomes(parts: CaseOutcome[][]): CaseOutcome[] {
+  const seen = new Set<string>();
+  const merged: CaseOutcome[] = [];
+  for (const outcome of parts.flat()) {
+    const key = `${outcome.config}|${outcome.caseId}|${outcome.repetition}`;
+    if (seen.has(key)) throw new Error(`duplicate outcome ${key} across shards`);
+    seen.add(key);
+    merged.push(outcome);
+  }
+  return merged;
+}

@@ -84,6 +84,11 @@ export interface AgentInvestigation {
   }>;
   orchestration?: 'single_agent' | 'supervisor';
   specialistReports?: AgentSpecialistReport[];
+  /** Set when code-owned guardrails replaced the model's recommendation. */
+  guardrailOverride?: {
+    from: 'create_issue' | 'update_issue' | 'notify_only' | 'human_review';
+    reason: string;
+  };
 }
 
 export interface AgentSpecialistReport {

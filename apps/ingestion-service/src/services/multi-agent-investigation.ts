@@ -122,6 +122,30 @@ async function recordAgent(
   return report;
 }
 
+type FailureAction = AgentInvestigation['recommendedAction'];
+
+/**
+ * Code-owned guardrails applied after the supervisor; the model cannot bypass them. Mirrors the
+ * SOC applyGuardrails(): a high-risk action assessment, or an action specialist that itself asked
+ * for review, always routes to human_review (and therefore to the durable approval interrupt).
+ */
+export function applyActionGuardrails(
+  recommended: FailureAction,
+  reports: AgentSpecialistReport[]
+): { recommendedAction: FailureAction; override?: { from: FailureAction; reason: string } } {
+  if (recommended === 'human_review') return { recommendedAction: recommended };
+  const action = reports.find((report) => report.agent === 'action');
+  const reason =
+    action?.risk === 'high'
+      ? 'action specialist assessed risk as high'
+      : action?.proposedAction === 'human_review'
+        ? 'action specialist proposed human_review'
+        : undefined;
+  return reason
+    ? { recommendedAction: 'human_review', override: { from: recommended, reason } }
+    : { recommendedAction: recommended };
+}
+
 export function createMultiAgentInvestigationGraph(
   client: InvestigationModel,
   options: MultiAgentGraphOptions = {}
@@ -286,8 +310,11 @@ export function createMultiAgentInvestigationGraph(
     });
     await recordModelCall('supervisor', 'supervisor-v1', state.model, startedAt, response);
     const parsed = FinalSchema.parse(JSON.parse(response.message.content));
+    const guarded = applyActionGuardrails(parsed.recommendedAction, state.reports);
     const result: AgentInvestigation = {
       ...parsed,
+      recommendedAction: guarded.recommendedAction,
+      ...(guarded.override ? { guardrailOverride: guarded.override } : {}),
       toolsUsed: state.toolsUsed,
       model: state.model,
       sources: state.sources,
@@ -300,6 +327,7 @@ export function createMultiAgentInvestigationGraph(
       details: {
         confidence: result.confidence,
         recommendation: result.recommendedAction,
+        ...(guarded.override ? { guardrail: guarded.override } : {}),
         specialists: state.reports.map((report) => report.agent),
       },
     });
