@@ -83,12 +83,13 @@ Quality and cost are reported separately.
 
 ## Results
 
-| Result                                | Status                                                                                                                                                                                                                                                                                                         |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Deterministic baseline                | [`results/baseline-deterministic/report.md`](results/baseline-deterministic/report.md), 35 cases, measured                                                                                                                                                                                                     |
-| First real-model run (smoke, 1 rep)   | [`results/real-2026-10-31-qwen3-4b-smoke/report.md`](results/real-2026-10-31-qwen3-4b-smoke/report.md): qwen3:4b (Qwen3 4B Thinking 2507, digest `359d7dd4`), 20 cases, 4-core CPU runner, workflow run [41198119333](https://github.com/rabinavidan/automation-failure-orchestrator/actions/runs/41198119333) |
-| Full run (35 cases x 3 reps, sharded) | [`results/real-2026-10-31-qwen3-4b-full/report.md`](results/real-2026-10-31-qwen3-4b-full/report.md): same model and digest, 12 parallel shards, run [41225652048](https://github.com/rabinavidan/automation-failure-orchestrator/actions/runs/41225652048). See the reading notes below.                      |
-| Retrieval                             | **Not yet run.** Needs an embedding model and an index.                                                                                                                                                                                                                                                        |
+| Result                                | Status                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Deterministic baseline                | [`results/baseline-deterministic/report.md`](results/baseline-deterministic/report.md), 35 cases, measured                                                                                                                                                                                                                                                                     |
+| First real-model run (smoke, 1 rep)   | [`results/real-2026-10-31-qwen3-4b-smoke/report.md`](results/real-2026-10-31-qwen3-4b-smoke/report.md): qwen3:4b (Qwen3 4B Thinking 2507, digest `359d7dd4`), 20 cases, 4-core CPU runner, workflow run [41198119333](https://github.com/rabinavidan/automation-failure-orchestrator/actions/runs/41198119333)                                                                 |
+| Full run (35 cases x 3 reps, sharded) | [`results/real-2026-10-31-qwen3-4b-full/report.md`](results/real-2026-10-31-qwen3-4b-full/report.md): same model and digest, 12 parallel shards, run [41225652048](https://github.com/rabinavidan/automation-failure-orchestrator/actions/runs/41225652048). See the reading notes below.                                                                                      |
+| Single-agent re-run (35 x 3, sharded) | [`results/real-2026-10-31-qwen3-4b-single-agent-rerun/report.md`](results/real-2026-10-31-qwen3-4b-single-agent-rerun/report.md): `single_agent` only, after the `think: false` fix, same model and digest, 6 shards, run [41231747943](https://github.com/rabinavidan/automation-failure-orchestrator/actions/runs/41231747943). Replaces the full run's single-agent column. |
+| Retrieval                             | **Not yet run.** Needs an embedding model and an index.                                                                                                                                                                                                                                                                                                                        |
 
 ### What the first real-model run found (and what changed)
 
@@ -132,7 +133,7 @@ below: two harness and agent issues found here are fixed in code, but this run p
   `fetch failed`, and completed runs topped out at 295 s. The single-agent graph did not set
   `think: false` (the supervisor and SOC graphs do), so the Qwen3 _Thinking_ model produced long
   hidden reasoning and hit fetch's 300 s header timeout. Fixed in `failure-investigation-agent.ts`
-  after this run; the single-agent column needs a re-run before it means anything.
+  after this run; see the single-agent re-run below.
 - **Unsupported claims are over-counted.** The report shows 13.7% for multi_agent, but 7 of the
   10 flags were the case's own fingerprint, which is in the prompt. The check now allows it. The
   real ones are 3 of 73 completed runs (about 4%):
@@ -144,6 +145,37 @@ below: two harness and agent issues found here are fixed in code, but this run p
   them fell back to deterministic processing, as designed.
 - **Metadata:** the merged `caseTimeoutMs` shows 180000. The shards actually ran with 900000. The
   merge now copies the shard value.
+
+### Single-agent re-run (after the `think: false` fix)
+
+Same model, digest, dataset and repetitions as the full run, with `single_agent` only. This
+replaces the single-agent column above. The multi-agent column is unchanged.
+
+|                                     | single_agent, full run | single_agent, re-run | multi_agent, full run |
+| ----------------------------------- | ---------------------- | -------------------- | --------------------- |
+| Applicable runs                     | 66                     | 66                   | 84                    |
+| Failed (timeout, error or empty)    | 41 (62.1%)             | **0 (0%)**           | 11 (13.1%)            |
+| Action within acceptable policy     | 40.0%                  | 53.0%                | 95.9%                 |
+| Abstains on ambiguous / clear cases | n/a / 24.0%            | 0% / 19.0%           | 100% / 83.1%          |
+| Runs with unsupported claims        | see notes above        | 1.5% (1 run)         | about 4% (3 runs)     |
+| Required tools used                 | n/a                    | 81.8%                | n/a (CI)              |
+| Safety violations                   | 0                      | 0                    | 0                     |
+| Latency p50 / p95                   | about 300 s            | 34 s / 54 s          | 109 s                 |
+
+- **The fix worked.** No failures, against 41 of 66 before, and the median case dropped from
+  about 300 s to 34 s.
+- **The single agent never called a tool.** Every run made exactly one model call and answered
+  from the prompt. The earlier run's 25 completed cases were the same, so this is how this 4B
+  model behaves with this graph, not an effect of the fix. The 12 runs (4 cases x 3) that missed
+  a required tool (`get_failure_history`, `get_related_jira_issue`) come from this.
+- **Multi-agent is more accurate but slower.** Its recommended action was acceptable in 95.9% of
+  completed runs against 53.0% here. The single agent most often chose `create_issue` or
+  `update_issue` where the label expects notification or review (for example, infrastructure
+  and flaky cases).
+- **Abstention:** only one CI case is labeled ambiguous (3 runs), and the single agent never
+  abstained on it. That sample is too small to rate abstention.
+- **Unsupported claims:** one run cited an IP (`10.0.2.4`) absent from the case input.
+- Zero safety violations, and the deterministic evaluator passed 98.5% of runs.
 
 ### Running the full benchmark on GitHub
 
