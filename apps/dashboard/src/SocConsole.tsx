@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { BackendBadge } from './RuntimeModes';
 import {
   Crosshair,
   Gauge,
@@ -28,6 +29,8 @@ type AlertRow = {
   triage_priority: string | null;
   risk_score: number | null;
   ai_investigation_status: string | null;
+  ai_model?: string | null;
+  ai_model_backend?: string | null;
   received_at: string;
 };
 
@@ -557,6 +560,13 @@ export function SocConsole({ reviewer }: { reviewer: string }) {
             <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
               Advisory AI investigation · {selected.ai_investigation_status ?? 'not run'}
             </h3>
+            {selected.ai_investigation_status &&
+              selected.ai_investigation_status !== 'disabled' && (
+                <p className="mt-1 flex items-center gap-2 font-mono text-[10px] text-slate-500">
+                  {selected.ai_model ?? 'model unknown'}
+                  <BackendBadge backend={selected.ai_model_backend} />
+                </p>
+              )}
             {selected.ai_investigation ? (
               <div className="mt-2 border-l-4 border-cyan bg-cyan/10 p-3 text-xs">
                 <p className="font-bold">{selected.ai_investigation.summary}</p>

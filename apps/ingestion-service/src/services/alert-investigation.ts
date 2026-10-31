@@ -7,6 +7,7 @@ import type {
   SocEvaluationResult,
   SocInvestigation,
 } from '@orchestrator/shared-types';
+import { currentModelBackend } from './runtime-capabilities';
 import { query } from '../db/client';
 import {
   createDatabaseAuditSink,
@@ -141,6 +142,7 @@ export async function runAlertInvestigation(
       fingerprint: result.fingerprint,
       model: deps.model,
       graphVersion: SOC_GRAPH_VERSION,
+      modelBackend: await currentModelBackend(),
     });
     await setStatus(alert.alertId, 'running');
 

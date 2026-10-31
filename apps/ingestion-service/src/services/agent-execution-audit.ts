@@ -1,5 +1,6 @@
 import type { AgentInvestigation, SocInvestigation } from '@orchestrator/shared-types';
 import { query } from '../db/client';
+import type { ModelBackend } from './runtime-capabilities';
 
 export interface AgentAuditEvent {
   node: string;
@@ -31,13 +32,16 @@ export async function startAgentExecution(input: {
   model: string;
   orchestration?: 'single_agent' | 'supervisor';
   graphVersion?: string;
+  modelBackend?: ModelBackend;
 }): Promise<void> {
   await query(
-    `INSERT INTO agent_executions (thread_id, run_id, fingerprint, test_id, model, orchestration, graph_version)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO agent_executions
+       (thread_id, run_id, fingerprint, test_id, model, orchestration, graph_version, model_backend)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (thread_id) DO UPDATE SET
        status = 'running', final_result = NULL, finished_at = NULL,
-       orchestration = EXCLUDED.orchestration, graph_version = EXCLUDED.graph_version`,
+       orchestration = EXCLUDED.orchestration, graph_version = EXCLUDED.graph_version,
+       model_backend = EXCLUDED.model_backend`,
     [
       input.threadId,
       input.runId,
@@ -46,6 +50,7 @@ export async function startAgentExecution(input: {
       input.model,
       input.orchestration ?? 'single_agent',
       input.graphVersion ?? 'legacy',
+      input.modelBackend ?? null,
     ]
   );
 }
@@ -70,13 +75,22 @@ export async function startAlertAgentExecution(input: {
   fingerprint: string;
   model: string;
   graphVersion: string;
+  modelBackend?: ModelBackend;
 }): Promise<void> {
   await query(
     `INSERT INTO agent_executions
-       (thread_id, alert_id, subject, fingerprint, model, orchestration, graph_version)
-     VALUES ($1, $2, 'security_alert', $3, $4, 'supervisor', $5)
+       (thread_id, alert_id, subject, fingerprint, model, orchestration, graph_version, model_backend)
+     VALUES ($1, $2, 'security_alert', $3, $4, 'supervisor', $5, $6)
      ON CONFLICT (thread_id) DO UPDATE SET
-       status = 'running', final_result = NULL, finished_at = NULL, started_at = NOW()`,
-    [input.threadId, input.alertId, input.fingerprint, input.model, input.graphVersion]
+       status = 'running', final_result = NULL, finished_at = NULL, started_at = NOW(),
+       model_backend = EXCLUDED.model_backend`,
+    [
+      input.threadId,
+      input.alertId,
+      input.fingerprint,
+      input.model,
+      input.graphVersion,
+      input.modelBackend ?? null,
+    ]
   );
 }

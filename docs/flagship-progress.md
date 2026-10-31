@@ -20,5 +20,12 @@ Tracks the flagship implementation brief milestone by milestone. Evidence levels
   (`demo:aws-local`, Shuffle, image scans) rely on GitHub Actions.
 - No Ollama or GPU in the verification container, so any real-model result needs a
   machine with Ollama.
-- Malicious workflows found on `main` are removed on this branch. Credential and account
+- `INTEGRATION_MODE` is a label only: the Jira/Slack adapters route by `JIRA_BASE_URL` and
+  `SLACK_WEBHOOK_URL`. The capability report therefore shows the target origins.
+- `demo:cleanup` removes only CI runs with `triggered_by='demo-script'` (and cascades).
+  SOC demo alerts, `failure_history` and LangGraph checkpoint rows have no reliable demo marker
+  and are left in place.
+- Real-model mode (`backend: real`, model pulled check) is unit-tested with a fake Ollama but not
+  exercised against a real Ollama here.
+- Malicious workflows found on `main` were removed by #48. Credential and account
   remediation is owner-only.

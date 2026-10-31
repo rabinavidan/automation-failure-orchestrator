@@ -20,6 +20,53 @@ Response:
 
 ---
 
+### Runtime capabilities
+
+```
+GET /api/capabilities
+```
+
+Configured mode and current availability for each runtime dimension. Secrets are never
+returned: hosts are reduced to `scheme://host:port`, and credentials are reported only as
+configured or not configured.
+
+```json
+{
+  "model": {
+    "configured": "enabled",
+    "backend": "stub",
+    "provider": "ollama",
+    "host": "http://localhost:11434",
+    "model": "qwen3:4b",
+    "modelInstalled": null,
+    "orchestration": "supervisor",
+    "graphVersion": "failure-supervisor-v1",
+    "ragEnabled": true,
+    "embeddingModel": "nomic-embed-text",
+    "detail": "deterministic demo stub (scripts/ollama-demo-stub.mjs), not a language model"
+  },
+  "integrations": {
+    "mode": "mock",
+    "jiraTarget": "http://localhost:3002",
+    "slackTarget": "http://localhost:3002",
+    "jiraCredentialsConfigured": true,
+    "slackWebhookConfigured": true
+  },
+  "queue": { "mode": "in_process", "queueUrlConfigured": false },
+  "enrichment": { "configured": true, "available": true, "mode": "mock" },
+  "notes": [
+    "Model answers come from the deterministic demo stub; they are not real-model evidence."
+  ]
+}
+```
+
+`model.backend` is `disabled`, `stub`, `real` or `unreachable`. The same value is stored per
+investigation in `agent_executions.model_backend` and returned by
+`GET /api/failures/:fingerprint/agent-executions` (`model_backend`) and `GET /api/alerts/:alertId`
+(`ai_model_backend`).
+
+---
+
 ### Ingest Test Run
 
 ```

@@ -1,3 +1,4 @@
+import { currentModelBackend } from './runtime-capabilities';
 import {
   Annotation,
   Command,
@@ -475,6 +476,7 @@ export async function investigateFailure(
       orchestration: process.env.MULTI_AGENT_ENABLED === 'true' ? 'supervisor' : 'single_agent',
       graphVersion:
         process.env.MULTI_AGENT_ENABLED === 'true' ? 'failure-supervisor-v1' : 'failure-agent-v1',
+      modelBackend: await currentModelBackend(),
     });
     const useMultiAgent = process.env.MULTI_AGENT_ENABLED === 'true';
     const graphOptions = {
