@@ -4,11 +4,19 @@ import type { Message } from 'ollama';
 import {
   BenchmarkDatasetSchema,
   loadDataset,
+  shardCases,
   smokeSubset,
   type CiCase,
 } from '../benchmark/dataset';
 import { accuracy, macroF1, meanReciprocalRank, percentile, recallAtK } from '../benchmark/metrics';
-import { assertRealModel, runCase, summarize, type RunOptions } from '../benchmark/runner';
+import {
+  assertRealModel,
+  mergeOutcomes,
+  runCase,
+  summarize,
+  type CaseOutcome,
+  type RunOptions,
+} from '../benchmark/runner';
 import { loadTriagePolicy } from '../services/alert-triage';
 import type { InvestigationModel } from '../services/failure-investigation-agent';
 
@@ -163,5 +171,39 @@ describe('benchmark runner', () => {
       model: 'test-model',
     });
     expect(outcome.status).toBe('not_applicable');
+  });
+});
+
+describe('sharding for parallel benchmark jobs', () => {
+  it('splits cases into complete, non-overlapping, balanced shards', () => {
+    const shards = [1, 2, 3, 4, 5, 6].map((i) => shardCases(dataset.cases, i, 6));
+    const ids = shards.flat().map((c) => c.id);
+    expect(ids).toHaveLength(dataset.cases.length);
+    expect(new Set(ids).size).toBe(dataset.cases.length);
+    const sizes = shards.map((s) => s.length);
+    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
+  });
+
+  it('rejects invalid shard specs', () => {
+    expect(() => shardCases(dataset.cases, 0, 6)).toThrow();
+    expect(() => shardCases(dataset.cases, 7, 6)).toThrow();
+    expect(() => shardCases(dataset.cases, 1, Number.NaN)).toThrow();
+  });
+
+  it('merges shard outcomes and refuses duplicates', () => {
+    const outcome = (caseId: string, repetition: number): CaseOutcome => ({
+      caseId,
+      track: 'ci',
+      family: 'f',
+      split: 'dev',
+      ambiguous: false,
+      config: 'multi_agent',
+      repetition,
+      status: 'ok',
+      decision: { expected: 'a', predicted: 'a' },
+      cost: { latencyMs: 1, modelCalls: 1, promptTokens: 1, completionTokens: 1 },
+    });
+    expect(mergeOutcomes([[outcome('a', 0)], [outcome('a', 1), outcome('b', 0)]])).toHaveLength(3);
+    expect(() => mergeOutcomes([[outcome('a', 0)], [outcome('a', 0)]])).toThrow(/duplicate/);
   });
 });

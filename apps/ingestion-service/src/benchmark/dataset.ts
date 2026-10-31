@@ -131,6 +131,23 @@ export function loadDataset(path: string): BenchmarkDataset {
   return BenchmarkDatasetSchema.parse(JSON.parse(readFileSync(path, 'utf-8')));
 }
 
+/**
+ * Deterministic slice `index` (1-based) of `total` for parallel CI jobs. Round-robin keeps each
+ * shard's track and family mix similar, so shards take comparable time.
+ */
+export function shardCases<T>(cases: T[], index: number, total: number): T[] {
+  if (
+    !Number.isInteger(total) ||
+    total < 1 ||
+    !Number.isInteger(index) ||
+    index < 1 ||
+    index > total
+  ) {
+    throw new Error(`invalid shard ${index}/${total}`);
+  }
+  return cases.filter((_, position) => position % total === index - 1);
+}
+
 /** Smoke subset: the first case of every family, for fast developer iteration. */
 export function smokeSubset(cases: BenchmarkCase[]): BenchmarkCase[] {
   const seen = new Set<string>();

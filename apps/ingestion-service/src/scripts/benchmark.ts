@@ -4,6 +4,8 @@
  *   npm run benchmark                                   # deterministic only, no model needed
  *   npm run benchmark -- --configs=deterministic,single_agent,multi_agent --reps=3
  *   npm run benchmark -- --configs=multi_agent --subset=smoke --reps=1   # quick iteration
+ *   npm run benchmark -- --configs=multi_agent --shard=2/6              # one parallel slice
+ *   npm run benchmark -- --merge=parts-dir                              # combine shard outputs
  *
  * Agent configurations require a real local Ollama (AI_ENABLED=true, OLLAMA_HOST, OLLAMA_MODEL);
  * the deterministic demo stub and unreachable hosts are rejected. Timeouts, errors and empty
@@ -11,13 +13,14 @@
  *   outcomes.jsonl (raw), summary.json (aggregate + run metadata), report.md (readable).
  */
 import { execFileSync } from 'child_process';
-import { mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { cpus, platform, release, totalmem } from 'os';
 import { join, resolve } from 'path';
-import { loadDataset, smokeSubset } from '../benchmark/dataset';
+import { loadDataset, shardCases, smokeSubset } from '../benchmark/dataset';
 import {
   AGENT_CONFIGS,
   assertRealModel,
+  mergeOutcomes,
   runCase,
   summarize,
   type BenchmarkConfig,
@@ -140,8 +143,12 @@ async function main(): Promise<void> {
   }
 
   const dataset = loadDataset(datasetPath);
-  const cases = subset === 'smoke' ? smokeSubset(dataset.cases) : dataset.cases;
-  const needsModel = configs.some((c) => AGENT_CONFIGS.includes(c));
+  const subsetCases = subset === 'smoke' ? smokeSubset(dataset.cases) : dataset.cases;
+  const shard = arg('shard');
+  const [shardIndex, shardTotal] = shard ? shard.split('/').map(Number) : [1, 1];
+  const cases = shardCases(subsetCases, shardIndex, shardTotal);
+  const mergeDir = arg('merge');
+  const needsModel = !mergeDir && configs.some((c) => AGENT_CONFIGS.includes(c));
 
   let client;
   let model: string | undefined;
@@ -163,7 +170,35 @@ async function main(): Promise<void> {
   const runbooks = loadRunbooks(resolve(REPO_ROOT, 'docs/runbooks'));
 
   const outcomes: CaseOutcome[] = [];
-  for (const config of configs) {
+  // Merge mode: combine agent outcomes produced by parallel shard jobs (no model needed here).
+  const shardMetas: Array<Record<string, unknown>> = [];
+  if (mergeDir) {
+    const root = resolve(REPO_ROOT, mergeDir);
+    const partDirs = readdirSync(root, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && existsSync(join(root, d.name, 'outcomes.jsonl')))
+      .map((d) => join(root, d.name));
+    if (partDirs.length === 0) throw new Error(`no shard outputs under ${root}`);
+    const parts = partDirs.map((dir) =>
+      readFileSync(join(dir, 'outcomes.jsonl'), 'utf-8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as CaseOutcome)
+        .filter((o) => o.config !== 'deterministic')
+    );
+    outcomes.push(...mergeOutcomes(parts));
+    for (const dir of partDirs) {
+      shardMetas.push(
+        (
+          JSON.parse(readFileSync(join(dir, 'summary.json'), 'utf-8')) as {
+            meta: Record<string, unknown>;
+          }
+        ).meta
+      );
+    }
+  }
+  const runConfigs = mergeDir ? (['deterministic'] as BenchmarkConfig[]) : configs;
+  for (const config of runConfigs) {
     const configReps = config === 'deterministic' ? 1 : reps;
     for (let repetition = 0; repetition < configReps; repetition++) {
       for (const c of cases) {
@@ -183,18 +218,31 @@ async function main(): Promise<void> {
     }
   }
 
-  const summaries = configs.map((c) => summarize(c, outcomes));
+  const mergedConfigs = mergeDir
+    ? ([
+        'deterministic',
+        ...AGENT_CONFIGS.filter((c) => outcomes.some((o) => o.config === c)),
+      ] as BenchmarkConfig[])
+    : configs;
+  const summaries = mergedConfigs.map((c) => summarize(c, outcomes));
+  const first = shardMetas[0] ?? {};
+  const distinct = (key: string) => [...new Set(shardMetas.map((m) => JSON.stringify(m[key])))];
+  if (mergeDir && (distinct('model').length > 1 || distinct('modelDigest').length > 1)) {
+    throw new Error('shards ran different models; refusing to merge');
+  }
   const meta = {
-    commit: gitCommit(),
+    commit: mergeDir ? (first.commit ?? gitCommit()) : gitCommit(),
     dataset: `${dataset.name}@${dataset.version}`,
-    datasetCases: cases.length,
+    datasetCases: mergeDir ? subsetCases.length : cases.length,
     subset,
+    ...(shard ? { shard } : {}),
+    ...(mergeDir ? { mergedShards: shardMetas.length } : {}),
     humanValidatedLabels: dataset.provenance.humanValidated,
-    configs,
-    repetitions: needsModel ? reps : 1,
-    model: model ?? null,
-    modelDigest: digest,
-    modelBackend: needsModel ? 'real' : 'not used',
+    configs: mergedConfigs,
+    repetitions: mergeDir ? (first.repetitions ?? null) : needsModel ? reps : 1,
+    model: mergeDir ? (first.model ?? null) : (model ?? null),
+    modelDigest: mergeDir ? (first.modelDigest ?? null) : digest,
+    modelBackend: mergeDir ? (first.modelBackend ?? 'not used') : needsModel ? 'real' : 'not used',
     graphVersions: {
       ci_single: 'failure-agent-v1',
       ci_multi: 'failure-supervisor-v1',
@@ -204,7 +252,9 @@ async function main(): Promise<void> {
     ragEnabled: false,
     seed: 'not set (Ollama sampling is not seeded by the graphs)',
     caseTimeoutMs,
-    hardware: `${platform()} ${release()}, ${cpus()[0]?.model ?? 'cpu'} x${cpus().length}, ${Math.round(totalmem() / 2 ** 30)} GiB`,
+    hardware: mergeDir
+      ? (first.hardware ?? 'unknown')
+      : `${platform()} ${release()}, ${cpus()[0]?.model ?? 'cpu'} x${cpus().length}, ${Math.round(totalmem() / 2 ** 30)} GiB`,
     generatedAt: new Date().toISOString(),
   };
 

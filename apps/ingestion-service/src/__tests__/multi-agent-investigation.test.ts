@@ -6,6 +6,7 @@ import type {
   InvestigationModel,
 } from '../services/failure-investigation-agent';
 import {
+  applyActionGuardrails,
   createMultiAgentInvestigationGraph,
   runMultiAgentInvestigation,
 } from '../services/multi-agent-investigation';
@@ -172,5 +173,102 @@ describe('multi-agent investigation supervisor', () => {
     );
     expect(resumed.approvalStatus).toBe('approved');
     expect(calls).toBe(4);
+  });
+
+  it('code-owned guardrail forces human_review on high risk, whatever the supervisor says', async () => {
+    const highRiskAction: Message = {
+      role: 'assistant',
+      content: JSON.stringify({
+        summary: 'Risky change',
+        findings: ['touches auth'],
+        confidence: 0.8,
+        proposedAction: 'create_issue',
+        risk: 'high',
+      }),
+    };
+    const supervisorIgnoresRisk: Message = {
+      role: 'assistant',
+      content: JSON.stringify({
+        suspectedRootCause: 'Auth regression',
+        evidence: ['triage and action agree'],
+        recommendedAction: 'create_issue',
+        confidence: 0.9,
+        explanation: 'File a bug',
+      }),
+    };
+    const responses = [
+      specialist('Triage'),
+      specialist('Repository'),
+      highRiskAction,
+      supervisorIgnoresRisk,
+    ];
+    const client: InvestigationModel = {
+      async chat() {
+        return { message: responses.shift()! };
+      },
+    };
+    const checkpointer = new MemorySaver();
+    const graph = createMultiAgentInvestigationGraph(client, {
+      checkpointer,
+      requireApproval: true,
+    });
+    const config = { configurable: { thread_id: 'guardrail-thread' } };
+    const state = await graph.invoke(
+      {
+        context,
+        model: 'qwen-test',
+        reports: [],
+        toolsUsed: [],
+        sources: [],
+        result: undefined,
+        approvalStatus: 'not_required' as const,
+      },
+      config
+    );
+    expect(state.result?.recommendedAction).toBe('human_review');
+    expect(state.result?.guardrailOverride).toEqual({
+      from: 'create_issue',
+      reason: 'action specialist assessed risk as high',
+    });
+    // The override routes into the durable approval interrupt, so no action runs unreviewed.
+    expect(isInterrupted(state)).toBe(true);
+  });
+});
+
+describe('applyActionGuardrails', () => {
+  const action = (risk: 'low' | 'medium' | 'high', proposedAction = 'create_issue' as const) => [
+    { agent: 'action', summary: 's', findings: [], confidence: 0.7, risk, proposedAction },
+  ];
+  it('keeps the recommendation when risk is low or medium', () => {
+    expect(applyActionGuardrails('create_issue', action('low'))).toEqual({
+      recommendedAction: 'create_issue',
+    });
+    expect(applyActionGuardrails('notify_only', action('medium')).recommendedAction).toBe(
+      'notify_only'
+    );
+  });
+  it('overrides to human_review on high risk or when the action specialist asked for review', () => {
+    expect(applyActionGuardrails('update_issue', action('high')).recommendedAction).toBe(
+      'human_review'
+    );
+    const asked = applyActionGuardrails('create_issue', [
+      {
+        agent: 'action',
+        summary: 's',
+        findings: [],
+        confidence: 0.7,
+        risk: 'low',
+        proposedAction: 'human_review',
+      },
+    ]);
+    expect(asked.override?.reason).toBe('action specialist proposed human_review');
+  });
+  it('never downgrades an existing human_review and tolerates a missing action report', () => {
+    expect(applyActionGuardrails('human_review', action('low'))).toEqual({
+      recommendedAction: 'human_review',
+    });
+    expect(applyActionGuardrails('create_issue', [])).toEqual({
+      recommendedAction: 'create_issue',
+    });
   });
 });

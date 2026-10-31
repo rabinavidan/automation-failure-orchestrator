@@ -1,7 +1,10 @@
 name: Real-model benchmark
 
-# Manual only: a real local-model run downloads a model and takes a long time, so it never runs
+# Manual only: a real local-model run downloads a model and takes hours on CPU, so it never runs
 # on pull requests. Deterministic benchmark checks run in the normal CI quality job.
+#
+# Each agent configuration is split into shards that run as parallel jobs (one CPU runner and one
+# Ollama each), then a merge job combines them into one report with the deterministic baseline.
 on:
   workflow_dispatch:
     inputs:
@@ -10,30 +13,66 @@ on:
         default: qwen3:4b
         required: true
       configs:
-        description: Comma-separated configurations
-        default: deterministic,single_agent,multi_agent
+        description: Comma-separated agent configurations (single_agent, multi_agent)
+        default: single_agent,multi_agent
         required: true
       subset:
         description: smoke (one case per family) or full
-        default: smoke
+        default: full
         type: choice
         options: [smoke, full]
       reps:
         description: Repetitions per case (use 3+ for a full benchmark)
-        default: '1'
+        default: '3'
+        required: true
+      shards:
+        description: Parallel jobs per configuration (1-12)
+        default: '6'
         required: true
 
 permissions:
   contents: read
 
 jobs:
-  benchmark:
-    name: Benchmark on a real local model (CPU)
+  plan:
+    name: Plan shards
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        env:
+          CONFIGS: ${{ inputs.configs }}
+          SHARDS: ${{ inputs.shards }}
+          REPS: ${{ inputs.reps }}
+        run: |
+          set -euo pipefail
+          [[ "$SHARDS" =~ ^([1-9]|1[0-2])$ ]] || { echo "shards must be 1-12"; exit 1; }
+          [[ "$REPS" =~ ^[1-9]$ ]] || { echo "reps must be 1-9"; exit 1; }
+          include='[]'
+          IFS=',' read -ra cfgs <<< "$CONFIGS"
+          for c in "${cfgs[@]}"; do
+            [[ "$c" == single_agent || "$c" == multi_agent ]] || { echo "unknown config $c"; exit 1; }
+            for i in $(seq 1 "$SHARDS"); do
+              include=$(jq -c --arg c "$c" --argjson i "$i" --argjson n "$SHARDS" \
+                '. + [{config: $c, shard: $i, of: $n}]' <<< "$include")
+            done
+          done
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
+
+  shard:
+    name: ${{ matrix.config }} shard ${{ matrix.shard }}/${{ matrix.of }}
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     services:
       ollama:
-        image: ollama/ollama:0.9.0
+        # 0.9.0 failed every tool-calling request for qwen3 2507 ("failed to create tool parser").
+        image: ollama/ollama:0.35.1
         ports: ['11434:11434']
     env:
       AI_ENABLED: 'true'
@@ -54,18 +93,51 @@ jobs:
           curl -sf --retry 10 --retry-connrefused http://localhost:11434/ >/dev/null
           curl -sf -X POST http://localhost:11434/api/pull \
             -d "$(jq -n --arg m "$MODEL" '{model: $m, stream: false}')"
-      - name: Run benchmark
+      - name: Run benchmark shard
         env:
-          CONFIGS: ${{ inputs.configs }}
+          CONFIG: ${{ matrix.config }}
+          SHARD: ${{ matrix.shard }}/${{ matrix.of }}
           SUBSET: ${{ inputs.subset }}
           REPS: ${{ inputs.reps }}
         run: |
-          npm run benchmark -- --configs="$CONFIGS" --subset="$SUBSET" --reps="$REPS" \
-            --timeout-ms=900000 --out=benchmark/results/ci-run
-          cat benchmark/results/ci-run/report.md >> "$GITHUB_STEP_SUMMARY"
+          npm run benchmark -- --configs="$CONFIG" --subset="$SUBSET" --reps="$REPS" \
+            --shard="$SHARD" --timeout-ms=900000 --out=benchmark/results/part
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: benchmark-results
-          path: benchmark/results/ci-run
+          name: benchmark-part-${{ matrix.config }}-${{ matrix.shard }}
+          path: benchmark/results/part
           if-no-files-found: warn
+
+  merge:
+    name: Merge shards into one report
+    needs: shard
+    if: always() && needs.shard.result != 'cancelled'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: benchmark-part-*
+          path: benchmark/results/parts
+      - name: Merge
+        env:
+          SUBSET: ${{ inputs.subset }}
+          SHARD_RESULT: ${{ needs.shard.result }}
+        run: |
+          npm run benchmark -- --subset="$SUBSET" --merge=benchmark/results/parts \
+            --out=benchmark/results/merged
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "> **Incomplete:** at least one shard job failed; the merged report covers only the shards that finished." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          cat benchmark/results/merged/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark/results/merged
