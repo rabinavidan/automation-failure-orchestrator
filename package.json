@@ -38,14 +38,14 @@
     "benchmark:retrieval": "npm run benchmark:retrieval --workspace=apps/ingestion-service"
   },
   "devDependencies": {
-    "@eslint/js": "^9.11.0",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@eslint/js": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
     "@typescript-eslint/parser": "^8.0.0",
-    "eslint": "^9.11.0",
-    "globals": "^17.11.0",
-    "prettier": "^3.3.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.5.0",
-    "vitest": "^3.2.6"
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
   }
 }
