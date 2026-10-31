@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "commit": "2e05d89adb98dae4dfe6661c7c70ce8fa027966f",
+    "dataset": "signalops-investigation-benchmark@1.0.0",
+    "datasetCases": 35,
+    "subset": "full",
+    "humanValidatedLabels": false,
+    "configs": ["deterministic"],
+    "repetitions": 1,
+    "model": null,
+    "modelDigest": null,
+    "modelBackend": "not used",
+    "graphVersions": {
+      "ci_single": "failure-agent-v1",
+      "ci_multi": "failure-supervisor-v1",
+      "soc": "soc-supervisor-v1"
+    },
+    "triagePolicyVersion": "2026.10.1",
+    "ragEnabled": false,
+    "seed": "not set (Ollama sampling is not seeded by the graphs)",
+    "caseTimeoutMs": 180000,
+    "hardware": "linux 6.18.44-fc-v185, Intel(R) Xeon(R) Processor @ 2.10GHz x4, 16 GiB",
+    "generatedAt": "2026-10-31T08:16:07.366Z"
+  },
+  "summaries": [
+    {
+      "config": "deterministic",
+      "outcomes": 35,
+      "decision": {
+        "note": "Deterministic classification/triage; agents never override it, so it is identical across configurations.",
+        "byTrack": {
+          "ci": {
+            "n": 24,
+            "accuracy": 0.875,
+            "macroF1": 0.9082491582491583
+          },
+          "soc": {
+            "n": 11,
+            "accuracy": 1,
+            "macroF1": 1
+          }
+        },
+        "bySplit": {
+          "dev": {
+            "n": 19,
+            "accuracy": 1
+          },
+          "heldout": {
+            "n": 16,
+            "accuracy": 0.8125
+          }
+        },
+        "confusion": {
+          "ci": {
+            "infrastructure": {
+              "infrastructure": 5
+            },
+            "automation_failure": {
+              "automation_failure": 4
+            },
+            "new_regression": {
+              "new_regression": 4,
+              "infrastructure": 2,
+              "automation_failure": 1
+            },
+            "flaky": {
+              "flaky": 3
+            },
+            "known_bug": {
+              "known_bug": 4
+            },
+            "possibly_fixed": {
+              "possibly_fixed": 1
+            }
+          },
+          "soc": {
+            "true_positive": {
+              "true_positive": 4
+            },
+            "false_positive": {
+              "false_positive": 2
+            },
+            "benign_true_positive": {
+              "benign_true_positive": 2
+            },
+            "needs_investigation": {
+              "needs_investigation": 2
+            },
+            "duplicate": {
+              "duplicate": 1
+            }
+          }
+        }
+      },
+      "agent": null,
+      "cost": {
+        "latencyMsP50": 0,
+        "latencyMsP95": 1,
+        "modelCallsPerCase": 0,
+        "promptTokensPerCase": 0,
+        "completionTokensPerCase": 0
+      }
+    }
+  ]
+}

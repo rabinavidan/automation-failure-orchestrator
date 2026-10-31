@@ -1,0 +1,71 @@
+name: Real-model benchmark
+
+# Manual only: a real local-model run downloads a model and takes a long time, so it never runs
+# on pull requests. Deterministic benchmark checks run in the normal CI quality job.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Ollama model tag
+        default: qwen3:4b
+        required: true
+      configs:
+        description: Comma-separated configurations
+        default: deterministic,single_agent,multi_agent
+        required: true
+      subset:
+        description: smoke (one case per family) or full
+        default: smoke
+        type: choice
+        options: [smoke, full]
+      reps:
+        description: Repetitions per case (use 3+ for a full benchmark)
+        default: '1'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Benchmark on a real local model (CPU)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    services:
+      ollama:
+        image: ollama/ollama:0.9.0
+        ports: ['11434:11434']
+    env:
+      AI_ENABLED: 'true'
+      OLLAMA_HOST: http://localhost:11434
+      OLLAMA_MODEL: ${{ inputs.model }}
+      OLLAMA_TIMEOUT_MS: '600000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Pull model through the Ollama API
+        env:
+          MODEL: ${{ inputs.model }}
+        run: |
+          curl -sf --retry 10 --retry-connrefused http://localhost:11434/ >/dev/null
+          curl -sf -X POST http://localhost:11434/api/pull \
+            -d "$(jq -n --arg m "$MODEL" '{model: $m, stream: false}')"
+      - name: Run benchmark
+        env:
+          CONFIGS: ${{ inputs.configs }}
+          SUBSET: ${{ inputs.subset }}
+          REPS: ${{ inputs.reps }}
+        run: |
+          npm run benchmark -- --configs="$CONFIGS" --subset="$SUBSET" --reps="$REPS" \
+            --timeout-ms=900000 --out=benchmark/results/ci-run
+          cat benchmark/results/ci-run/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: benchmark/results/ci-run
+          if-no-files-found: warn

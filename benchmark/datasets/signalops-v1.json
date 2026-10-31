@@ -1,0 +1,842 @@
+{
+  "name": "signalops-investigation-benchmark",
+  "version": "1.0.0",
+  "createdAt": "2026-10-31",
+  "provenance": {
+    "source": "synthetic",
+    "author": "Claude Code (AI-authored), from the repository's own rule docs and demo scenarios",
+    "humanValidated": false,
+    "note": "Labels are the author's judgement of the correct engineering/SOC outcome, not human-reviewed ground truth. Several cases are deliberately adversarial to the deterministic rules. No real customer data."
+  },
+  "splitPolicy": "Every case in a scenario family shares one split, so paraphrases of the same incident never appear in both dev and heldout.",
+  "socNow": "2026-10-31T12:00:00Z",
+  "cases": [
+    {
+      "id": "ci-infra-net-01",
+      "track": "ci",
+      "family": "infra-network",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "Error",
+          "message": "connect ECONNREFUSED 10.0.4.12:5432 while seeding orders fixture"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "infrastructure",
+        "acceptableActions": ["notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-infra-net-02",
+      "track": "ci",
+      "family": "infra-network",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "Error",
+          "message": "page.goto: net::ERR_CONNECTION_TIMED_OUT ETIMEDOUT at https://staging.shop.local/checkout"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "infrastructure",
+        "acceptableActions": ["notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-infra-net-03",
+      "track": "ci",
+      "family": "infra-network",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "Error",
+          "message": "Request to /api/inventory failed: 504 Gateway Timeout from ingress"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "infrastructure",
+        "acceptableActions": ["notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-infra-browser-01",
+      "track": "ci",
+      "family": "infra-browser",
+      "split": "heldout",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "Error",
+          "message": "browserType.launch: Executable doesn't exist; Chromium not found in /ms-playwright"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "infrastructure",
+        "acceptableActions": ["notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-infra-browser-02",
+      "track": "ci",
+      "family": "infra-browser",
+      "split": "heldout",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "Error",
+          "message": "Failed to launch browser process: pod runner-7 unavailable after OOM"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "infrastructure",
+        "acceptableActions": ["notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-auto-selector-01",
+      "track": "ci",
+      "family": "automation-selector",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "Error",
+          "message": "locator.click: Error: strict mode violation: getByRole('button', { name: 'Buy' }) resolved to 2 elements"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "automation_failure",
+        "acceptableActions": ["create_issue", "notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-auto-selector-02",
+      "track": "ci",
+      "family": "automation-selector",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "TimeoutError",
+          "message": "page.waitForSelector: Timeout 30000ms exceeded waiting for selector '[data-test=cart-badge]'"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "automation_failure",
+        "acceptableActions": ["create_issue", "notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-auto-setup-01",
+      "track": "ci",
+      "family": "automation-setup",
+      "split": "heldout",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "Error",
+          "message": "Cannot find module '../fixtures/premium-user' from tests/checkout.spec.ts"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "automation_failure",
+        "acceptableActions": ["create_issue", "notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-auto-setup-02",
+      "track": "ci",
+      "family": "automation-setup",
+      "split": "heldout",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "Error",
+          "message": "beforeAll hook failed: test setup failed creating tenant (seed script exited 1)"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "automation_failure",
+        "acceptableActions": ["create_issue", "notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-regress-assert-01",
+      "track": "ci",
+      "family": "regression-assertion",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "expect(received).toBe(expected): Expected status 201, received 500 from POST /api/orders"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "new_regression",
+        "acceptableActions": ["create_issue", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-regress-assert-02",
+      "track": "ci",
+      "family": "regression-assertion",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "Expected order total 42.00 but received 40.00 after applying coupon SAVE5"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "new_regression",
+        "acceptableActions": ["create_issue", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-regress-assert-03",
+      "track": "ci",
+      "family": "regression-assertion",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "TypeError",
+          "message": "Cannot read properties of undefined (reading 'price') at CartSummary.render"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "new_regression",
+        "acceptableActions": ["create_issue", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-regress-adversarial-01",
+      "track": "ci",
+      "family": "regression-adversarial",
+      "split": "heldout",
+      "ambiguous": false,
+      "note": "Product regression whose assertion text mentions 'Service unavailable'; the infrastructure regex matches it.",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "expected error banner 'Service unavailable, try later' to be hidden after successful payment"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "new_regression",
+        "acceptableActions": ["create_issue", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-regress-adversarial-02",
+      "track": "ci",
+      "family": "regression-adversarial",
+      "split": "heldout",
+      "ambiguous": true,
+      "note": "API returned an HTML error page; the automation regex matches SyntaxError. Could be a backend regression or an environment routing problem.",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "SyntaxError",
+          "message": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON when parsing GET /api/catalog"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "new_regression",
+        "acceptableActions": ["create_issue", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-regress-adversarial-03",
+      "track": "ci",
+      "family": "regression-adversarial",
+      "split": "heldout",
+      "ambiguous": false,
+      "note": "Assertion on a business rule mentioning a DNS record name; the infrastructure regex matches \\bDNS\\b.",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "Expected custom domain wizard to show DNS TXT verification step, but step 3 was skipped"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "new_regression",
+        "acceptableActions": ["create_issue", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-flaky-retry-01",
+      "track": "ci",
+      "family": "flaky-retry",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "Expected toast 'Saved' to be visible within 2000ms"
+        },
+        "retry": 1,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "flaky",
+        "acceptableActions": ["notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-flaky-retry-02",
+      "track": "ci",
+      "family": "flaky-retry",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "Expected notification count 3, received 2 (websocket update arrived late)"
+        },
+        "retry": 2,
+        "history": null,
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "flaky",
+        "acceptableActions": ["notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-flaky-history-01",
+      "track": "ci",
+      "family": "flaky-history",
+      "split": "heldout",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "Expected search results to be sorted by relevance"
+        },
+        "retry": 0,
+        "history": {
+          "runCount": 5,
+          "lastStatuses": ["passed", "failed", "passed", "failed", "passed"],
+          "consecutivePasses": 0
+        },
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "flaky",
+        "acceptableActions": ["notify_only", "human_review"],
+        "requiredTools": ["get_failure_history"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-flaky-history-02",
+      "track": "ci",
+      "family": "flaky-history",
+      "split": "heldout",
+      "note": "Consistently failing, not flaky: history has no transitions.",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "Expected invoice PDF to contain VAT line"
+        },
+        "retry": 0,
+        "history": {
+          "runCount": 4,
+          "lastStatuses": ["failed", "failed", "failed", "failed"],
+          "consecutivePasses": 0
+        },
+        "existingIssue": null
+      },
+      "expected": {
+        "classification": "new_regression",
+        "acceptableActions": ["create_issue", "human_review"],
+        "requiredTools": ["get_failure_history"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-known-bug-01",
+      "track": "ci",
+      "family": "known-bug",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "Expected refund status 'completed', received 'pending'"
+        },
+        "retry": 0,
+        "history": {
+          "runCount": 6,
+          "lastStatuses": ["failed", "failed", "failed"],
+          "consecutivePasses": 0,
+          "jiraIssueKey": "AUTO-412"
+        },
+        "existingIssue": "AUTO-412"
+      },
+      "expected": {
+        "classification": "known_bug",
+        "acceptableActions": ["update_issue", "notify_only", "human_review"],
+        "requiredTools": ["get_related_jira_issue"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-known-bug-02",
+      "track": "ci",
+      "family": "known-bug",
+      "split": "dev",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "AssertionError",
+          "message": "Expected 2FA code e-mail to arrive within 10s"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": "AUTO-377"
+      },
+      "expected": {
+        "classification": "known_bug",
+        "acceptableActions": ["update_issue", "notify_only", "human_review"],
+        "requiredTools": ["get_related_jira_issue"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-known-bug-infra-01",
+      "track": "ci",
+      "family": "known-bug-precedence",
+      "split": "heldout",
+      "note": "Tracked bug whose message also looks like infrastructure; known_bug has priority.",
+      "ci": {
+        "status": "failed",
+        "error": {
+          "name": "Error",
+          "message": "connect ECONNREFUSED 10.0.9.3:6379 from session cache (tracked)"
+        },
+        "retry": 0,
+        "history": null,
+        "existingIssue": "AUTO-501"
+      },
+      "expected": {
+        "classification": "known_bug",
+        "acceptableActions": ["update_issue", "notify_only", "human_review"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-recovery-01",
+      "track": "ci",
+      "family": "recovery",
+      "split": "dev",
+      "ci": {
+        "status": "passed",
+        "error": null,
+        "retry": 0,
+        "history": {
+          "runCount": 9,
+          "lastStatuses": ["failed", "passed", "passed", "passed"],
+          "consecutivePasses": 3,
+          "jiraIssueKey": "AUTO-300"
+        },
+        "existingIssue": "AUTO-300"
+      },
+      "expected": {
+        "classification": "possibly_fixed",
+        "acceptableActions": ["update_issue", "notify_only"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "ci-recovery-02",
+      "track": "ci",
+      "family": "recovery",
+      "split": "dev",
+      "note": "Only two passes since the fix: below the recovery threshold, so it is still a known bug.",
+      "ci": {
+        "status": "passed",
+        "error": null,
+        "retry": 0,
+        "history": {
+          "runCount": 7,
+          "lastStatuses": ["failed", "passed", "passed"],
+          "consecutivePasses": 2,
+          "jiraIssueKey": "AUTO-301"
+        },
+        "existingIssue": "AUTO-301"
+      },
+      "expected": {
+        "classification": "known_bug",
+        "acceptableActions": ["update_issue", "notify_only"],
+        "forbiddenTools": []
+      }
+    },
+    {
+      "id": "soc-bruteforce-01",
+      "track": "soc",
+      "family": "bruteforce-malicious",
+      "split": "dev",
+      "soc": {
+        "ruleId": "Access - Brute Force Access Behavior Detected - Rule",
+        "severity": "high",
+        "host": "vpn-gw-01",
+        "user": "jdoe",
+        "indicators": [
+          {
+            "type": "ip",
+            "value": "203.0.113.50",
+            "role": "source",
+            "verdict": "malicious",
+            "score": 100
+          }
+        ],
+        "techniques": ["T1110"],
+        "suppressed": false,
+        "occurrenceCount": 1
+      },
+      "expected": {
+        "disposition": "true_positive",
+        "acceptableResponses": ["contain", "investigate"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-bruteforce-02",
+      "track": "soc",
+      "family": "bruteforce-malicious",
+      "split": "dev",
+      "soc": {
+        "ruleId": "Access - Excessive Failed Logins - Rule",
+        "severity": "medium",
+        "host": "sso-01",
+        "user": "asmith",
+        "indicators": [
+          {
+            "type": "ip",
+            "value": "198.51.100.23",
+            "role": "source",
+            "verdict": "malicious",
+            "score": 92
+          }
+        ],
+        "techniques": ["T1110.003"],
+        "suppressed": false,
+        "occurrenceCount": 3
+      },
+      "expected": {
+        "disposition": "true_positive",
+        "acceptableResponses": ["contain", "investigate"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-scanner-01",
+      "track": "soc",
+      "family": "scanner-allowlisted",
+      "split": "dev",
+      "soc": {
+        "ruleId": "Network - Port Scan Detected - Rule",
+        "severity": "medium",
+        "host": "web-02",
+        "indicators": [
+          { "type": "ip", "value": "192.0.2.10", "role": "source", "verdict": "clean", "score": 0 }
+        ],
+        "techniques": ["T1046"],
+        "suppressed": false,
+        "occurrenceCount": 1
+      },
+      "expected": {
+        "disposition": "false_positive",
+        "acceptableResponses": ["close", "monitor"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-redteam-01",
+      "track": "soc",
+      "family": "redteam-range",
+      "split": "heldout",
+      "soc": {
+        "ruleId": "Endpoint - Suspicious Lateral Movement - Rule",
+        "severity": "high",
+        "host": "app-11",
+        "indicators": [
+          {
+            "type": "ip",
+            "value": "192.0.2.150",
+            "role": "source",
+            "verdict": "suspicious",
+            "score": 40
+          }
+        ],
+        "techniques": ["T1021"],
+        "suppressed": false,
+        "occurrenceCount": 1
+      },
+      "expected": {
+        "disposition": "false_positive",
+        "acceptableResponses": ["close", "monitor"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-benign-monitor-01",
+      "track": "soc",
+      "family": "known-benign",
+      "split": "heldout",
+      "soc": {
+        "ruleId": "Access - Brute Force Access Behavior Detected - Rule",
+        "severity": "medium",
+        "host": "sso-01",
+        "user": "svc_healthcheck",
+        "indicators": [
+          { "type": "ip", "value": "10.20.0.5", "role": "source", "verdict": "unknown", "score": 0 }
+        ],
+        "techniques": ["T1110"],
+        "suppressed": false,
+        "occurrenceCount": 1
+      },
+      "expected": {
+        "disposition": "benign_true_positive",
+        "acceptableResponses": ["close", "monitor"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-benign-backup-01",
+      "track": "soc",
+      "family": "known-benign",
+      "split": "heldout",
+      "soc": {
+        "ruleId": "Endpoint - Encoded PowerShell Execution - Rule",
+        "severity": "medium",
+        "host": "fs-03",
+        "user": "svc_backup",
+        "indicators": [],
+        "techniques": ["T1059.001"],
+        "suppressed": false,
+        "occurrenceCount": 1
+      },
+      "expected": {
+        "disposition": "benign_true_positive",
+        "acceptableResponses": ["close", "monitor"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-unknown-01",
+      "track": "soc",
+      "family": "unknown-source",
+      "split": "heldout",
+      "soc": {
+        "ruleId": "Network - Unusual Outbound Transfer - Rule",
+        "severity": "medium",
+        "host": "db-07",
+        "indicators": [
+          {
+            "type": "ip",
+            "value": "203.0.113.200",
+            "role": "destination",
+            "verdict": "clean",
+            "score": 5
+          }
+        ],
+        "techniques": ["T1048"],
+        "suppressed": false,
+        "occurrenceCount": 1
+      },
+      "expected": {
+        "disposition": "needs_investigation",
+        "acceptableResponses": ["investigate", "monitor"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-duplicate-01",
+      "track": "soc",
+      "family": "duplicate",
+      "split": "dev",
+      "soc": {
+        "ruleId": "Access - Brute Force Access Behavior Detected - Rule",
+        "severity": "high",
+        "host": "vpn-gw-01",
+        "user": "jdoe",
+        "indicators": [
+          {
+            "type": "ip",
+            "value": "203.0.113.50",
+            "role": "source",
+            "verdict": "malicious",
+            "score": 100
+          }
+        ],
+        "techniques": ["T1110"],
+        "suppressed": true,
+        "occurrenceCount": 4
+      },
+      "expected": {
+        "disposition": "duplicate",
+        "acceptableResponses": ["close", "monitor"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-ransomware-01",
+      "track": "soc",
+      "family": "critical-technique",
+      "split": "heldout",
+      "soc": {
+        "ruleId": "Endpoint - Mass File Encryption - Rule",
+        "severity": "critical",
+        "host": "fs-01",
+        "user": "mlee",
+        "indicators": [
+          {
+            "type": "process",
+            "value": "vssadmin.exe",
+            "role": "observed",
+            "verdict": "unknown",
+            "score": 0
+          }
+        ],
+        "techniques": ["T1486", "T1490"],
+        "suppressed": false,
+        "occurrenceCount": 1
+      },
+      "expected": {
+        "disposition": "true_positive",
+        "acceptableResponses": ["contain", "investigate"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-ambiguous-backup-01",
+      "track": "soc",
+      "family": "benign-vs-intel-conflict",
+      "split": "heldout",
+      "ambiguous": true,
+      "note": "Known-benign service account, but the destination is flagged malicious. Threat intel wins in the chain; a human should confirm.",
+      "soc": {
+        "ruleId": "Endpoint - Encoded PowerShell Execution - Rule",
+        "severity": "medium",
+        "host": "fs-03",
+        "user": "svc_backup",
+        "indicators": [
+          {
+            "type": "ip",
+            "value": "198.51.100.77",
+            "role": "destination",
+            "verdict": "malicious",
+            "score": 88
+          }
+        ],
+        "techniques": ["T1059.001"],
+        "suppressed": false,
+        "occurrenceCount": 1
+      },
+      "expected": {
+        "disposition": "true_positive",
+        "acceptableResponses": ["investigate", "contain"],
+        "approvalRequiredIfContain": true
+      }
+    },
+    {
+      "id": "soc-ambiguous-unenriched-01",
+      "track": "soc",
+      "family": "enrichment-unavailable",
+      "split": "dev",
+      "ambiguous": true,
+      "note": "Enrichment failed (fail-open). High-severity credential dumping without the critical flag: analyst queue, not auto true_positive.",
+      "soc": {
+        "ruleId": "Endpoint - LSASS Memory Access - Rule",
+        "severity": "high",
+        "host": "ws-112",
+        "user": "rkim",
+        "indicators": [{ "type": "ip", "value": "203.0.113.61", "role": "destination" }],
+        "techniques": ["T1003.001"],
+        "suppressed": false,
+        "occurrenceCount": 1,
+        "enrichmentUnavailable": true
+      },
+      "expected": {
+        "disposition": "needs_investigation",
+        "acceptableResponses": ["investigate", "contain"],
+        "approvalRequiredIfContain": true
+      }
+    }
+  ]
+}

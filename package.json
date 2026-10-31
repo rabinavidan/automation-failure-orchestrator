@@ -32,7 +32,9 @@
     "ollama:stub": "node scripts/ollama-demo-stub.mjs",
     "shuffle:setup": "node scripts/shuffle-playbook.mjs setup",
     "shuffle:run": "node scripts/shuffle-playbook.mjs run",
-    "test:python": "cd apps/enrichment-service && ruff check . && ruff format --check . && mypy && pytest -q"
+    "test:python": "cd apps/enrichment-service && ruff check . && ruff format --check . && mypy && pytest -q",
+    "benchmark": "npm run benchmark --workspace=apps/ingestion-service --",
+    "benchmark:retrieval": "npm run benchmark:retrieval --workspace=apps/ingestion-service"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.0",

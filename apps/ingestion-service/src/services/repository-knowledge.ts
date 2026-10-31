@@ -165,18 +165,19 @@ export function cosineSimilarity(left: number[], right: number[]): number {
   return leftNorm && rightNorm ? dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm)) : 0;
 }
 
-export async function searchRepositoryKnowledge(
-  searchText: string,
-  topK = 4,
-  embedder: TextEmbedder = defaultEmbedder()
-): Promise<KnowledgeMatch[]> {
-  const queryEmbedding = await embedder.getTextEmbedding(searchText);
-  const rows = await query<{
-    source_path: string;
-    chunk_index: number;
-    content: string;
-    embedding: number[];
-  }>('SELECT source_path, chunk_index, content, embedding FROM repository_knowledge_chunks');
+export interface StoredChunk {
+  source_path: string;
+  chunk_index: number;
+  content: string;
+  embedding: number[];
+}
+
+/** Pure ranking step, shared by search and the retrieval benchmark. topK is clamped to 1..8. */
+export function rankKnowledgeChunks(
+  queryEmbedding: number[],
+  rows: StoredChunk[],
+  topK = 4
+): KnowledgeMatch[] {
   return rows
     .map((row) => ({
       sourcePath: row.source_path,
@@ -188,10 +189,36 @@ export async function searchRepositoryKnowledge(
     .slice(0, Math.min(Math.max(topK, 1), 8));
 }
 
+/**
+ * Only chunks embedded with the active embedding model are compared. Vectors from different
+ * models are not comparable even when their dimensions match, so after a model change the
+ * index must be rebuilt (POST /api/knowledge/reindex); until then search returns nothing.
+ */
+export async function searchRepositoryKnowledge(
+  searchText: string,
+  topK = 4,
+  embedder: TextEmbedder = defaultEmbedder(),
+  model: string = embeddingModel()
+): Promise<KnowledgeMatch[]> {
+  const queryEmbedding = await embedder.getTextEmbedding(searchText);
+  const rows = await query<StoredChunk>(
+    `SELECT source_path, chunk_index, content, embedding
+     FROM repository_knowledge_chunks WHERE embedding_model = $1`,
+    [model]
+  );
+  return rankKnowledgeChunks(queryEmbedding, rows, topK);
+}
+
 export async function getRepositoryKnowledgeStatus() {
-  const counts = await query<{ chunk_count: string; source_count: string }>(
-    `SELECT COUNT(*) AS chunk_count, COUNT(DISTINCT source_path) AS source_count
-     FROM repository_knowledge_chunks`
+  const counts = await query<{
+    chunk_count: string;
+    source_count: string;
+    active_model_chunks: string;
+  }>(
+    `SELECT COUNT(*) AS chunk_count, COUNT(DISTINCT source_path) AS source_count,
+            COUNT(*) FILTER (WHERE embedding_model = $1) AS active_model_chunks
+     FROM repository_knowledge_chunks`,
+    [embeddingModel()]
   );
   const latest = await query(
     `SELECT status, embedding_model, file_count, chunk_count, error, started_at, finished_at
@@ -200,6 +227,9 @@ export async function getRepositoryKnowledgeStatus() {
   return {
     chunkCount: Number.parseInt(counts[0]?.chunk_count ?? '0', 10),
     sourceCount: Number.parseInt(counts[0]?.source_count ?? '0', 10),
+    embeddingModel: embeddingModel(),
+    /** Chunks searchable with the active embedding model; less than chunkCount means reindex. */
+    activeModelChunkCount: Number.parseInt(counts[0]?.active_model_chunks ?? '0', 10),
     latestRun: latest[0] ?? null,
   };
 }

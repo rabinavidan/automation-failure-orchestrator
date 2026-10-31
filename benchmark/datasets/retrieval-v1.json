@@ -1,0 +1,78 @@
+{
+  "name": "signalops-retrieval",
+  "version": "1.0.0",
+  "provenance": {
+    "source": "synthetic",
+    "author": "Claude Code (AI-authored) from the repository layout",
+    "humanValidated": false,
+    "note": "Each query lists the repository paths a correct answer must come from. Paths not listed act as distractors, including near-miss documents on the same topic."
+  },
+  "queries": [
+    {
+      "id": "r-webhook-secret",
+      "query": "How is the webhook secret header validated on incoming test runs?",
+      "relevant": ["apps/ingestion-service/src/middleware/webhook-secret.ts"]
+    },
+    {
+      "id": "r-fingerprint-normalize",
+      "query": "Which dynamic values are stripped from error messages before fingerprinting?",
+      "relevant": ["packages/fingerprint-engine/src/normalizer.ts"]
+    },
+    {
+      "id": "r-flaky-rule",
+      "query": "When is a test classified as flaky based on retries or status transitions?",
+      "relevant": ["packages/failure-classifier/src/rules/flaky.ts"]
+    },
+    {
+      "id": "r-infra-patterns",
+      "query": "What error patterns mark a failure as infrastructure such as ECONNREFUSED or gateway timeout?",
+      "relevant": ["packages/failure-classifier/src/rules/infrastructure.ts"]
+    },
+    {
+      "id": "r-recovery",
+      "query": "How many consecutive passes before a known bug is considered possibly fixed?",
+      "relevant": ["packages/failure-classifier/src/rules/recovery.ts"]
+    },
+    {
+      "id": "r-approval-table",
+      "query": "Where are human approval requests for paused agent investigations stored?",
+      "relevant": [
+        "database/migrations/006_add_approval_requests.sql",
+        "apps/ingestion-service/src/services/approval-requests.ts"
+      ]
+    },
+    {
+      "id": "r-model-calls",
+      "query": "Which table records per-call model, prompt tokens, completion tokens and latency?",
+      "relevant": [
+        "database/migrations/008_add_agent_observability.sql",
+        "apps/ingestion-service/src/services/agent-telemetry.ts"
+      ]
+    },
+    {
+      "id": "r-brute-force-runbook",
+      "query": "Containment steps for a password spraying or brute force attack",
+      "relevant": ["docs/runbooks/credential-brute-force.md"]
+    },
+    {
+      "id": "r-ransomware-runbook",
+      "query": "What to do when mass file encryption and shadow copy deletion are detected",
+      "relevant": ["docs/runbooks/ransomware.md"]
+    },
+    {
+      "id": "r-lsass-runbook",
+      "query": "Response for LSASS memory access and credential dumping",
+      "relevant": ["docs/runbooks/credential-dumping.md"]
+    },
+    {
+      "id": "r-protected-hosts",
+      "query": "How are domain controllers protected from automatic host isolation?",
+      "relevant": ["apps/ingestion-service/src/services/response-actions.ts"]
+    },
+    {
+      "id": "r-triage-chain",
+      "query": "Order of SOC triage dispositions: false positive, duplicate, true positive, benign, needs investigation",
+      "relevant": ["packages/failure-classifier/src/alert-triage/triage.ts"]
+    }
+  ]
+}

@@ -8,7 +8,7 @@ export interface AgentEvaluationResult {
     specialistCoverage: boolean;
     repositoryGrounded: boolean;
     safeHighRiskPolicy: boolean;
-    confidenceCalibrated: boolean;
+    confidenceInRange: boolean;
   };
   failures: string[];
 }
@@ -37,7 +37,7 @@ export function evaluateAgentInvestigation(
         (investigation.sources?.length ?? 0) > 0),
     safeHighRiskPolicy:
       actionReport?.risk !== 'high' || investigation.recommendedAction === 'human_review',
-    confidenceCalibrated:
+    confidenceInRange:
       investigation.confidence >= 0 &&
       investigation.confidence <= 1 &&
       reports.every((report) => report.confidence >= 0 && report.confidence <= 1),
@@ -47,7 +47,7 @@ export function evaluateAgentInvestigation(
     specialistCoverage: 'required specialist reports are missing',
     repositoryGrounded: 'RAG investigation has no repository tool evidence or citations',
     safeHighRiskPolicy: 'high-risk action bypassed human review',
-    confidenceCalibrated: 'confidence is outside the 0..1 range',
+    confidenceInRange: 'confidence is outside the 0..1 range',
   };
   const failures = (Object.keys(metrics) as Array<keyof typeof metrics>)
     .filter((key) => !metrics[key])
