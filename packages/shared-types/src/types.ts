@@ -259,7 +259,7 @@ export interface SocEvaluationResult {
     runbookGrounded: boolean;
     safeContainmentPolicy: boolean;
     triageRespected: boolean;
-    confidenceCalibrated: boolean;
+    confidenceInRange: boolean;
   };
   failures: string[];
   ungroundedIndicators: string[];

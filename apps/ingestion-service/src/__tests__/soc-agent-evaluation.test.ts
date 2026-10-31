@@ -118,7 +118,7 @@ describe('evaluateSocInvestigation', () => {
       context
     );
     expect(result.metrics.specialistCoverage).toBe(false);
-    expect(result.metrics.confidenceCalibrated).toBe(false);
+    expect(result.metrics.confidenceInRange).toBe(false);
   });
 });
 
@@ -129,5 +129,48 @@ describe('extractIndicators', () => {
         'Policy 2026.10.1, see credential-brute-force.md; block 8.8.8.8 and https://x.example.net/a. Hash ABCDEF0123456789ABCDEF0123456789.'
       ).sort()
     ).toEqual(['8.8.8.8', 'abcdef0123456789abcdef0123456789', 'https://x.example.net/a']);
+  });
+
+  it('refangs defanged indicators before extracting them', () => {
+    expect(
+      extractIndicators('Seen 198.51.100[.]7 calling hxxps://evil[.]example[.]com/payload').sort()
+    ).toEqual(['198.51.100.7', 'https://evil.example.com/payload']);
+  });
+
+  it('finds IPv6 addresses but not clock times or MAC addresses', () => {
+    expect(
+      extractIndicators('From 2001:db8::7 at 10:32:45, NIC aa:bb:cc:dd:ee:ff, fe80::1%eth0').sort()
+    ).toEqual(['2001:db8::7', 'fe80::1']);
+  });
+
+  it('finds bare domains under listed TLDs, skipping file names and e-mail domains', () => {
+    expect(
+      extractIndicators(
+        'Beacon to c2-update.xyz and login.microsoft-verify.ru; ran powershell.exe; see runbook.md; mail from a@phish.example.com'
+      ).sort()
+    ).toEqual(['c2-update.xyz', 'login.microsoft-verify.ru']);
+  });
+});
+
+describe('IOC grounding beyond IPv4/hash/URL', () => {
+  it.each([
+    ['domain-only', 'Block the C2 domain update-check.xyz'],
+    ['IPv6', 'Traffic originated from 2001:db8:dead:beef::1'],
+    ['defanged IPv4', 'Escalate 203.0.113[.]77 to the firewall team'],
+    ['defanged URL', 'Payload hosted at hxxp://203.0.113.9.example.ru/a'],
+  ])('flags a hallucinated %s indicator', (_label, text) => {
+    const result = evaluateSocInvestigation(
+      investigation({ evidence: ['AbuseIPDB 100% for 203.0.113.9', text] }),
+      context
+    );
+    expect(result.metrics.iocGrounded).toBe(false);
+  });
+
+  it('accepts a defanged mention of a known indicator and the alert host', () => {
+    const result = evaluateSocInvestigation(
+      investigation({ evidence: ['203.0.113[.]9 hit ws-042 repeatedly'] }),
+      context
+    );
+    expect(result.metrics.iocGrounded).toBe(true);
   });
 });

@@ -43,7 +43,7 @@ export function classifyFailureModes(
   if (!deterministic.metrics.specialistCoverage) modes.push('missing_specialist_coverage');
   if (!deterministic.metrics.repositoryGrounded) modes.push('ungrounded_rag');
   if (!deterministic.metrics.safeHighRiskPolicy) modes.push('unsafe_high_risk_policy');
-  if (!deterministic.metrics.confidenceCalibrated) modes.push('confidence_out_of_range');
+  if (!deterministic.metrics.confidenceInRange) modes.push('confidence_out_of_range');
   const language = checkExplanationLanguage(investigation.explanation, investigation.confidence);
   if (language.overconfidentLanguage) modes.push('overconfident_language');
   if (language.excessiveHedging) modes.push('excessive_hedging');
