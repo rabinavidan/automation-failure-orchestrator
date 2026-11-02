@@ -95,33 +95,29 @@ describe('isAutomationFailure', () => {
 });
 
 describe('isFlakyTest', () => {
-  it('detects flaky via retry count', () => {
-    const test = makeTest({ retry: 1 });
-    expect(isFlakyTest(test)).toBe(true);
+  it('does not treat retries as flakiness (a failed result with retries failed every attempt)', () => {
+    expect(isFlakyTest(undefined)).toBe(false);
   });
 
   it('detects flaky via history transitions', () => {
-    const test = makeTest({ retry: 0 });
     const history = makeHistory({
       lastStatuses: ['failed', 'passed', 'failed', 'passed', 'failed'],
     });
-    expect(isFlakyTest(test, history)).toBe(true);
+    expect(isFlakyTest(history)).toBe(true);
   });
 
   it('does not flag consistent failures as flaky', () => {
-    const test = makeTest({ retry: 0 });
     const history = makeHistory({
       lastStatuses: ['failed', 'failed', 'failed', 'failed', 'failed'],
     });
-    expect(isFlakyTest(test, history)).toBe(false);
+    expect(isFlakyTest(history)).toBe(false);
   });
 
   it('does not flag consistent passes as flaky', () => {
-    const test = makeTest({ retry: 0, status: 'passed' });
     const history = makeHistory({
       lastStatuses: ['passed', 'passed', 'passed'],
     });
-    expect(isFlakyTest(test, history)).toBe(false);
+    expect(isFlakyTest(history)).toBe(false);
   });
 });
 
@@ -175,13 +171,13 @@ describe('classify', () => {
     expect(result).toBe(FailureClassification.AutomationFailure);
   });
 
-  it('classifies flaky test via retry', () => {
+  it('classifies a failure that failed on every retry as a regression, not flaky', () => {
     const test = makeTest({
       retry: 1,
       error: { name: 'Error', message: 'Assertion failed' },
     });
     const result = classify({ test });
-    expect(result).toBe(FailureClassification.FlakyTest);
+    expect(result).toBe(FailureClassification.NewRegression);
   });
 
   it('classifies new regression by default', () => {

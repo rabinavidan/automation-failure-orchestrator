@@ -1,0 +1,21 @@
+{
+  "name": "@orchestrator/playwright-reporter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright reporter that emits the SignalOps webhook contract (one record per test, final outcome)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@orchestrator/shared-types": "*"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.47"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

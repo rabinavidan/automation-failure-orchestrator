@@ -44,7 +44,7 @@ npm run demo:known-bug
 
 ## Scenario 3: Flaky Test
 
-Test with `retry: 1` — indicates it failed then was retried.
+A test that failed, then passed on retry: `status: "passed"` with `retry: 1` and the first attempt's error. (A `failed` result with `retry > 0` failed on every attempt and is classified like any other failure.)
 
 ```bash
 npm run demo:flaky-test
