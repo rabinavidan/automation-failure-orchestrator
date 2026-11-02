@@ -35,3 +35,33 @@ def supervisor_run(
             "explanation": "New server error on the order endpoint",
         },
     ]
+
+
+def soc_run(
+    *,
+    evidence: list[str] | None = None,
+    recommended: str = "contain",
+    planner_risk: str = "high",
+    runbooks: list[str] | None = None,
+) -> list[Json | str]:
+    """Scripted replies for soc-supervisor-v1: triage analyst, threat intel, response planner,
+    supervisor."""
+    return [
+        specialist("triage analyst: repeated failed logins against one account"),
+        specialist("threat intel: source IP is known malicious"),
+        {
+            **specialist("response planner: block the source"),
+            "proposedResponse": recommended,
+            "risk": planner_risk,
+        },
+        {
+            "summary": "Brute force from a known-bad source",
+            "attackNarrative": "Password guessing against a workstation account",
+            "evidence": evidence or ["Failed logins from 203.0.113.7"],
+            "recommendedResponse": recommended,
+            "responseSteps": ["Block the source IP at the edge firewall"],
+            "confidence": 0.8,
+            "explanation": "Threat intel and the failed-login burst agree",
+            "citedRunbooks": runbooks if runbooks is not None else ["credential-brute-force.md"],
+        },
+    ]

@@ -69,18 +69,19 @@ def mcp(settings: Settings, ingestion_ai: IngestionClient) -> Iterator[McpClient
 
 
 @pytest.fixture(scope="session")
-def _mock_session(settings: Settings) -> Iterator[MockIntegrationsClient]:
+def mock_session(settings: Settings) -> Iterator[MockIntegrationsClient]:
     _wait_healthy(f"{settings.mock_url}/health")
+    """Mock integrations without the per-test reset: for reading what another system wrote."""
     client = MockIntegrationsClient(settings.mock_url)
     yield client
     client.close()
 
 
 @pytest.fixture
-def mock(_mock_session: MockIntegrationsClient) -> MockIntegrationsClient:
+def mock(mock_session: MockIntegrationsClient) -> MockIntegrationsClient:
     """Mock Jira/Slack/EDR/firewall, emptied before the test."""
-    _mock_session.reset()
-    return _mock_session
+    mock_session.reset()
+    return mock_session
 
 
 @pytest.fixture(scope="session")

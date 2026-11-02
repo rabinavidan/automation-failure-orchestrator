@@ -3,15 +3,15 @@
  * through Shuffle's REST API. Zero cost; see docker-compose.shuffle.yml.
  *
  *   node scripts/shuffle-playbook.mjs setup   # wait for Shuffle, import/update the workflow
- *   node scripts/shuffle-playbook.mjs run     # execute with a Splunk alert, assert the result
+ *
+ * Executing and asserting the playbook is a test: tests/backend/system/test_shuffle_playbook.py
+ * (npm run shuffle:run).
  */
 import { readFileSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
 const SHUFFLE_URL = process.env.SHUFFLE_URL ?? 'http://localhost:5001';
 const API_KEY = process.env.SHUFFLE_APIKEY ?? '3f6d3b8e-5c1a-4f6e-9d2b-7a1c0e4b9f21';
-const MOCK_HOST_URL = process.env.MOCK_URL ?? 'http://localhost:3002';
 const TEMPLATE = new URL('../shuffle/soc-alert-playbook.json', import.meta.url);
 const WORKFLOW_NAME = 'SOC Alert Triage (Orchestrator)';
 
@@ -127,74 +127,10 @@ async function setup() {
   console.log(`\nOpen http://localhost:3080 and look for "${WORKFLOW_NAME}".`);
 }
 
-async function run() {
-  const workflow = await findWorkflow();
-  if (!workflow) throw new Error('workflow not found; run `npm run shuffle:setup` first');
-
-  const attacker = `203.0.113.${Math.floor(Math.random() * 254) + 1}`;
-  const splunkAlert = {
-    sid: `shuffle-${randomUUID()}`,
-    search_name: 'Access - Brute Force Access Behavior Detected - Rule',
-    app: 'SplunkEnterpriseSecuritySuite',
-    result: {
-      _time: String(Math.floor(Date.now() / 1000)),
-      signature: 'Brute Force Access Behavior Detected',
-      src: attacker,
-      dest: `ws-${randomUUID().slice(0, 4)}`,
-      user: 'jdoe',
-      urgency: 'high',
-    },
-  };
-
-  const started = await api('POST', `/api/v1/workflows/${workflow.id}/execute`, {
-    execution_argument: JSON.stringify(splunkAlert),
-    start: '',
-  });
-  console.log(`Execution ${started.execution_id} started (attacker ${attacker})`);
-
-  const execution = await waitFor(
-    'execution to finish',
-    async () => {
-      const result = await api('POST', '/api/v1/streams/results', {
-        execution_id: started.execution_id,
-        authorization: started.authorization,
-      });
-      return ['FINISHED', 'ABORTED', 'FAILURE'].includes(result.status) ? result : null;
-    },
-    300_000,
-    3_000
-  );
-
-  console.log(`Execution status: ${execution.status}`);
-  const byLabel = {};
-  for (const r of execution.results ?? []) {
-    byLabel[r.action?.label] = r;
-    console.log(`  [${r.status}] ${r.action?.label}: ${String(r.result).slice(0, 220)}`);
-  }
-
-  const ingest = JSON.parse(byLabel.ingest?.result ?? '{}');
-  const triage = ingest.body?.triage;
-  const ok =
-    execution.status === 'FINISHED' &&
-    byLabel.ingest?.status === 'SUCCESS' &&
-    ingest.status === 201 &&
-    triage?.disposition === 'true_positive' &&
-    byLabel.notify?.status === 'SUCCESS';
-  if (!ok) throw new Error('playbook did not complete as expected');
-
-  const messages = await (await fetch(`${MOCK_HOST_URL}/slack/messages`)).json();
-  const posted = (messages.messages ?? []).find((m) =>
-    String(m.payload?.text ?? '').includes(`[Shuffle SOAR] ${triage.priority} true_positive`)
-  );
-  if (!posted) throw new Error('ChatOps message from Shuffle not found in mock Slack');
-  console.log(`\nChatOps message: ${posted.payload.text}`);
-  console.log('✓ Shuffle SOAR playbook verified end to end.');
-}
-
 const command = process.argv[2];
-const task = command === 'setup' ? setup : command === 'run' ? run : null;
+const task = command === 'setup' ? setup : null;
 if (!task) {
-  console.error('usage: node scripts/shuffle-playbook.mjs <setup|run>');
+  console.error('usage: node scripts/shuffle-playbook.mjs setup');
   process.exit(2);
 }
 task().catch((err) => {

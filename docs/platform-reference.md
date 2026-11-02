@@ -747,7 +747,7 @@ The Playwright reporter (`packages/playwright-reporter`) emits the webhook contr
 
 GitHub Actions performs linting, formatting checks, workspace builds, unit tests, browser tests, artifact upload, and optional delivery to n8n when secrets are configured.
 
-`azure-pipelines.yml` runs the same gates on Azure DevOps: a `Quality` stage (Node quality gate, Python service, Terraform + Checkov, dependency audit) and a `Containers` stage (Compose smoke test, image build + Trivy scan). Shared steps live in `.azure-pipelines/templates/`. Builds from `main` publish the scanned images as a pipeline artifact named after the build number. `azure-pipelines.test.ts` fails CI when its commands or pinned tool versions drift from `ci.yml`. It has been checked against Microsoft's pipeline schema but not run in an Azure DevOps organization.
+`azure-pipelines.yml` runs the same gates on Azure DevOps: a `Quality` stage (Node quality gate, Python service, Terraform + Checkov, dependency audit) and a `Containers` stage (Compose smoke test, image build + Trivy scan). Shared steps live in `.azure-pipelines/templates/`. Builds from `main` publish the scanned images as a pipeline artifact named after the build number. `tests/backend/drift/test_azure_pipeline.py` fails CI when its commands or pinned tool versions drift from `ci.yml`. It has been checked against Microsoft's pipeline schema but not run in an Azure DevOps organization.
 
 ## Configuration
 

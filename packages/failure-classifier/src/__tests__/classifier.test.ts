@@ -171,6 +171,15 @@ describe('classify', () => {
     expect(result).toBe(FailureClassification.AutomationFailure);
   });
 
+  it('classifies a pass after a retry as flaky, even when a Jira issue exists', () => {
+    const test = makeTest({
+      status: 'passed',
+      retry: 1,
+      error: { name: 'AssertionError', message: 'toast not visible' },
+    });
+    expect(classify({ test, existingJiraIssue: 'AUTO-1' })).toBe(FailureClassification.FlakyTest);
+  });
+
   it('classifies a failure that failed on every retry as a regression, not flaky', () => {
     const test = makeTest({
       retry: 1,

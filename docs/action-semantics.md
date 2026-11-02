@@ -25,8 +25,9 @@ Each claim names the code and test that back it.
 - **UI is not the boundary:** the dashboard signs in through `GET /api/auth/whoami` and hides
   buttons the role cannot use, but the API checks the role on every call.
 - **Tests:** `reviewer-auth.test.ts` covers fail-closed, 401, 403 across tracks, and body
-  spoofing. `scripts/ci-smoke.mjs` checks anonymous → 401 and wrong role → 403 against the
-  running stack in CI.
+  spoofing. The pytest suite (`tests/backend/soc/test_response_actions.py`,
+  `tests/backend/agents/test_approvals.py`) checks anonymous → 401 and wrong role → 403 against
+  the running stack in CI.
 
 ## One decision, one transition
 
@@ -34,8 +35,9 @@ Both approval flows commit the decision with a conditional update:
 `UPDATE … WHERE status = 'pending'` (CI) and `… WHERE status = 'pending_approval'` (SOC).
 Postgres serializes concurrent attempts, so exactly one wins and the rest get **409**.
 
-`ci-smoke.mjs` sends four concurrent approvals for one containment action against real Postgres.
-It asserts one 200, three 409s and exactly one `executed` event in the action's audit trail.
+The pytest suite sends four concurrent approvals for one containment action, and for one CI
+approval request, against real Postgres. It asserts one 200, three 409s and exactly one execution
+(one `executed` audit event, one firewall block, one Jira issue).
 
 ## Delivery to external systems: not exactly-once
 

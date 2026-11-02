@@ -9,9 +9,11 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
 import {
+  PlaybookSchema,
   SecurityAlertSchema,
   SentinelAlertSchema,
   SplunkAlertWebhookSchema,
+  TriagePolicySchema,
   WazuhAlertSchema,
   WebhookPayloadSchema,
 } from '../src';
@@ -24,6 +26,9 @@ const contracts: Record<string, z.ZodType> = {
   'splunk-alert-webhook': SplunkAlertWebhookSchema,
   'sentinel-alert': SentinelAlertSchema,
   'wazuh-alert': WazuhAlertSchema,
+  // Configuration as code: response playbooks (config/playbooks) and the triage policy.
+  playbook: PlaybookSchema,
+  'triage-policy': TriagePolicySchema,
 };
 
 mkdirSync(OUT, { recursive: true });

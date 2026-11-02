@@ -18,14 +18,20 @@ contract   payloads vs. JSON Schema generated from the Zod contracts (contracts/
 api        one endpoint: auth, validation, status codes
 pipeline   CI failure pipeline: /api/runs -> PostgreSQL -> Jira -> Slack
 soc        SOC alert pipeline: /api/alerts, triage, response actions
-agents     advisory agents with scripted model replies (guardrails, fail-safe paths)
+agents     advisory agents with scripted model replies (guardrails, fail-safe paths, approvals)
 mcp        MCP evidence server: scope tokens, read-only tools
-drift      repository artefacts that must stay in sync (pipelines, workflows, playbooks)
-system     multi-service flows against the full Docker stack
+evaluation quality gates: benchmark regression vs. the committed baseline, agent output evaluators
+drift      artefacts that must agree: n8n vs. API decisions, Azure vs. GitHub CI, playbooks,
+           runbooks and the triage policy vs. their schemas
+system     optional stacks: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle
 harness    self-tests of the test framework itself
 ```
 
 Run a layer with `pytest -m <marker>`. Markers are strict: an unknown marker fails the run.
+
+`system` tests skip when their stack is not running, so one command works everywhere. A CI job
+that starts a stack declares it in `REQUIRE_STACKS` (`dashboard`, `observability`, `aws-local`,
+`shuffle`), which turns an unreachable stack into a failure instead of a silent skip.
 
 ## Design rules
 
