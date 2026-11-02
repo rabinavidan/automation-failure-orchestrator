@@ -44,14 +44,19 @@
     "typecheck:tests": "tsc -p tests/ui/tsconfig.json"
   },
   "devDependencies": {
-    "@eslint/js": "^9.11.0",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
+    "@eslint/js": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "c8": "12.0.0",
-    "eslint": "^9.11.0",
+    "eslint": "^10.14.0",
     "globals": "^17.11.0",
     "prettier": "^3.3.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.0"
+  },
+  "overrides": {
+    "minimatch": "^11.0.4",
+    "glob": "^14.0.3",
+    "html-to-text": "^10.0.1"
   }
 }

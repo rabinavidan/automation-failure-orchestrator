@@ -243,7 +243,7 @@ async function processTest(
   }
 
   let jiraKey: string | undefined;
-  let slackSent = false;
+  let slackSent: boolean;
 
   // Take action based on classification
   switch (classification) {
@@ -560,7 +560,6 @@ export async function executeApprovedFailureActions(input: {
   const label = fingerprintLabel(input.fingerprint);
   const existingIssue = await searchByLabel(label);
   let jiraKey: string | undefined;
-  let slackSent = false;
 
   if (input.classification === FailureClassification.NewRegression) {
     jiraKey =
@@ -570,7 +569,7 @@ export async function executeApprovedFailureActions(input: {
     if (jiraKey) await handleKnownBug(input.test, input.payload, jiraKey, input.fingerprint);
   }
 
-  slackSent = await sendSlackNotification({
+  const slackSent = await sendSlackNotification({
     classification: input.classification,
     testTitle: input.test.title,
     suite: input.test.suite,

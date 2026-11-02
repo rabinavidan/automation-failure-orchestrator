@@ -22,11 +22,22 @@ rm -rf "$OUT" && mkdir -p "$V8" "$LOGS"
 DATABASE_URL="${DATABASE_URL:-postgresql://orchestrator:orchestrator@localhost:5432/orchestrator}"
 REVIEWER_TOKENS='demo-soc-responder:soc_responder:demo-soc-responder-token-0001;demo-ci-reviewer:ci_reviewer:demo-ci-reviewer-token-00001;demo-admin:admin:demo-admin-token-0000000001'
 PIDS=()
+API_PIDS=()
 
+# Every process this script starts, API instances included, so a failed run leaves nothing behind.
 cleanup() {
-  for pid in "${PIDS[@]}"; do kill "$pid" 2>/dev/null || true; done
+  for pid in "${PIDS[@]}" "${API_PIDS[@]}"; do kill "$pid" 2>/dev/null || true; done
 }
 trap cleanup EXIT
+
+# A service already listening on one of these ports would answer the health checks and the tests
+# in place of the instrumented one, and its coverage would silently be lost.
+for port in 3001 3002 3003 3011 3012 11434; do
+  if curl -s -o /dev/null --max-time 1 "http://localhost:$port/"; then
+    echo "port $port is already in use; stop that service first" >&2
+    exit 1
+  fi
+done
 
 wait_for() {
   for _ in $(seq 1 60); do
@@ -46,7 +57,6 @@ PIDS+=($!)
 PIDS+=($!)
 
 # start_api <port> <log name> [extra env assignments...]
-API_PIDS=()
 start_api() {
   local port=$1 name=$2
   shift 2
