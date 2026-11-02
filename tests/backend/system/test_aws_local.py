@@ -20,15 +20,27 @@ SQS = env("AWS_ENDPOINT_URL", "http://localhost:4566")
 QUEUE_BASE = f"{SQS}/123456789012"
 
 
+# moto picks the emulated service from the SigV4 credential scope; it does not verify the
+# signature. Without a scope, a POST to a queue URL is routed to its S3 emulation instead.
+SQS_SCOPE = {
+    "Authorization": (
+        "AWS4-HMAC-SHA256 Credential=test/20260101/us-east-1/sqs/aws4_request, "
+        "SignedHeaders=host, Signature=0"
+    )
+}
+
+
 def _depth(queue: str) -> tuple[int, int]:
-    """(visible, in flight) through the SQS query API, which moto serves without signing."""
+    """(visible, in flight) through the SQS query API."""
     response = httpx.post(
-        f"{QUEUE_BASE}/{queue}",
+        f"{SQS}/",
         data={
             "Action": "GetQueueAttributes",
+            "QueueUrl": f"{QUEUE_BASE}/{queue}",
             "AttributeName.1": "ApproximateNumberOfMessages",
             "AttributeName.2": "ApproximateNumberOfMessagesNotVisible",
         },
+        headers=SQS_SCOPE,
     ).raise_for_status()
     values = dict(re.findall(r"<Name>(\w+)</Name>\s*<Value>(\d+)</Value>", response.text))
     return int(values["ApproximateNumberOfMessages"]), int(
