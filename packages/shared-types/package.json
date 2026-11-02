@@ -6,7 +6,6 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc --build",
-    "test": "echo \"No tests for shared-types\"",
     "clean": "rm -rf dist"
   },
   "dependencies": {

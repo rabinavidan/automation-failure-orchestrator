@@ -9,6 +9,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
 import {
+  EnrichmentResponseSchema,
   PlaybookSchema,
   SecurityAlertSchema,
   SentinelAlertSchema,
@@ -26,6 +27,8 @@ const contracts: Record<string, z.ZodType> = {
   'splunk-alert-webhook': SplunkAlertWebhookSchema,
   'sentinel-alert': SentinelAlertSchema,
   'wazuh-alert': WazuhAlertSchema,
+  // What the Python enrichment service returns (apps/enrichment-service), as TypeScript reads it.
+  'enrichment-response': EnrichmentResponseSchema,
   // Configuration as code: response playbooks (config/playbooks) and the triage policy.
   playbook: PlaybookSchema,
   'triage-policy': TriagePolicySchema,

@@ -182,8 +182,9 @@ triage_analyst ─► threat_intel ─► response_planner ─► supervisor ─
 | Fail-open                   | Model down, timeout, or schema-invalid output → `ai_investigation_status = failed`; triage stands   |
 | Cost control                | No model calls for false positives, duplicates, or known-benign alerts                              |
 
-The evaluation gate (`soc-agent-evaluation.ts`) is deterministic code, part of
-`npm run test:evaluations`, and its result is stored with every investigation.
+The evaluation gate (`soc-agent-evaluation.ts`) is deterministic code, tested by
+`tests/backend/evaluation/test_soc_agent_evaluation.py`, and its result is stored with every
+investigation.
 
 ## M5 — Response playbooks with approval and rollback (done)
 

@@ -5,7 +5,7 @@ Two test stacks, one per layer, each in the language that fits it:
 | Layer                                                 | Tool                        | Location                   | Talks to the system through                                                      |
 | ----------------------------------------------------- | --------------------------- | -------------------------- | -------------------------------------------------------------------------------- |
 | Backend: contract, API, pipeline, SOC, agents, system | **pytest**                  | [`tests/backend`](backend) | HTTP APIs, PostgreSQL (read-only), mock integrations, the scriptable Ollama stub |
-| UI: the operations dashboard                          | **Playwright (TypeScript)** | `tests/ui` (milestone 5)   | The browser, seeded through the API                                              |
+| UI: the operations dashboard                          | **Playwright (TypeScript)** | [`tests/ui`](ui)           | The browser, seeded through the API                                              |
 
 Both are black-box: they test the running services, not internal functions, so they can be
 pointed at any environment (local Docker, CI, a staging URL) through environment variables.
@@ -32,6 +32,18 @@ Run a layer with `pytest -m <marker>`. Markers are strict: an unknown marker fai
 `system` tests skip when their stack is not running, so one command works everywhere. A CI job
 that starts a stack declares it in `REQUIRE_STACKS` (`dashboard`, `observability`, `aws-local`,
 `shuffle`), which turns an unreachable stack into a failure instead of a silent skip.
+
+## Coverage
+
+`npm run coverage:backend` measures how much of the TypeScript backend the black-box pytest
+suite exercises: it starts the services natively (PostgreSQL on `:5432` required) under
+`NODE_V8_COVERAGE`, runs `pytest -m "not system"`, shuts them down gracefully and maps V8
+coverage back to TypeScript with c8. Modules no test loads count as 0%. The gate is 80% lines
+and 70% branches (`COVERAGE_LINES`, `COVERAGE_BRANCHES`); the HTML report lands in
+`coverage/backend/`. CI job **Backend coverage** runs it on every push.
+
+Not measured there, by design: the SQS investigation worker (covered by the AWS-local system
+job), repository knowledge/RAG (needs an embedding model) and static labeled datasets.
 
 ## Design rules
 

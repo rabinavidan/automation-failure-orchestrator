@@ -19,6 +19,9 @@
  *   GET    /__scenario  remaining scripted replies and the chat calls received so far
  *   DELETE /__scenario  back to schema-synthesized replies; clears the call log
  * A scripted object reply is sent as JSON; a string is sent verbatim (e.g. invalid JSON).
+ * A reply of the form {"tool_calls": [{"function": {"name": "...", "arguments": {...}}}]} is
+ * returned as a tool-calling message (empty content), like Ollama's tool calling.
+ * The call log records each request's `think` flag and whether tools were offered.
  */
 import http from 'node:http';
 
@@ -125,8 +128,20 @@ http
         if (req.url?.startsWith('/__scenario')) return handleScenario(req, res, body);
         if (req.method === 'GET') return sendJson(res, 200, { status: 'ok', stub: true });
 
-        const { model = 'demo-stub', messages = [], format } = JSON.parse(body || '{}');
-        scenario.calls.push({ model, format: Boolean(format), at: new Date().toISOString() });
+        const {
+          model = 'demo-stub',
+          messages = [],
+          format,
+          think,
+          tools,
+        } = JSON.parse(body || '{}');
+        scenario.calls.push({
+          model,
+          format: Boolean(format),
+          think: think ?? null,
+          tools: Array.isArray(tools) ? tools.map((t) => t.function?.name) : [],
+          at: new Date().toISOString(),
+        });
         if (scenario.fail && scenario.fail.times > 0) {
           scenario.fail.times -= 1;
           const { status } = scenario.fail;
@@ -134,6 +149,16 @@ http
           return sendJson(res, status, { error: 'scripted failure' });
         }
         const scripted = nextScripted(JSON.stringify(messages));
+        if (scripted && typeof scripted === 'object' && Array.isArray(scripted.tool_calls)) {
+          return sendJson(res, 200, {
+            model,
+            created_at: new Date().toISOString(),
+            message: { role: 'assistant', content: '', tool_calls: scripted.tool_calls },
+            done: true,
+            prompt_eval_count: Math.ceil(body.length / 4),
+            eval_count: 8,
+          });
+        }
         const content =
           scripted === undefined
             ? JSON.stringify(synthesize(format, undefined, facts(messages)))

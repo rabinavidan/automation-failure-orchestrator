@@ -21,7 +21,9 @@ export function createDatabaseExecutionFetcher(
 ): ExecutionFetcher {
   return {
     async fetchRecentCompleted(limit: number): Promise<ExecutionRecord[]> {
-      const conditions = [`status = 'completed'`, 'final_result IS NOT NULL'];
+      // CI investigations only: since migration 012, SOC investigations share this table
+      // (keyed by alert_id) and have a different result shape.
+      const conditions = [`status = 'completed'`, 'final_result IS NOT NULL', 'run_id IS NOT NULL'];
       const params: unknown[] = [];
       if (filter.model) {
         params.push(filter.model);

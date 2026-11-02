@@ -8,13 +8,11 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "test:unit": "vitest run",
-    "test:evaluations": "vitest run apps/ingestion-service/src/__tests__/agent-evaluation.test.ts apps/ingestion-service/src/__tests__/multi-agent-investigation.test.ts apps/ingestion-service/src/__tests__/agent-judge.test.ts apps/ingestion-service/src/__tests__/failure-mode-taxonomy.test.ts apps/ingestion-service/src/__tests__/version-comparison.test.ts apps/ingestion-service/src/__tests__/explanation-language-quality.test.ts apps/ingestion-service/src/__tests__/soc-agent-evaluation.test.ts apps/ingestion-service/src/__tests__/soc-investigation.test.ts",
+    "test": "npm run test:backend && npm run test:ui",
     "test:smoke": "cd tests/backend && pytest -m smoke",
     "lint": "eslint .",
     "format:check": "prettier --check .",
-    "quality": "npm run lint && npm run format:check && npm run build && npm run test:unit && npm run test:evaluations",
+    "quality": "npm run lint && npm run format:check && npm run build && npm run typecheck:tests",
     "format": "prettier --write .",
     "demo:new-regression": "tsx scripts/demo-new-regression.ts",
     "demo:known-bug": "tsx scripts/demo-known-bug.ts",
@@ -41,17 +39,19 @@
     "contracts:check": "npm run contracts:export && git diff --exit-code -- contracts/json-schema",
     "test:backend": "cd tests/backend && pytest",
     "test:system": "cd tests/backend && pytest -m system",
-    "test:ui": "npm test --workspace=tests/ui"
+    "test:ui": "npm test --workspace=tests/ui",
+    "coverage:backend": "bash scripts/coverage-backend.sh",
+    "typecheck:tests": "tsc -p tests/ui/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "c8": "12.0.0",
     "eslint": "^9.11.0",
     "globals": "^17.11.0",
     "prettier": "^3.3.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.5.0",
-    "vitest": "^3.2.6"
+    "typescript": "^5.5.0"
   }
 }
