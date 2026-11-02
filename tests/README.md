@@ -45,6 +45,20 @@ and 70% branches (`COVERAGE_LINES`, `COVERAGE_BRANCHES`); the HTML report lands 
 Not measured there, by design: the SQS investigation worker (covered by the AWS-local system
 job), repository knowledge/RAG (needs an embedding model) and static labeled datasets.
 
+## Bugs these suites found
+
+Each was reproduced by a failing test first, then fixed; the test now pins the behaviour.
+
+| Bug                                                                                     | Pinned by                                                                                               |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| The Playwright reporter emitted payloads the webhook contract rejected                  | `contract/test_playwright_reporter.py::test_output_satisfies_the_webhook_contract`                      |
+| A test that passed on retry (flaky) opened a Jira issue                                 | `pipeline/test_retries.py::test_pass_after_retry_is_flaky_and_opens_no_jira_issue`                      |
+| A test that failed on every retry was classified as flaky instead of a regression       | `pipeline/test_retries.py::test_failure_on_every_retry_is_a_regression_not_flaky`                       |
+| "Possibly fixed" was announced on every pass after the threshold, not once              | `pipeline/test_recovery.py::test_consecutive_passes_after_a_tracked_failure_report_possibly_fixed_once` |
+| A passing run dropped the failure-history window                                        | `pipeline/test_recovery.py::test_history_keeps_the_last_five_outcomes`                                  |
+| The failure-mode sampler and model comparison CLIs crashed on SOC investigations        | `evaluation/test_offline_evaluation_tools.py`                                                           |
+| Two instances starting on a fresh database raced on LangGraph's checkpoint schema setup | `agents/test_single_agent.py`, in the coverage job (fresh database, instances started together)         |
+
 ## Design rules
 
 - **One contract source.** `npm run contracts:export` turns the Zod schemas into JSON Schema;

@@ -10,6 +10,8 @@ human approves anything risky.
 [![Agents](https://img.shields.io/badge/AI_agents-LangGraph_+_Ollama-black)](apps/ingestion-service/src/services/multi-agent-investigation.ts)
 [![SOAR](https://img.shields.io/badge/SOAR-Shuffle_·_n8n-EA4B71)](docs/shuffle-soar-lab.md)
 [![AWS](https://img.shields.io/badge/AWS-Terraform_·_Checkov--gated-FF9900?logo=amazonwebservices&logoColor=white)](infra/terraform/README.md)
+[![Tests](https://img.shields.io/badge/tests-pytest_·_Playwright_TS-2EAD33?logo=pytest&logoColor=white)](#test-automation-architecture)
+[![Coverage gate](<https://img.shields.io/badge/backend_coverage-85%25_lines_(gate_80%25)-brightgreen>)](#test-automation-architecture)
 
 ![Runtime mode strip: demo stub (not real AI), multi-agent graph, mock Jira/Slack, in-process queue, enrichment mode](docs/screenshots/runtime-modes.png)
 
@@ -57,10 +59,72 @@ real-model investigation. With AI off or unreachable, classification and policy 
 
 ## Why it's credible
 
-TypeScript and Python test suites, deterministic agent-evaluation gates, a real Shuffle SOAR
+A layered test architecture (below), deterministic agent-evaluation gates, a real Shuffle SOAR
 playbook and a zero-cost AWS SQS worker path all run in CI. The Terraform is Checkov-gated. The
 key claims below each have a CI job behind them. Current evidence levels are tracked in
 [`docs/flagship-baseline.md`](docs/flagship-baseline.md).
+
+## Test automation architecture
+
+One tool per layer, each in the language that fits it: **pytest** for everything behind an API,
+**Playwright (TypeScript)** for the browser. Both are black-box: they drive the running services
+through HTTP, PostgreSQL and the browser, never internal functions, so the same suites run against
+local Docker, CI or any environment reachable by URL.
+
+```mermaid
+flowchart TB
+    subgraph L0["Static · npm run quality"]
+        S["ESLint · Prettier · tsc --build · JSON Schema contracts not stale"]
+    end
+    subgraph L1["Backend · pytest · tests/backend"]
+        direction LR
+        B1["smoke · contract · api"]
+        B2["pipeline · soc"]
+        B3["agents · mcp · evaluation"]
+        B4["drift · harness"]
+    end
+    subgraph L2["System · pytest -m system"]
+        SY["dashboard proxy · OpenTelemetry / Grafana · AWS SQS on moto · Shuffle SOAR"]
+    end
+    subgraph L3["UI · Playwright TS · tests/ui"]
+        U["page objects · API-seeded data · role fixtures"]
+    end
+    COV[["Coverage gate · pytest → V8 → c8 → TypeScript<br/>fails below 80% lines / 70% branches"]]
+    L0 --> L1 --> L2
+    L1 --> L3
+    L1 -.-> COV
+```
+
+| Layer        | Tool                                                  | Tests             | What it pins down                                                                                                                                               |
+| ------------ | ----------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Static       | ESLint, Prettier, `tsc`                               | every workspace   | Types across packages, the Playwright suite's types, and that the committed JSON Schemas match the Zod contracts                                                |
+| Contract     | pytest + JSON Schema                                  | 35                | Webhook, SIEM, enrichment, playbook and policy payloads against schemas **exported from the Zod source**; test factories are validated against the same schemas |
+| API          | pytest                                                | 21                | One endpoint at a time: auth, validation, status codes, read models                                                                                             |
+| Pipeline     | pytest                                                | 25                | CI failure flow end to end: `/api/runs` → PostgreSQL → Jira → Slack; idempotency, retries, flaky handling, recovery                                             |
+| SOC          | pytest                                                | 31                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                               |
+| Agents · MCP | pytest + scriptable model stub                        | 36                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens        |
+| Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                 |
+| Drift        | pytest                                                | 54                | Artefacts that must agree: n8n vs. API decisions, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                              |
+| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 16                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle                                                      |
+| UI           | Playwright TS                                         | 18                | Dashboard workflows through page objects, with data seeded through the API and one fixture per reviewer role                                                    |
+| Coverage     | pytest → V8 → c8                                      | the backend suite | **85% of TypeScript lines** reached by black-box tests; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                        |
+
+Principles that keep it maintainable:
+
+- **One contract source.** Zod schemas are exported to JSON Schema (`npm run contracts:export`), and
+  CI fails if they are stale. Test data can't drift from the real contract.
+- **Parallel-safe by design.** Every test owns its data (unique run IDs and fingerprints) and
+  asserts on what it created, never on global counts.
+- **Deterministic AI tests.** A scriptable model stub (`PUT /__scenario`, per-test match tokens)
+  replays exact model and tool-call sequences, so agent safety paths are tested without a GPU or
+  a paid API. Stub output is labeled and never reported as model quality.
+- **Strict by default.** Unknown pytest markers fail the run; `ruff` and `mypy --strict` gate the
+  test code itself.
+
+The suites found and pinned **seven real bugs** while they were being written, among them a flaky
+test opening a Jira issue, a test that failed on every retry being classified as flaky, and two
+service instances racing on LangGraph's checkpoint schema at startup. Details:
+[`tests/README.md`](tests/README.md).
 
 ## Proof, not claims: what CI runs on every push
 
@@ -190,6 +254,7 @@ npm run demo:aws-local
 | Threat intel & MITRE ATT&CK             | AbuseIPDB / VirusTotal / GeoIP enrichment; technique mapping drives playbooks and runbook selection ([`docs/runbooks/`](docs/runbooks))                                                                                              |
 | AI agents with guardrails               | LangGraph supervisor, code-owned guardrails, hallucinated-IOC gate, prompt-injection hardening ([`soc-investigation.ts`](apps/ingestion-service/src/services/soc-investigation.ts))                                                  |
 | Cloud & IaC                             | Terraform for ECS Fargate, RDS, SQS + DLQ, WAF, KMS and GitHub OIDC; Checkov-gated ([`infra/terraform`](infra/terraform/README.md))                                                                                                  |
+| Test automation architecture            | Layered black-box suites: pytest for contract → API → pipeline → agents → system, Playwright TS for UI; contract-generated schemas, scriptable model stub, coverage gate ([`tests/`](tests/README.md))                               |
 | DevSecOps                               | CI quality gates, Trivy image scanning, dependency review, no long-lived cloud credentials (OIDC)                                                                                                                                    |
 | Azure DevOps pipelines                  | [`azure-pipelines.yml`](azure-pipelines.yml): the same gates as YAML stages with step templates and versioned image artifacts; a CI test fails if it drifts from GitHub Actions                                                      |
 
@@ -232,6 +297,8 @@ apps/dashboard            React SOC console + CI ops console
 apps/mock-integrations    Jira, Slack, EDR, firewall mocks
 packages/*                Shared Zod contracts, fingerprint engine, triage/classification rules
 config/                   Triage policy-as-code, response playbooks
+tests/backend             pytest: contract, API, pipeline, SOC, agents, MCP, evaluation, drift, system
+tests/ui                  Playwright TS: page objects, API-seeded fixtures, role fixtures
 shuffle/ · n8n/           SOAR playbooks
 infra/terraform           AWS (Checkov-gated, never applied)
 ```
