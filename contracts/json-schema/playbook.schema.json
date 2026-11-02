@@ -1,0 +1,104 @@
+{
+  "$id": "https://signalops.local/contracts/playbook.schema.json",
+  "title": "playbook",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "version": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trigger": {
+      "type": "object",
+      "properties": {
+        "dispositions": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "false_positive",
+              "duplicate",
+              "true_positive",
+              "benign_true_positive",
+              "needs_investigation"
+            ]
+          }
+        },
+        "techniques": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^T\\d{4}(\\.\\d{3})?$"
+          }
+        },
+        "maxPriority": {
+          "type": "string",
+          "enum": ["P1", "P2", "P3", "P4"]
+        }
+      },
+      "required": ["dispositions"]
+    },
+    "steps": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "ticket.create",
+              "slack.notify",
+              "firewall.block_ip",
+              "edr.isolate_host",
+              "edr.kill_process"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target": {
+            "type": "object",
+            "properties": {
+              "indicator": {
+                "type": "string",
+                "enum": ["ip", "domain", "url", "file_hash", "email", "user", "host", "process"]
+              },
+              "role": {
+                "type": "string",
+                "enum": ["source", "destination", "target", "observed"]
+              }
+            },
+            "required": ["indicator"]
+          },
+          "approval": {
+            "type": "string",
+            "enum": ["none", "required"]
+          }
+        },
+        "required": ["id", "action", "description", "approval"]
+      }
+    }
+  },
+  "required": ["id", "version", "description", "owner", "trigger", "steps"]
+}

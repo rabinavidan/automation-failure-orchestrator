@@ -44,6 +44,14 @@ Output goes to `benchmark/results/<timestamp>/`:
   forbidden tools where relevant. Several are deliberately adversarial to the deterministic
   rules (`regression-adversarial`), and some are marked `ambiguous`, where abstaining
   (`human_review` / `investigate`) is the appropriate answer.
+
+  **Version 1.1.0** corrected the inputs of the two `flaky-retry` cases to the webhook contract:
+  a flaky test is reported as `passed` with `retry > 0` (it failed, then passed), while `failed`
+  with `retry > 0` means it failed on every attempt. The labels did not change. The real-model
+  runs listed below used version 1.0.0, where those two cases had the old input shape. The
+  deterministic baseline is regenerated on 1.1.0, and `tests/backend/evaluation` fails CI if
+  deterministic accuracy drops below it or any case flips from right to wrong.
+
 - [`datasets/retrieval-v1.json`](datasets/retrieval-v1.json): 12 repository questions, each
   labeled with the paths an answer must come from. All other indexed files are distractors.
 

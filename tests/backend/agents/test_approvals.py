@@ -119,3 +119,24 @@ def test_invalid_decision_is_400_and_unknown_thread_is_404(
         _decide(ingestion_ai, "no-such-thread", settings.ci_reviewer_token, "approved").status_code
         == 404
     )
+
+
+def test_concurrent_decisions_execute_the_actions_once(
+    ingestion_ai: IngestionClient,
+    pending: dict[str, Any],
+    mock: MockIntegrationsClient,
+    settings: Settings,
+) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    thread_id = pending["approval"]["threadId"]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        responses = list(
+            pool.map(
+                lambda _: _decide(ingestion_ai, thread_id, settings.ci_reviewer_token, "approved"),
+                range(4),
+            )
+        )
+
+    assert sorted(r.status_code for r in responses) == [200, 409, 409, 409]
+    assert len(mock.jira_issues(label=factories.jira_label(pending["fingerprint"]))) == 1

@@ -19,7 +19,8 @@ packages/fingerprint-engine/  Deterministic normalization + SHA-256 failure iden
 packages/failure-classifier/  Priority-ordered deterministic classification rules (@orchestrator/failure-classifier)
 database/migrations/      Numbered SQL migrations, applied in order at service startup
 n8n/workflows/            Importable visual-orchestration alternative to the direct /api/runs path
-scripts/                  demo:* scripts (npm run demo:<scenario>) and ci-smoke.mjs
+scripts/                  demo:* scripts (npm run demo:<scenario>), the Ollama demo stub, Shuffle setup
+tests/backend/            pytest black-box suite (contract, api, pipeline, soc, agents, mcp, evaluation, drift, system)
 ```
 
 Internal packages are referenced via workspace protocol (`"@orchestrator/x": "*"`) and TS path aliases in the root `tsconfig.json`. `shared-types` has no internal deps; `fingerprint-engine` depends only on `shared-types`; `failure-classifier` depends on `shared-types` and `fingerprint-engine` (identity normalization for SOC triage policy matching); `ingestion-service` depends on all three. Build order matters — build packages before apps that consume them (`npm run build` at the root handles this via workspaces).
@@ -36,7 +37,9 @@ npm run format:check              # prettier --check .
 npm run test:unit                 # vitest run at the root (packages + ingestion-service; excludes apps/test-suite)
 npm run test:evaluations          # deterministic agent-evaluation + multi-agent-investigation suites only
 npm run quality                   # lint + format:check + build + test:unit + test:evaluations — the full local gate
-npm run test:smoke                # scripts/ci-smoke.mjs
+npm run test:backend              # pytest suite (tests/backend) against a running stack
+npm run test:smoke                # pytest -m smoke
+npm run test:system               # pytest -m system (dashboard proxy, observability, AWS-local, Shuffle)
 npm run test:python               # ruff + mypy + pytest for apps/enrichment-service (needs its venv: pip install -e '.[dev]')
 ```
 
@@ -72,7 +75,7 @@ Portfolio demo scenarios (`npm run demo:new-regression`, `demo:known-bug`, `demo
 ## Architecture notes worth knowing before editing
 
 - **Contract-first**: `packages/shared-types` defines the Zod webhook/test-run contract and the `AgentInvestigation` shape. Changing it ripples into the fingerprint engine, classifier, ingestion routes, the Playwright reporter, and the n8n workflow's expectations — grep all of these before altering a schema.
-- **SOC alerts have their own n8n front door**: `n8n/workflows/soc-alert-workflow.json` (`/webhook/soc-alerts`) detects the SIEM and calls `POST /api/alerts/:vendor`; it must not contain triage/policy logic (enforced by `n8n-soc-workflow.test.ts`). SIEM adapters are registered in `services/alert-normalizers/index.ts`.
+- **SOC alerts have their own n8n front door**: `n8n/workflows/soc-alert-workflow.json` (`/webhook/soc-alerts`) detects the SIEM and calls `POST /api/alerts/:vendor`; it must not contain triage/policy logic (enforced by `tests/backend/drift/test_n8n_workflows.py`, which also checks the main workflow classifies like the API). SIEM adapters are registered in `services/alert-normalizers/index.ts`.
 - **AWS deployment** lives in `infra/terraform` (CI: `terraform fmt -check`, `validate`, Checkov — any new finding must be fixed or skipped inline with a reason). The investigation worker (`src/workers/investigation-worker.ts`) shares the ingestion image; `INVESTIGATION_QUEUE=sqs` switches scheduling from in-process to SQS. `docker-compose.aws-local.yml` runs that path at zero cost against moto (+ `scripts/ollama-demo-stub.mjs`); `npm run demo:aws-local` asserts it and CI runs it. Never `terraform apply` without the user's explicit go-ahead.
 - **Shuffle SOAR**: `docker-compose.shuffle.yml` (same Compose project; orchestrator services join the `shuffle` network), playbook template `shuffle/soc-alert-playbook.json` (HTTP app 1.4.0, placeholders filled by `scripts/shuffle-playbook.mjs`), lab in `docs/shuffle-soar-lab.md`. CI job `shuffle-soar` runs it against real Shuffle.
 - **Two entry points feed the same pipeline**: `POST /api/runs` (direct) and the n8n webhook (`n8n/workflows/main-workflow.json`) both terminate in the same deterministic classification + policy logic. Rule logic currently exists in both places; if you touch classification rules, check whether the n8n workflow duplicates the behavior.

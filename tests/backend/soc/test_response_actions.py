@@ -23,7 +23,7 @@ def brute_force(ingestion: IngestionClient, mock: MockIntegrationsClient) -> dic
     """A confirmed brute force: the playbook opened a ticket and planned an IP block."""
     body = ingestion.post_alert(alerts.splunk_brute_force(), "splunk").json()
     assert body["response"]["playbooks"] == ["brute-force-response"]
-    return body
+    return dict(body)
 
 
 def test_ticket_and_notification_run_but_containment_waits(
@@ -180,3 +180,29 @@ def test_needs_investigation_opens_an_analyst_case_without_containment(
     assert len(mock.jira_issues()) == 1
     assert mock.firewall_blocks() == {}
     assert mock.isolated_hosts() == {}
+
+
+def test_concurrent_approvals_produce_exactly_one_transition_and_one_execution(
+    brute_force: dict[str, Any],
+    ingestion: IngestionClient,
+    mock: MockIntegrationsClient,
+    settings: Settings,
+) -> None:
+    """Postgres serializes the conditional update: one approval wins, the others get 409."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    block = _actions(brute_force)["block-source-ip"]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        responses = list(
+            pool.map(
+                lambda _: ingestion.decide_action(
+                    block["id"], "approved", settings.soc_responder_token
+                ),
+                range(4),
+            )
+        )
+
+    assert sorted(r.status_code for r in responses) == [200, 409, 409, 409]
+    stored = ingestion.response_action(block["id"])
+    assert [e["event"] for e in stored["events"]].count("executed") == 1
+    assert list(mock.firewall_blocks()) == [alerts.MALICIOUS_IP]

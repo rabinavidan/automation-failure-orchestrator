@@ -193,15 +193,13 @@ async function processTest(
   // Get failure history
   const history = await getFailureHistory(fp);
 
-  // Classify the failure. A test that passed on retry is flaky by definition: it never opens
-  // or updates a Jira issue, whatever its history.
-  const classification = flakyPass
-    ? FailureClassification.FlakyTest
-    : classify({
-        test,
-        failureHistory: history ?? undefined,
-        existingJiraIssue: existingIssue?.key,
-      });
+  // Classify the failure. classify() returns flaky for a pass after a retry, whatever the
+  // history or Jira state, so a flaky pass never opens or updates an issue.
+  const classification = classify({
+    test,
+    failureHistory: history ?? undefined,
+    existingJiraIssue: existingIssue?.key,
+  });
 
   // The agent may gather evidence and recommend an action, but deterministic
   // classification remains the policy guardrail for side effects. A flaky pass needs no

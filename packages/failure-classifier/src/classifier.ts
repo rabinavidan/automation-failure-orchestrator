@@ -8,6 +8,12 @@ import { isPossiblyFixed } from './rules/recovery';
 export function classify(input: ClassifyInput): FailureClassification {
   const { test, failureHistory, existingJiraIssue } = input;
 
+  // Failed, then passed on a retry in this run: flaky by definition. It outranks known_bug
+  // because the test passed, so there is nothing to add to an existing issue.
+  if (test.status === 'passed' && test.retry > 0) {
+    return FailureClassification.FlakyTest;
+  }
+
   // If a test passes and had a known bug, check for recovery
   if (test.status === 'passed' && failureHistory?.jiraIssueKey) {
     if (isPossiblyFixed(failureHistory)) {
