@@ -45,10 +45,16 @@ Run a layer with `pytest -m <marker>`. Markers are strict: an unknown marker fai
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.test.yml up --build -d \
-  postgres mock-integrations enrichment-service ollama-stub ingestion-service
+  postgres mock-integrations enrichment-service ollama-stub ingestion-service ingestion-ai
 pip install "./tests/backend[dev]"
 npm run test:backend                      # or: cd tests/backend && pytest -m pipeline
 ```
 
-Configuration: `INGESTION_URL`, `MOCK_URL`, `OLLAMA_STUB_URL`, `TEST_DATABASE_URL`,
-`WEBHOOK_SECRET` (defaults match the Compose stack on localhost).
+Configuration: `INGESTION_URL`, `INGESTION_AI_URL`, `MOCK_URL`, `OLLAMA_STUB_URL`,
+`TEST_DATABASE_URL`, `WEBHOOK_SECRET`, `MCP_SCOPE_SECRET` (defaults match the Compose stack on
+localhost).
+
+The test stack runs **two API instances** on one database: `ingestion-service` (:3001, agents
+off) for deterministic layers, and `ingestion-ai` (:3011, agents on against the scripted stub,
+MCP evidence enabled) for the `agents` and `mcp` layers. Deterministic tests therefore never
+depend on model behaviour, and agent tests control it completely.

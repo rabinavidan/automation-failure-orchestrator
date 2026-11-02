@@ -17,6 +17,7 @@ import pytest
 from psycopg.rows import dict_row
 
 from support.clients import IngestionClient, MockIntegrationsClient, OllamaStubClient
+from support.mcp import McpClient
 from support.settings import Settings
 
 
@@ -42,6 +43,27 @@ def _wait_healthy(url: str, timeout_s: float = 60.0) -> None:
 def ingestion(settings: Settings) -> Iterator[IngestionClient]:
     _wait_healthy(f"{settings.ingestion_url}/health")
     client = IngestionClient(settings.ingestion_url, settings.webhook_secret)
+    yield client
+    client.close()
+
+
+@pytest.fixture(scope="session")
+def ingestion_ai(settings: Settings) -> Iterator[IngestionClient]:
+    """The API instance with advisory agents enabled (scripted stub) and MCP evidence."""
+    try:
+        healthy = httpx.get(f"{settings.ingestion_ai_url}/health", timeout=3.0).status_code == 200
+    except httpx.HTTPError:
+        healthy = False
+    if not healthy:
+        pytest.skip(f"AI-enabled API instance not running at {settings.ingestion_ai_url}")
+    client = IngestionClient(settings.ingestion_ai_url, settings.webhook_secret)
+    yield client
+    client.close()
+
+
+@pytest.fixture(scope="session")
+def mcp(settings: Settings, ingestion_ai: IngestionClient) -> Iterator[McpClient]:
+    client = McpClient(settings.ingestion_ai_url)
     yield client
     client.close()
 
