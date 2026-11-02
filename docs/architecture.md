@@ -80,7 +80,7 @@ consecutive times, it's classified as `PossiblyFixed` and a Jira comment is adde
 ## Data Flow
 
 ```
-Playwright Tests → Custom JSON Reporter → normalized-results.json
+Playwright tests → @orchestrator/playwright-reporter (one record per test, final outcome) → POST /api/runs
                                                │
                                                ▼
                                      POST /api/runs (ingestion-service)
@@ -113,4 +113,5 @@ Playwright Tests → Custom JSON Reporter → normalized-results.json
 - **`@orchestrator/failure-classifier`**: Deterministic classification rules
 - **`@orchestrator/ingestion-service`**: Express REST API for receiving and processing runs
 - **`@orchestrator/mock-integrations`**: In-memory mock Jira and Slack server
-- **`@orchestrator/test-suite`**: Playwright test project with custom JSON reporter
+- **`@orchestrator/playwright-reporter`**: Playwright reporter that emits the webhook contract
+- **`@orchestrator/ui-tests`** (`tests/ui`): Playwright UI suite for the dashboard

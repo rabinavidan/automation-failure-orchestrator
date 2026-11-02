@@ -737,6 +737,8 @@ function App() {
                     filteredFailures.map((failure) => (
                       <button
                         key={failure.fingerprint}
+                        data-testid="failure-row"
+                        data-fingerprint={failure.fingerprint}
                         onClick={() => {
                           setAgentExecutions([]);
                           setAuditLoading(true);
@@ -949,6 +951,8 @@ function App() {
                 {data.approvals.map((approval) => (
                   <article
                     key={approval.thread_id}
+                    data-testid="approval-card"
+                    data-thread-id={approval.thread_id}
                     className="border border-ink/10 bg-white p-5 shadow-panel"
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -1183,6 +1187,8 @@ function App() {
                 {data.issues.map((issue) => (
                   <article
                     key={issue.key}
+                    data-testid="jira-issue"
+                    data-issue-key={issue.key}
                     className="border border-ink/10 bg-white p-5 shadow-panel"
                   >
                     <div className="flex items-center justify-between gap-4">
@@ -1239,7 +1245,11 @@ function App() {
                       message.payload.text ??
                       JSON.stringify(message.payload);
                     return (
-                      <article key={message.id} className="flex gap-4 p-5">
+                      <article
+                        key={message.id}
+                        data-testid="slack-message"
+                        className="flex gap-4 p-5"
+                      >
                         <div className="grid h-10 w-10 shrink-0 place-items-center bg-ink text-signal">
                           <Bot size={19} />
                         </div>

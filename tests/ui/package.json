@@ -1,0 +1,16 @@
+{
+  "name": "@orchestrator/ui-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright UI tests for the SignalOps operations dashboard",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report test-results/html"
+  },
+  "devDependencies": {
+    "@orchestrator/playwright-reporter": "*",
+    "@playwright/test": "1.62.1",
+    "typescript": "^5.5.0"
+  }
+}

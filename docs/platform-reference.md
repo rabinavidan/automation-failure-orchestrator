@@ -434,7 +434,7 @@ The first 12 fingerprint characters become a Jira label such as `automation-fing
 | Reliability logic | Rules + SHA-256                        | Explainable classification and correlation                                           |
 | Integrations      | Jira + Slack adapters                  | Separation between domain decisions and external APIs                                |
 | Local runtime     | Docker Compose                         | Reproducible multi-service startup and health checks                                 |
-| Quality           | Vitest, Playwright, ESLint, Prettier   | Unit, integration, E2E, and static-quality coverage                                  |
+| Quality           | pytest, Playwright, Vitest, ESLint     | Unit, integration, E2E, and static-quality coverage                                  |
 | CI/CD             | GitHub Actions                         | Build, lint, tests, artifacts, and optional n8n delivery                             |
 
 ## Repository structure
@@ -445,7 +445,7 @@ automation-failure-orchestrator/
 |   |-- enrichment-service/      # Python FastAPI threat-intel enrichment (SOC track)
 |   |-- ingestion-service/       # API, DB, policy actions, Ollama agent
 |   |-- mock-integrations/       # In-memory Jira and Slack-compatible APIs
-|   `-- test-suite/              # Playwright scenarios and JSON reporter
+|   `-- (tests/ui)               # Playwright UI suite for the dashboard
 |-- packages/
 |   |-- failure-classifier/      # Deterministic classification rules
 |   |-- fingerprint-engine/      # Normalization and SHA-256 identity

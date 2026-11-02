@@ -132,23 +132,17 @@ After running demos, check:
 - **Run history**: http://localhost:3001/api/runs
 - **Failure history**: http://localhost:3001/api/failures
 
-## Running Playwright Tests
+## Running the UI tests and feeding their results to the platform
+
+The Playwright UI suite (`tests/ui`) tests the dashboard. Its reporter
+(`@orchestrator/playwright-reporter`) writes the webhook contract and can deliver it to the
+orchestrator directly, so the platform triages its own test results:
 
 ```bash
-cd apps/test-suite
 npx playwright install chromium
-npm test
+SIGNALOPS_INGEST_URL=http://localhost:3001/api/runs SIGNALOPS_WEBHOOK_SECRET=local-dev-secret \
+  npm run test:ui
 
-# View the custom JSON report
-cat test-results/normalized-results.json
-```
-
-## Sending Playwright Results to Ingestion Service
-
-```bash
-# After running Playwright tests:
-curl -X POST http://localhost:3001/api/runs \
-  -H "Content-Type: application/json" \
-  -H "x-webhook-secret: local-dev-secret" \
-  -d @apps/test-suite/test-results/normalized-results.json
+# The same payload, kept on disk
+cat tests/ui/test-results/signalops-results.json
 ```

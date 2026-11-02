@@ -150,6 +150,12 @@ class OllamaStubClient:
             body["fail"] = fail
         self.http.put("/__scenario", json=body).raise_for_status()
 
+    def script_for(self, match: str, responses: list[Json | str]) -> None:
+        """Replies used only for requests whose messages contain `match` (parallel-safe)."""
+        self.http.post(
+            "/__scenario/scripts", json={"match": match, "responses": responses}
+        ).raise_for_status()
+
     def state(self) -> Json:
         body: Json = self.http.get("/__scenario").raise_for_status().json()
         return body
