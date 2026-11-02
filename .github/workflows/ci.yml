@@ -360,11 +360,13 @@ jobs:
           ignore-unfixed: true
           severity: CRITICAL
 
-  playwright-smoke:
-    name: Playwright smoke contract
+  ui-tests:
+    name: UI tests (Playwright)
     runs-on: ubuntu-latest
     needs: quality
-    timeout-minutes: 10
+    timeout-minutes: 25
+    env:
+      COMPOSE_FILES: -f docker-compose.yml -f docker-compose.test.yml
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -372,26 +374,48 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-        working-directory: apps/test-suite
-      - name: Start deterministic smoke dependency
-        run: docker compose up -d --build --wait mock-integrations
-      - run: npx playwright test --grep @smoke
-        working-directory: apps/test-suite
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+        working-directory: tests/ui
+      - name: Start the dashboard and platform, with agents on the scriptable stub
+        env:
+          AI_ENABLED: 'true'
+          OLLAMA_HOST: http://ollama-stub:11434
+          OLLAMA_MODEL: demo-stub
+          RAG_ENABLED: 'false'
+        run: |
+          docker compose $COMPOSE_FILES up -d --build \
+            postgres mock-integrations enrichment-service ollama-stub ingestion-service dashboard
+          for url in http://localhost:3001/health http://localhost:4173/api/ingestion/health; do
+            for i in $(seq 1 60); do
+              curl -sf "$url" > /dev/null && break
+              sleep 3
+            done
+          done
+      - name: Playwright UI suite (results are also delivered to the platform itself)
         env:
           CI: 'true'
-          BASE_URL: http://localhost:3002
+          SIGNALOPS_INGEST_URL: http://localhost:3001/api/runs
+          SIGNALOPS_WEBHOOK_SECRET: local-dev-secret
+          SIGNALOPS_ENVIRONMENT: ci
+        run: npm run test:ui
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-smoke-report
-          path: apps/test-suite/playwright-report/
+          name: ui-test-report
+          path: tests/ui/test-results/
           retention-days: 14
+      - name: Capture container diagnostics
+        if: failure()
+        run: docker compose $COMPOSE_FILES logs --no-color --tail=200 ingestion-service dashboard
+      - name: Stop
+        if: always()
+        run: docker compose $COMPOSE_FILES down --volumes
 
   notify-n8n:
     name: Optional n8n delivery
     runs-on: ubuntu-latest
-    needs: [container-smoke, playwright-smoke, aws-local-demo]
+    needs: [container-smoke, ui-tests, aws-local-demo]
     if: always()
     steps:
       - name: Send CI quality result

@@ -39,3 +39,21 @@ def test_scripted_failures_return_the_status_then_recover(stub: OllamaStubClient
     stub.script(fail={"status": 503, "times": 2})
 
     assert [stub.chat(SCHEMA).status_code for _ in range(3)] == [503, 503, 200]
+
+
+def test_matched_scripts_only_answer_requests_that_contain_their_token(
+    stub: OllamaStubClient,
+) -> None:
+    stub.script_for("token-A", [{"risk": "high"}])
+
+    other = stub.http.post(
+        "/api/chat",
+        json={"messages": [{"role": "user", "content": "about token-B"}], "format": SCHEMA},
+    ).json()
+    mine = stub.http.post(
+        "/api/chat",
+        json={"messages": [{"role": "user", "content": "about token-A"}], "format": SCHEMA},
+    ).json()
+
+    assert json.loads(other["message"]["content"]) == {"risk": "low"}, "not consumed by others"
+    assert json.loads(mine["message"]["content"]) == {"risk": "high"}

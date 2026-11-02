@@ -13,7 +13,8 @@ apps/enrichment-service/  Python 3.12 FastAPI threat-intel enrichment (SOC track
 apps/ingestion-service/   Express + Zod API, PostgreSQL, LangGraph multi-agent investigation, Jira/Slack policy actions
 apps/mock-integrations/   In-memory Jira- and Slack-compatible APIs for local dev/demo (no tests)
 apps/dashboard/           React 19 + Vite + Tailwind ops console (separate toolchain: oxlint, not the root ESLint config)
-apps/test-suite/          Playwright scenarios + custom JSON reporter that normalizes results into the webhook contract
+tests/ui/                 Playwright UI suite for the dashboard (page objects, API-seeded fixtures, role fixtures)
+packages/playwright-reporter/  Playwright reporter emitting the webhook contract (one record per test, final outcome)
 packages/shared-types/    Zod schemas + shared TS types (@orchestrator/shared-types) — the contract everything else depends on
 packages/fingerprint-engine/  Deterministic normalization + SHA-256 failure identity (@orchestrator/fingerprint-engine)
 packages/failure-classifier/  Priority-ordered deterministic classification rules (@orchestrator/failure-classifier)
@@ -34,7 +35,7 @@ npm install                       # installs all workspaces
 npm run build                     # tsc --build across every workspace, if present
 npm run lint                      # eslint . (root config; dashboard has its own oxlint)
 npm run format:check              # prettier --check .
-npm run test:unit                 # vitest run at the root (packages + ingestion-service; excludes apps/test-suite)
+npm run test:unit                 # vitest run at the root (packages + ingestion-service)
 npm run test:evaluations          # deterministic agent-evaluation + multi-agent-investigation suites only
 npm run quality                   # lint + format:check + build + test:unit + test:evaluations — the full local gate
 npm run test:backend              # pytest suite (tests/backend) against a running stack
@@ -54,11 +55,11 @@ npx vitest run apps/ingestion-service/src/__tests__/failure-investigation-agent.
 npx vitest run -t "test name substring"
 ```
 
-Playwright test suite (separate from the vitest root config, has its own tsconfig):
+Playwright UI suite (tests/ui, its own tsconfig; seeds data through the API):
 
 ```bash
-npm test --workspace=apps/test-suite          # playwright test
-npm run test:report --workspace=apps/test-suite
+npm run test:ui                               # Playwright UI suite (needs the dashboard on :4173)
+npm run report --workspace=tests/ui            # open the HTML report
 ```
 
 Local stack:

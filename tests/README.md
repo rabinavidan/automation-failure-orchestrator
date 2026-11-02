@@ -64,3 +64,37 @@ The test stack runs **two API instances** on one database: `ingestion-service` (
 off) for deterministic layers, and `ingestion-ai` (:3011, agents on against the scripted stub,
 MCP evidence enabled) for the `agents` and `mcp` layers. Deterministic tests therefore never
 depend on model behaviour, and agent tests control it completely.
+
+## UI layer (Playwright)
+
+```text
+tests/ui/
+  pages/      page objects: DashboardPage, CommandCenterPage, ApprovalQueuePage, SocConsolePage
+  support/    api.ts (seeds runs, alerts and paused approvals through the APIs), fixtures.ts
+  specs/      navigation, command center, approvals, SOC console, integrations, resilience
+```
+
+- **Locators**: roles and accessible names first (`getByRole('button', { name: 'Approve & resume' })`);
+  `data-testid` only for repeated items (failure rows, approval cards, containment actions).
+- **Seeding**: every test creates its own run or alert through the API, so tests run in parallel
+  and in any order (also verified with `--workers=4 --repeat-each=2`). Assertions are scoped to
+  the test's own data (for example Jira issues by fingerprint label), never global counts.
+- **Roles**: `signedInAs('ci_reviewer' | 'soc_responder')` seeds the reviewer token; one spec
+  drives the real sign-in form, including an unknown token.
+- **Agents**: approvals are produced by scripting the Ollama stub per test
+  (`POST /__scenario/scripts` with the test's own ID as the match), so parallel tests never
+  consume each other's model replies.
+- **Dogfooding**: the SignalOps reporter is one of the configured reporters; in CI it delivers
+  the UI suite's own results to the platform it is testing.
+- **Artifacts**: trace, screenshot and video are kept on failure; HTML and JUnit reports are
+  uploaded by CI.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.test.yml up --build -d \
+  postgres mock-integrations enrichment-service ollama-stub ingestion-service dashboard
+npx playwright install chromium
+npm run test:ui
+```
+
+For the UI stack, start `ingestion-service` with `AI_ENABLED=true OLLAMA_HOST=http://ollama-stub:11434
+OLLAMA_MODEL=demo-stub`, so the approval specs can pause runs for review.

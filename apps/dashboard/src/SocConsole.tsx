@@ -376,7 +376,12 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
         ) : (
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {pending.map((a) => (
-              <div key={a.id} className="border-l-4 border-amber-400 bg-amber-50 p-4">
+              <div
+                key={a.id}
+                data-testid="containment-action"
+                data-action-id={a.id}
+                className="border-l-4 border-amber-400 bg-amber-50 p-4"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-mono text-[10px] uppercase text-slate-500">
@@ -416,7 +421,12 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
             </p>
             <ul className="mt-2 divide-y divide-slate-100">
               {executed.map((a) => (
-                <li key={a.id} className="flex items-center justify-between py-2 text-xs">
+                <li
+                  key={a.id}
+                  data-testid="active-containment"
+                  data-action-id={a.id}
+                  className="flex items-center justify-between py-2 text-xs"
+                >
                   <span>
                     <span className="font-mono">#{a.id}</span> {a.detail}{' '}
                     <span className="text-slate-500">by {a.reviewer}</span>
@@ -481,6 +491,8 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
                 {alerts.map((a) => (
                   <tr
                     key={a.alert_id}
+                    data-testid="alert-row"
+                    data-alert-id={a.alert_id}
                     onClick={() => void openAlert(a.alert_id)}
                     className="cursor-pointer hover:bg-canvas"
                   >

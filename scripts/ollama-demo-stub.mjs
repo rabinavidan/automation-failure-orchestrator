@@ -13,6 +13,9 @@
  * Test control (used by the pytest suite to script agent behaviour):
  *   PUT    /__scenario  {"responses": [<object|string>, ...]}  next chat replies, in order
  *                       {"fail": {"status": 500, "times": 1}}   fail the next N chat calls
+ *   POST   /__scenario/scripts {"match": "<text>", "responses": [...]}
+ *                       replies used only for requests whose messages contain <text>, so
+ *                       parallel tests can each script their own investigation
  *   GET    /__scenario  remaining scripted replies and the chat calls received so far
  *   DELETE /__scenario  back to schema-synthesized replies; clears the call log
  * A scripted object reply is sent as JSON; a string is sent verbatim (e.g. invalid JSON).
@@ -22,12 +25,22 @@ import http from 'node:http';
 const port = Number(process.env.PORT ?? 11434);
 
 /** Scripted behaviour for tests. Empty = synthesize from the requested schema. */
-const scenario = { responses: [], fail: null, calls: [] };
+const scenario = { responses: [], fail: null, calls: [], scripts: [] };
 
 function resetScenario() {
   scenario.responses = [];
   scenario.fail = null;
   scenario.calls = [];
+  scenario.scripts = [];
+}
+
+/** The next scripted reply for this request: a matching script first, then the global queue. */
+function nextScripted(requestText) {
+  const script = scenario.scripts.find(
+    (s) => s.responses.length > 0 && requestText.includes(s.match)
+  );
+  if (script) return script.responses.shift();
+  return scenario.responses.length > 0 ? scenario.responses.shift() : undefined;
 }
 
 function sendJson(res, status, value) {
@@ -37,6 +50,14 @@ function sendJson(res, status, value) {
 }
 
 function handleScenario(req, res, body) {
+  if (req.url === '/__scenario/scripts' && req.method === 'POST') {
+    const input = JSON.parse(body || '{}');
+    if (typeof input.match !== 'string' || !input.match || !Array.isArray(input.responses)) {
+      return sendJson(res, 400, { error: 'match (string) and responses (array) are required' });
+    }
+    scenario.scripts.push({ match: input.match, responses: [...input.responses] });
+    return sendJson(res, 201, { scripts: scenario.scripts.length });
+  }
   if (req.method === 'DELETE') {
     resetScenario();
     return sendJson(res, 200, { reset: true });
@@ -44,6 +65,7 @@ function handleScenario(req, res, body) {
   if (req.method === 'GET') {
     return sendJson(res, 200, {
       remainingResponses: scenario.responses.length,
+      scripts: scenario.scripts.map((s) => ({ match: s.match, remaining: s.responses.length })),
       fail: scenario.fail,
       calls: scenario.calls,
     });
@@ -111,7 +133,7 @@ http
           if (scenario.fail.times === 0) scenario.fail = null;
           return sendJson(res, status, { error: 'scripted failure' });
         }
-        const scripted = scenario.responses.length > 0 ? scenario.responses.shift() : undefined;
+        const scripted = nextScripted(JSON.stringify(messages));
         const content =
           scripted === undefined
             ? JSON.stringify(synthesize(format, undefined, facts(messages)))

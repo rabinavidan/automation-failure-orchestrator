@@ -3,7 +3,8 @@
   "private": true,
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "tests/ui"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
@@ -39,7 +40,8 @@
     "contracts:export": "tsx packages/shared-types/scripts/export-json-schema.ts && prettier --write contracts/json-schema --log-level warn",
     "contracts:check": "npm run contracts:export && git diff --exit-code -- contracts/json-schema",
     "test:backend": "cd tests/backend && pytest",
-    "test:system": "cd tests/backend && pytest -m system"
+    "test:system": "cd tests/backend && pytest -m system",
+    "test:ui": "npm test --workspace=tests/ui"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.0",
