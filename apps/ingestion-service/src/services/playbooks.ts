@@ -19,7 +19,7 @@ export function loadPlaybooks(
   dir: string = process.env.SOC_PLAYBOOK_DIR ?? DEFAULT_PLAYBOOK_DIR
 ): PlaybookLoadResult {
   const result: PlaybookLoadResult = { playbooks: [], errors: [] };
-  let files: string[] = [];
+  let files: string[];
   try {
     files = readdirSync(dir)
       .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))

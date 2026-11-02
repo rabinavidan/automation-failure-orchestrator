@@ -75,7 +75,7 @@ export async function runWorker(options: {
   console.log('[Worker] consuming', options.queueUrl);
 
   while (!options.signal?.aborted) {
-    let messages: Message[] = [];
+    let messages: Message[];
     try {
       const received = await client.send(
         new ReceiveMessageCommand({
