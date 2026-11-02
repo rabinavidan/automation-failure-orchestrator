@@ -18,6 +18,10 @@ class _UseConfigured:
 USE_CONFIGURED = _UseConfigured()
 
 
+def bearer(token: str | None) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
 class IngestionClient:
     """The orchestrator API (apps/ingestion-service)."""
 
@@ -44,6 +48,36 @@ class IngestionClient:
 
     def get_failure(self, fingerprint: str) -> httpx.Response:
         return self.http.get(f"/api/failures/{fingerprint}")
+
+    def post_alert(
+        self, payload: Json, vendor: str | None = None, *, secret: str | None = None
+    ) -> httpx.Response:
+        """POST /api/alerts (normalized contract) or /api/alerts/<vendor> (native SIEM payload)."""
+        path = f"/api/alerts/{vendor}" if vendor else "/api/alerts"
+        headers = {"x-webhook-secret": secret if secret is not None else self.webhook_secret}
+        return self.http.post(path, json=payload, headers=headers)
+
+    def get_alert(self, alert_id: str) -> Json:
+        body: Json = self.http.get(f"/api/alerts/{alert_id}").raise_for_status().json()
+        return dict(body["alert"])
+
+    def response_action(self, action_id: str) -> Json:
+        body: Json = self.http.get(f"/api/responses/actions/{action_id}").raise_for_status().json()
+        return body
+
+    def decide_action(
+        self, action_id: str, decision: str, token: str | None, **extra: Any
+    ) -> httpx.Response:
+        return self.http.post(
+            f"/api/responses/actions/{action_id}/decision",
+            json={"decision": decision, **extra},
+            headers=bearer(token),
+        )
+
+    def rollback_action(self, action_id: str, token: str | None, **body: Any) -> httpx.Response:
+        return self.http.post(
+            f"/api/responses/actions/{action_id}/rollback", json=body, headers=bearer(token)
+        )
 
     def get(self, path: str, **kwargs: Any) -> httpx.Response:
         return self.http.get(path, **kwargs)
@@ -79,6 +113,20 @@ class MockIntegrationsClient:
     def health(self) -> Json:
         body: Json = self.http.get("/health").raise_for_status().json()
         return body
+
+    def firewall_blocks(self) -> dict[str, Json]:
+        blocks: dict[str, Json] = (
+            self.http.get("/firewall/blocks").raise_for_status().json()["blocks"]
+        )
+        return blocks
+
+    def isolated_hosts(self) -> dict[str, Json]:
+        hosts: dict[str, Json] = self.http.get("/edr/hosts").raise_for_status().json()["isolated"]
+        return hosts
+
+    def edr_actions(self) -> list[Json]:
+        actions: list[Json] = self.http.get("/edr/actions").raise_for_status().json()["actions"]
+        return actions
 
 
 class OllamaStubClient:
