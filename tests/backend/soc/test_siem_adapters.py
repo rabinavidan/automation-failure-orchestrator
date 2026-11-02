@@ -71,3 +71,38 @@ def test_malformed_vendor_payload_is_400(ingestion: IngestionClient, vendor: str
 def test_alert_ingestion_requires_the_webhook_secret(ingestion: IngestionClient) -> None:
     response = ingestion.post_alert(alerts.splunk_brute_force(), "splunk", secret="wrong")
     assert response.status_code == 403
+
+
+def test_sentinel_entities_as_an_array_with_file_url_and_process(
+    ingestion: IngestionClient, mock: MockIntegrationsClient
+) -> None:
+    """Sentinel connectors send Entities as a JSON string or as an array; both must work, and
+    unknown entity types are ignored rather than rejected."""
+    payload = {
+        "SystemAlertId": f"{alerts.unique('mde')}",
+        "AlertDisplayName": "Malicious file executed",
+        "Severity": "Medium",
+        "TimeGenerated": "2026-10-03T13:00:00Z",
+        "Tactics": ["Execution", "CommandAndControl"],
+        "Entities": [
+            {
+                "Type": "file",
+                "Name": "invoice.exe",
+                "FileHashes": [{"Algorithm": "MD5", "Value": alerts.EICAR_MD5.upper()}],
+            },
+            {"Type": "url", "Url": "http://evil.example.net/payload"},
+            {"Type": "process", "CommandLine": "C:\\\\Users\\\\jdoe\\\\invoice.exe /silent"},
+            {"Type": "host", "HostName": alerts.unique("ws")},
+            {"Type": "unknown-type", "Foo": "bar"},
+        ],
+    }
+
+    response = ingestion.post_alert(payload, "sentinel")
+
+    assert response.status_code == 201, response.text
+    stored = ingestion.get_alert(response.json()["alertId"])
+    types = {i["type"] for i in stored["indicators"]}
+    assert {"file_hash", "url"} <= types
+    hashes = {i["value"] for i in stored["indicators"] if i["type"] == "file_hash"}
+    assert alerts.EICAR_MD5 in hashes, "hashes are normalized to lower case"
+    assert response.json()["enrichment"]["summary"]["verdict"] == "malicious"

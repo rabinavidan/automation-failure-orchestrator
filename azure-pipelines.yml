@@ -44,7 +44,7 @@ stages:
             parameters:
               nodeVersion: $(nodeVersion)
           - script: npm run quality
-            displayName: Lint, format, build, unit tests, agent evaluations
+            displayName: Lint, format, build, typecheck tests
 
       - job: python_quality
         displayName: Python enrichment service

@@ -47,3 +47,25 @@ services:
         condition: service_healthy
       ollama-stub:
         condition: service_healthy
+
+  # Third API instance: the single-agent tool-calling graph (failure-agent-v1) instead of the
+  # supervisor, for the agents layer. Same database, mocks and stub.
+  ingestion-single-agent:
+    extends:
+      file: docker-compose.yml
+      service: ingestion-service
+    container_name: orchestrator-ingestion-single-agent
+    ports: !override
+      - '3012:3001'
+    environment:
+      AI_ENABLED: 'true'
+      MULTI_AGENT_ENABLED: 'false'
+      OLLAMA_HOST: http://ollama-stub:11434
+      OLLAMA_MODEL: demo-stub
+      OLLAMA_TIMEOUT_MS: '10000'
+      RAG_ENABLED: 'false'
+    depends_on:
+      ingestion-service:
+        condition: service_healthy
+      ollama-stub:
+        condition: service_healthy

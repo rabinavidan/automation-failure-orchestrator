@@ -6,14 +6,14 @@ audited.
 
 ## What exists
 
-| Piece                                            | File                                                        |
-| ------------------------------------------------ | ----------------------------------------------------------- |
-| Server (4 read-only tools)                       | `apps/ingestion-service/src/mcp/evidence-server.ts`         |
-| Streamable HTTP endpoint `POST /mcp` (stateless) | `apps/ingestion-service/src/routes/mcp.ts`                  |
-| Scope tokens (HMAC-SHA256, 15 min TTL)           | `apps/ingestion-service/src/mcp/scope-token.ts`             |
-| Data access (same sources as the direct path)    | `apps/ingestion-service/src/mcp/evidence-store.ts`          |
-| Agent-side client and direct adapter             | `apps/ingestion-service/src/mcp/evidence-client.ts`         |
-| Contract tests over real HTTP                    | `apps/ingestion-service/src/__tests__/mcp-evidence.test.ts` |
+| Piece                                            | File                                                |
+| ------------------------------------------------ | --------------------------------------------------- |
+| Server (4 read-only tools)                       | `apps/ingestion-service/src/mcp/evidence-server.ts` |
+| Streamable HTTP endpoint `POST /mcp` (stateless) | `apps/ingestion-service/src/routes/mcp.ts`          |
+| Scope tokens (HMAC-SHA256, 15 min TTL)           | `apps/ingestion-service/src/mcp/scope-token.ts`     |
+| Data access (same sources as the direct path)    | `apps/ingestion-service/src/mcp/evidence-store.ts`  |
+| Agent-side client and direct adapter             | `apps/ingestion-service/src/mcp/evidence-client.ts` |
+| Contract tests over real HTTP                    | `tests/backend/mcp/test_mcp_evidence.py`            |
 
 SDK: `@modelcontextprotocol/sdk` 1.32.1 (pinned).
 

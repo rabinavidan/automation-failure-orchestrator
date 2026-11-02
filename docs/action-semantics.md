@@ -24,8 +24,8 @@ Each claim names the code and test that back it.
   token returns 401, and the wrong role returns 403. All three happen before any state is read.
 - **UI is not the boundary:** the dashboard signs in through `GET /api/auth/whoami` and hides
   buttons the role cannot use, but the API checks the role on every call.
-- **Tests:** `reviewer-auth.test.ts` covers fail-closed, 401, 403 across tracks, and body
-  spoofing. The pytest suite (`tests/backend/soc/test_response_actions.py`,
+- **Tests:** the pytest suite covers 401, 403 across tracks, and body spoofing against the
+  running API. The pytest suite (`tests/backend/soc/test_response_actions.py`,
   `tests/backend/agents/test_approvals.py`) checks anonymous → 401 and wrong role → 403 against
   the running stack in CI.
 
@@ -63,7 +63,7 @@ An atomic local decision does **not** make the external call exactly-once. What 
 - **SQS worker** (`INVESTIGATION_QUEUE=sqs`): a failed investigation leaves the message for
   redelivery (60 s visibility backoff), and after `maxReceiveCount = 3` it goes to the DLQ
   (`infra/terraform/sqs.tf`). Redelivery of already-completed work is a no-op, and poison
-  messages are discarded (`investigation-queue.test.ts`). CI runs this path against moto
+  messages are discarded. CI runs this path against moto
   (`demo:aws-local`), which is a local emulator, not AWS.
 - **Restart:** LangGraph checkpoints and approval requests are stored in Postgres
   (`db/agent-checkpointer.ts`, migration 006). A paused CI investigation resumes from the

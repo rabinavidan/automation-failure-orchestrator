@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Quality and agent evaluations
+    name: Static quality (lint, format, types, build)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -81,8 +81,9 @@ jobs:
           RAG_ENABLED: 'false'
         run: |
           docker compose $COMPOSE_FILES up -d --build \
-            postgres mock-integrations enrichment-service ollama-stub ingestion-service ingestion-ai
-          for port in 3001 3011; do
+            postgres mock-integrations enrichment-service ollama-stub ingestion-service ingestion-ai \
+            ingestion-single-agent
+          for port in 3001 3011 3012; do
             for i in $(seq 1 60); do
               curl -sf "http://localhost:$port/health" > /dev/null && break
               sleep 3
@@ -102,10 +103,57 @@ jobs:
           if-no-files-found: ignore
       - name: Capture container diagnostics
         if: failure()
-        run: docker compose $COMPOSE_FILES logs --no-color --tail=200 ingestion-service ingestion-ai mock-integrations
+        run: docker compose $COMPOSE_FILES logs --no-color --tail=200 ingestion-service ingestion-ai ingestion-single-agent mock-integrations
       - name: Stop
         if: always()
         run: docker compose $COMPOSE_FILES down --volumes
+
+  backend-coverage:
+    name: Backend coverage gate (pytest -> TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: orchestrator
+          POSTGRES_PASSWORD: orchestrator
+          POSTGRES_DB: orchestrator
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U orchestrator" --health-interval 5s --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            tests/backend/pyproject.toml
+            apps/enrichment-service/pyproject.toml
+      - name: Install the backend suite and the enrichment service
+        run: pip install "./tests/backend[dev]" ./apps/enrichment-service
+      - name: Run the pytest suite against instrumented services and enforce coverage
+        run: npm run coverage:backend
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/backend/coverage-summary.json ]; then
+            python3 -c "import json; t=json.load(open('coverage/backend/coverage-summary.json'))['total']; print('### Backend coverage (black-box pytest -> TypeScript)'); [print(f'- {k}: {t[k][\"pct\"]}% ({t[k][\"covered\"]}/{t[k][\"total\"]})') for k in ('lines','branches','functions')]" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage
+          path: coverage/backend/
+          retention-days: 14
 
   terraform:
     name: Terraform validate and IaC security scan

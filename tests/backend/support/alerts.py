@@ -15,6 +15,8 @@ from typing import Any
 
 from .factories import unique
 
+__all__ = ["unique"]
+
 Json = dict[str, Any]
 
 MALICIOUS_IP = "203.0.113.7"

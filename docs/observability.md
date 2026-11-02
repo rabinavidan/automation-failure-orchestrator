@@ -88,8 +88,9 @@ a series.
 
 ## Evidence
 
-- `observability.test.ts`: span names, GenAI attributes, parent-child nesting, histogram export,
-  counter initialization, and that an error message never reaches an exported span.
+- `tests/backend/system/test_observability.py`: span names, GenAI attributes, parent-child nesting,
+  metrics in Prometheus and the provisioned dashboard. Counter initialization and keeping error
+  messages out of exported spans are implemented in `telemetry.ts` (`initializeCounters`, `inSpan`).
 - CI job **OpenTelemetry traces and metrics (Grafana LGTM)** starts the stack with the demo stub
   and runs `npm run demo:observability` with `EXPECT_GENAI=true`. It asserts the full trace tree
   in Tempo, the metrics in Prometheus and the provisioned dashboard in Grafana.

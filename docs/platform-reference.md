@@ -357,7 +357,7 @@ The evaluation stack is layered and follows the dataset/target/evaluator pattern
 
 | Layer                       | What it checks                                                                                                                                                                                                                       | Where                                                                                                                  |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| Deterministic evaluators    | Schema completeness, specialist coverage, RAG grounding, high-risk policy safety, confidence range                                                                                                                                   | `agent-evaluation.ts`; runs on every `npm run test:evaluations` CI pass                                                |
+| Deterministic evaluators    | Schema completeness, specialist coverage, RAG grounding, high-risk policy safety, confidence range                                                                                                                                   | `agent-evaluation.ts`; asserted by `tests/backend/evaluation` (pytest) on every CI run                                 |
 | LLM-as-judge grader         | Groundedness, root-cause quality, and explanation clarity, scored by a second Ollama call against a rubric; fails closed on non-JSON, schema-invalid, or failed judge output                                                         | `agent-judge.ts`; validated against a 6-example human-labeled set (`judge-labeled-set.ts`) via `scoreJudgeAgreement()` |
 | Language-quality heuristics | Model-free checks for overconfident phrasing ("definitely", "guaranteed") at low stated confidence, and hedge-laden explanations                                                                                                     | `explanation-language-quality.ts`                                                                                      |
 | Failure-mode taxonomy       | Names _why_ an investigation failed (`ungrounded_rag`, `unsafe_high_risk_policy`, `low_groundedness`, `overconfident_language`, ...) instead of a single pass/fail signal, and aggregates counts + example thread IDs across a batch | `failure-mode-taxonomy.ts`                                                                                             |
@@ -434,7 +434,7 @@ The first 12 fingerprint characters become a Jira label such as `automation-fing
 | Reliability logic | Rules + SHA-256                        | Explainable classification and correlation                                           |
 | Integrations      | Jira + Slack adapters                  | Separation between domain decisions and external APIs                                |
 | Local runtime     | Docker Compose                         | Reproducible multi-service startup and health checks                                 |
-| Quality           | pytest, Playwright, Vitest, ESLint     | Unit, integration, E2E, and static-quality coverage                                  |
+| Quality           | pytest, Playwright, c8, ESLint         | Unit, integration, E2E, and static-quality coverage                                  |
 | CI/CD             | GitHub Actions                         | Build, lint, tests, artifacts, and optional n8n delivery                             |
 
 ## Repository structure
@@ -730,11 +730,9 @@ npm test
 
 # Targeted packages
 npm test --workspace=packages/fingerprint-engine
-npm test --workspace=packages/failure-classifier
-npm test --workspace=apps/ingestion-service
-
-# Deterministic + LLM-as-judge agent evaluation suite (the CI quality gate)
-npm run test:evaluations
+npm run test:backend      # pytest, black-box, against a running stack (tests/README.md)
+npm run test:ui           # Playwright UI suite
+npm run coverage:backend  # TypeScript coverage of the black-box suite, gated at 80% lines
 
 # Sample recent production investigations into a failure-mode report
 npm run sample:failure-modes --workspace=apps/ingestion-service
