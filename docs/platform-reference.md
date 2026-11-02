@@ -375,7 +375,7 @@ Rules run in an explicit priority order:
 |        1 | `known_bug`          | Exact fingerprint already has a Jira issue                                           | Add comment + Slack  |
 |        2 | `infrastructure`     | DNS, connection, timeout, gateway, browser, pod, or similar infrastructure signature | Slack only           |
 |        3 | `automation_failure` | Selector, strict-mode, fixture, module, or syntax failure                            | Slack only           |
-|        4 | `flaky`              | Retry occurred or recent history oscillates                                          | Slack only           |
+|        4 | `flaky`              | Passed on a retry, or recent history oscillates                                      | Slack only           |
 |        5 | `new_regression`     | No earlier rule matched                                                              | Create Jira + Slack  |
 | Recovery | `possibly_fixed`     | Known failure passes the consecutive-run threshold                                   | Jira comment + Slack |
 
@@ -743,11 +743,7 @@ npm run sample:failure-modes --workspace=apps/ingestion-service
 npm run compare:versions --workspace=apps/ingestion-service -- --before-model=qwen3:4b --after-model=llama3:8b
 ```
 
-The Playwright project intentionally includes successful, failing, flaky, infrastructure, and automation scenarios. Its custom reporter writes:
-
-```text
-apps/test-suite/test-results/normalized-results.json
-```
+The Playwright reporter (`packages/playwright-reporter`) emits the webhook contract with one record per test and its final outcome (a pass after a retry is flaky; a failure on every retry is not), stable relative test IDs, real error classes and no terminal colour codes. It writes `test-results/normalized-results.json` and, with `SIGNALOPS_INGEST_URL` set, posts the run to the orchestrator. Its output is verified end to end by `tests/backend/contract/test_playwright_reporter.py`.
 
 GitHub Actions performs linting, formatting checks, workspace builds, unit tests, browser tests, artifact upload, and optional delivery to n8n when secrets are configured.
 

@@ -64,7 +64,7 @@ Failures are classified in priority order:
 1. **KnownBug** — Jira issue already exists for this fingerprint
 2. **InfrastructureFailure** — Error matches infra patterns (ECONNREFUSED, DNS, etc.)
 3. **AutomationFailure** — Error matches test code patterns (strict mode, unknown fixture, etc.)
-4. **FlakyTest** — Test was retried OR has oscillating history
+4. **FlakyTest** — Test passed on a retry in this run, OR its recent history oscillates (≥ 2 pass/fail transitions). A test that failed on every retry is not flaky.
 5. **NewRegression** — Default: something in the app broke
 
 ### Idempotency

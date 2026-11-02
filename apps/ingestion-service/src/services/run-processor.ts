@@ -18,6 +18,37 @@ import { inSpan, recordFailureClassified, recordRunProcessed } from '../observab
 
 const RECOVERY_THRESHOLD = parseInt(process.env.RECOVERY_PASS_THRESHOLD ?? '3', 10);
 
+/**
+ * The contract is one record per test with its final outcome. Producers that send one record
+ * per attempt (for example an older Playwright reporter) are collapsed here: the last attempt
+ * wins, `retry` becomes the number of retries used, and a failed attempt followed by a pass
+ * becomes a flaky pass that keeps the first failure's error for fingerprinting.
+ */
+export function collapseAttempts(tests: TestResult[]): TestResult[] {
+  const byTest = new Map<string, TestResult[]>();
+  for (const test of tests) {
+    const attempts = byTest.get(test.testId) ?? [];
+    attempts.push(test);
+    byTest.set(test.testId, attempts);
+  }
+  return [...byTest.values()].map((attempts) => {
+    if (attempts.length === 1) return attempts[0];
+    const ordered = [...attempts].sort((a, b) => a.retry - b.retry);
+    const final = ordered[ordered.length - 1];
+    const retry = Math.max(final.retry, ordered.length - 1);
+    const firstFailure = ordered.find((attempt) => attempt.status === 'failed');
+    if (final.status === 'passed' && firstFailure) {
+      return { ...final, retry, error: final.error ?? firstFailure.error };
+    }
+    return { ...final, retry };
+  });
+}
+
+/** Failed at least once, then passed on a retry within the same run. */
+export function isFlakyPass(test: TestResult): boolean {
+  return test.status === 'passed' && test.retry > 0;
+}
+
 export async function processRun(payload: WebhookPayload): Promise<ProcessingResult> {
   return inSpan(
     'signalops.process_run',
@@ -83,7 +114,7 @@ async function processRunUntraced(payload: WebhookPayload): Promise<ProcessingRe
   let processed = 0;
   let skipped = 0;
 
-  for (const test of payload.tests) {
+  for (const test of collapseAttempts(payload.tests)) {
     try {
       if (test.status === 'skipped') {
         skipped++;
@@ -135,8 +166,11 @@ async function processTest(
   payload: WebhookPayload,
   failures: FailureSummary[]
 ): Promise<void> {
+  // A flaky pass is a failure signal (no Jira issue), not a pass toward recovery.
+  const flakyPass = isFlakyPass(test);
+
   // For passed tests, check recovery
-  if (test.status === 'passed') {
+  if (test.status === 'passed' && !flakyPass) {
     await handlePassedTest(test, payload);
     await persistTestResult(test, payload.runId, null, null, null, undefined);
     return;
@@ -146,8 +180,8 @@ async function processTest(
   const fp = generateFingerprint({
     testId: test.testId,
     service: test.metadata?.service,
-    errorName: test.error?.name ?? 'Error',
-    errorMessage: test.error?.message ?? 'Unknown error',
+    errorName: test.error?.name ?? (flakyPass ? 'FlakyRetry' : 'Error'),
+    errorMessage: test.error?.message ?? (flakyPass ? 'passed on retry' : 'Unknown error'),
     endpoint: test.metadata?.endpoint,
   });
 
@@ -159,23 +193,29 @@ async function processTest(
   // Get failure history
   const history = await getFailureHistory(fp);
 
-  // Classify the failure
-  const classification = classify({
-    test,
-    failureHistory: history ?? undefined,
-    existingJiraIssue: existingIssue?.key,
-  });
+  // Classify the failure. A test that passed on retry is flaky by definition: it never opens
+  // or updates a Jira issue, whatever its history.
+  const classification = flakyPass
+    ? FailureClassification.FlakyTest
+    : classify({
+        test,
+        failureHistory: history ?? undefined,
+        existingJiraIssue: existingIssue?.key,
+      });
 
   // The agent may gather evidence and recommend an action, but deterministic
-  // classification remains the policy guardrail for side effects.
-  const investigationOutcome = await investigateFailure({
-    test,
-    run: payload,
-    fingerprint: fp,
-    deterministicClassification: classification,
-    history,
-    existingIssue,
-  });
+  // classification remains the policy guardrail for side effects. A flaky pass needs no
+  // investigation: the test already passed.
+  const investigationOutcome: Awaited<ReturnType<typeof investigateFailure>> = flakyPass
+    ? {}
+    : await investigateFailure({
+        test,
+        run: payload,
+        fingerprint: fp,
+        deterministicClassification: classification,
+        history,
+        existingIssue,
+      });
   const agentInvestigation = investigationOutcome.investigation;
 
   if (investigationOutcome.approvalPending && investigationOutcome.threadId && agentInvestigation) {
@@ -186,7 +226,11 @@ async function processTest(
       context: { test, run: payload },
       investigation: agentInvestigation,
     });
-    await upsertFailureHistory(fp, test, classification);
+    await upsertFailureHistory(
+      fp,
+      flakyPass ? { ...test, status: 'failed' } : test,
+      classification
+    );
     await persistTestResult(test, payload.runId, fp, classification, null, agentInvestigation);
     failures.push({
       testId: test.testId,
@@ -263,7 +307,12 @@ async function processTest(
   }
 
   // Update failure history
-  await upsertFailureHistory(fp, test, classification, jiraKey);
+  await upsertFailureHistory(
+    fp,
+    flakyPass ? { ...test, status: 'failed' } : test,
+    classification,
+    jiraKey
+  );
 
   // Persist test result
   await persistTestResult(
@@ -310,14 +359,19 @@ async function handlePassedTest(test: TestResult, payload: WebhookPayload): Prom
     await query(
       `UPDATE failure_history
        SET consecutive_passes = $1,
-           last_statuses = (last_statuses || $2::jsonb) - 0,
+           -- Keep the last 5 outcomes: drop the oldest only once the window is full
+           -- (unconditionally dropping it shrank the history on every pass).
+           last_statuses = CASE
+             WHEN jsonb_array_length(last_statuses) >= 5 THEN (last_statuses - 0) || $2::jsonb
+             ELSE last_statuses || $2::jsonb
+           END,
            last_seen_at = NOW()
        WHERE fingerprint = $3`,
       [newConsecutivePasses, JSON.stringify('passed'), row.fingerprint]
     );
 
-    // Notify if recovery threshold met
-    if (row.jira_issue_key && newConsecutivePasses >= RECOVERY_THRESHOLD) {
+    // Notify once, when the threshold is reached (not again on every later pass)
+    if (row.jira_issue_key && newConsecutivePasses === RECOVERY_THRESHOLD) {
       await sendSlackNotification({
         classification: FailureClassification.PossiblyFixed,
         testTitle: test.title,

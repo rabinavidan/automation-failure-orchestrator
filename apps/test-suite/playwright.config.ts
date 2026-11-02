@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
-    ['./reporter/json-reporter.ts'],
+    ['../../packages/playwright-reporter/src/index.ts'],
   ],
   use: {
     baseURL: process.env.BASE_URL ?? 'https://jsonplaceholder.typicode.com',

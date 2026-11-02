@@ -34,7 +34,7 @@ export function classify(input: ClassifyInput): FailureClassification {
     return FailureClassification.AutomationFailure;
   }
 
-  if (isFlakyTest(test, failureHistory)) {
+  if (isFlakyTest(failureHistory)) {
     return FailureClassification.FlakyTest;
   }
 

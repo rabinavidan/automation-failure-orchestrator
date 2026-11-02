@@ -28,10 +28,22 @@ export const TestResultSchema = z.object({
   suite: z.string(),
   file: z.string(),
   owner: z.string().optional(),
-  status: z.enum(['passed', 'failed', 'skipped']),
+  status: z
+    .enum(['passed', 'failed', 'skipped'])
+    .describe('Final outcome of the test after all retries. Send one record per test.'),
   durationMs: z.number(),
-  retry: z.number().default(0),
-  error: TestErrorSchema.optional(),
+  retry: z
+    .number()
+    .int()
+    .min(0)
+    .default(0)
+    .describe(
+      'Retries used before the final outcome. passed with retry > 0 means flaky (failed, then ' +
+        'passed); failed with retry > 0 means it failed on every attempt.'
+    ),
+  error: TestErrorSchema.optional().describe(
+    'For a failed test, the final error; for a flaky pass, the error of the first failed attempt.'
+  ),
   metadata: TestMetadataSchema.optional(),
   artifacts: TestArtifactsSchema.optional(),
 });
