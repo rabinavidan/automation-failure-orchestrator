@@ -47,6 +47,64 @@ jobs:
       - run: mypy
       - run: pytest -q
 
+  backend-tests:
+    name: Backend tests (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COMPOSE_FILES: -f docker-compose.yml -f docker-compose.test.yml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Contract schemas are up to date with the Zod source
+        run: npm run contracts:check
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: tests/backend/pyproject.toml
+      - name: Install the suite
+        run: pip install "./tests/backend[dev]"
+      - name: Lint and type-check the suite
+        working-directory: tests/backend
+        run: |
+          ruff check .
+          ruff format --check .
+          mypy
+      - name: Start the platform with the scriptable Ollama stub
+        env:
+          AI_ENABLED: 'false'
+          RAG_ENABLED: 'false'
+        run: |
+          docker compose $COMPOSE_FILES up -d --build \
+            postgres mock-integrations enrichment-service ollama-stub ingestion-service
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3001/health > /dev/null && break
+            sleep 3
+          done
+      - name: Smoke (fail fast)
+        working-directory: tests/backend
+        run: pytest -m smoke --maxfail=1
+      - name: Full backend suite
+        working-directory: tests/backend
+        run: pytest --junitxml=test-results/junit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: tests/backend/test-results/
+          if-no-files-found: ignore
+      - name: Capture container diagnostics
+        if: failure()
+        run: docker compose $COMPOSE_FILES logs --no-color --tail=200 ingestion-service mock-integrations
+      - name: Stop
+        if: always()
+        run: docker compose $COMPOSE_FILES down --volumes
+
   terraform:
     name: Terraform validate and IaC security scan
     runs-on: ubuntu-latest
