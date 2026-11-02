@@ -77,7 +77,7 @@ status=0
 # System tests need their own stacks (dashboard, LGTM, moto, Shuffle) and run in their own jobs.
 # NODE_V8_COVERAGE is inherited by the Node CLIs the evaluation layer runs (benchmark,
 # compare:versions, sample:failure-modes through tsx), so offline tooling counts too.
-(cd tests/backend && NODE_V8_COVERAGE="$V8" pytest -m "not system" --junitxml="$OUT/junit.xml") || status=$?
+(cd tests/backend && TEST_DATABASE_URL="${TEST_DATABASE_URL:-$DATABASE_URL}" NODE_V8_COVERAGE="$V8" pytest -m "not system" --junitxml="$OUT/junit.xml") || status=$?
 
 # Graceful shutdown: V8 writes coverage when the process exits.
 for pid in "${API_PIDS[@]}"; do kill -TERM "$pid" 2>/dev/null || true; done
