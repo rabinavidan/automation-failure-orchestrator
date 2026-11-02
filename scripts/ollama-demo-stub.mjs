@@ -9,10 +9,57 @@
  * reasoning, run Ollama locally (also free) and point OLLAMA_HOST at it.
  *
  *   node scripts/ollama-demo-stub.mjs            # listens on :11434 (PORT to override)
+ *
+ * Test control (used by the pytest suite to script agent behaviour):
+ *   PUT    /__scenario  {"responses": [<object|string>, ...]}  next chat replies, in order
+ *                       {"fail": {"status": 500, "times": 1}}   fail the next N chat calls
+ *   GET    /__scenario  remaining scripted replies and the chat calls received so far
+ *   DELETE /__scenario  back to schema-synthesized replies; clears the call log
+ * A scripted object reply is sent as JSON; a string is sent verbatim (e.g. invalid JSON).
  */
 import http from 'node:http';
 
 const port = Number(process.env.PORT ?? 11434);
+
+/** Scripted behaviour for tests. Empty = synthesize from the requested schema. */
+const scenario = { responses: [], fail: null, calls: [] };
+
+function resetScenario() {
+  scenario.responses = [];
+  scenario.fail = null;
+  scenario.calls = [];
+}
+
+function sendJson(res, status, value) {
+  res.statusCode = status;
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify(value));
+}
+
+function handleScenario(req, res, body) {
+  if (req.method === 'DELETE') {
+    resetScenario();
+    return sendJson(res, 200, { reset: true });
+  }
+  if (req.method === 'GET') {
+    return sendJson(res, 200, {
+      remainingResponses: scenario.responses.length,
+      fail: scenario.fail,
+      calls: scenario.calls,
+    });
+  }
+  if (req.method === 'PUT') {
+    const input = JSON.parse(body || '{}');
+    if (input.responses !== undefined && !Array.isArray(input.responses)) {
+      return sendJson(res, 400, { error: 'responses must be an array' });
+    }
+    scenario.responses = input.responses ?? [];
+    scenario.fail = input.fail ? { status: 500, times: 1, ...input.fail } : null;
+    scenario.calls = [];
+    return sendJson(res, 200, { responses: scenario.responses.length, fail: scenario.fail });
+  }
+  return sendJson(res, 405, { error: 'method not allowed' });
+}
 
 function facts(messages) {
   const text = messages.map((m) => m.content ?? '').join('\n');
@@ -49,31 +96,38 @@ function synthesize(schema, key, f) {
 
 http
   .createServer((req, res) => {
-    if (req.method === 'GET') {
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ status: 'ok', stub: true }));
-      return;
-    }
     let body = '';
     req.on('data', (chunk) => (body += chunk));
     req.on('end', () => {
       try {
+        if (req.url?.startsWith('/__scenario')) return handleScenario(req, res, body);
+        if (req.method === 'GET') return sendJson(res, 200, { status: 'ok', stub: true });
+
         const { model = 'demo-stub', messages = [], format } = JSON.parse(body || '{}');
-        const content = JSON.stringify(synthesize(format, undefined, facts(messages)));
-        res.setHeader('content-type', 'application/json');
-        res.end(
-          JSON.stringify({
-            model,
-            created_at: new Date().toISOString(),
-            message: { role: 'assistant', content },
-            done: true,
-            prompt_eval_count: Math.ceil(body.length / 4),
-            eval_count: Math.ceil(content.length / 4),
-          })
-        );
+        scenario.calls.push({ model, format: Boolean(format), at: new Date().toISOString() });
+        if (scenario.fail && scenario.fail.times > 0) {
+          scenario.fail.times -= 1;
+          const { status } = scenario.fail;
+          if (scenario.fail.times === 0) scenario.fail = null;
+          return sendJson(res, status, { error: 'scripted failure' });
+        }
+        const scripted = scenario.responses.length > 0 ? scenario.responses.shift() : undefined;
+        const content =
+          scripted === undefined
+            ? JSON.stringify(synthesize(format, undefined, facts(messages)))
+            : typeof scripted === 'string'
+              ? scripted
+              : JSON.stringify(scripted);
+        sendJson(res, 200, {
+          model,
+          created_at: new Date().toISOString(),
+          message: { role: 'assistant', content },
+          done: true,
+          prompt_eval_count: Math.ceil(body.length / 4),
+          eval_count: Math.ceil(content.length / 4),
+        });
       } catch {
-        res.statusCode = 400;
-        res.end('{"error":"invalid request"}');
+        sendJson(res, 400, { error: 'invalid request' });
       }
     });
   })

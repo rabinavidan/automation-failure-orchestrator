@@ -1,0 +1,35 @@
+{
+  "$id": "https://signalops.local/contracts/splunk-alert-webhook.schema.json",
+  "title": "splunk-alert-webhook",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "sid": {
+      "type": "string",
+      "minLength": 1
+    },
+    "search_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "app": {
+      "type": "string"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "results_link": {
+      "type": "string",
+      "format": "uri"
+    },
+    "result": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": ["sid", "search_name", "result"]
+}
