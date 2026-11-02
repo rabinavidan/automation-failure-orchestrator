@@ -75,16 +75,18 @@ jobs:
           ruff check .
           ruff format --check .
           mypy
-      - name: Start the platform with the scriptable Ollama stub
+      - name: Start the platform, the AI-enabled API instance and the scriptable Ollama stub
         env:
           AI_ENABLED: 'false'
           RAG_ENABLED: 'false'
         run: |
           docker compose $COMPOSE_FILES up -d --build \
-            postgres mock-integrations enrichment-service ollama-stub ingestion-service
-          for i in $(seq 1 60); do
-            curl -sf http://localhost:3001/health > /dev/null && break
-            sleep 3
+            postgres mock-integrations enrichment-service ollama-stub ingestion-service ingestion-ai
+          for port in 3001 3011; do
+            for i in $(seq 1 60); do
+              curl -sf "http://localhost:$port/health" > /dev/null && break
+              sleep 3
+            done
           done
       - name: Smoke (fail fast)
         working-directory: tests/backend
@@ -100,7 +102,7 @@ jobs:
           if-no-files-found: ignore
       - name: Capture container diagnostics
         if: failure()
-        run: docker compose $COMPOSE_FILES logs --no-color --tail=200 ingestion-service mock-integrations
+        run: docker compose $COMPOSE_FILES logs --no-color --tail=200 ingestion-service ingestion-ai mock-integrations
       - name: Stop
         if: always()
         run: docker compose $COMPOSE_FILES down --volumes

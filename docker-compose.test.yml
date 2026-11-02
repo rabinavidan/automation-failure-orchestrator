@@ -1,7 +1,7 @@
 # Test stack: the core platform plus the scriptable Ollama stub that the backend suite controls.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.test.yml up --build -d \
-#     postgres mock-integrations enrichment-service ollama-stub ingestion-service
+#     postgres mock-integrations enrichment-service ollama-stub ingestion-service ingestion-ai
 #   npm run test:backend
 #
 # The stub is not a model: tests script its replies through /__scenario.
@@ -22,3 +22,28 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Second API instance for the agents and MCP layers: advisory agents on (against the scripted
+  # stub), MCP evidence transport, same database and mocks. Starts after the first instance so
+  # database migrations run once.
+  ingestion-ai:
+    extends:
+      file: docker-compose.yml
+      service: ingestion-service
+    container_name: orchestrator-ingestion-ai
+    ports: !override
+      - '3011:3001'
+    environment:
+      AI_ENABLED: 'true'
+      MULTI_AGENT_ENABLED: 'true'
+      OLLAMA_HOST: http://ollama-stub:11434
+      OLLAMA_MODEL: demo-stub
+      OLLAMA_TIMEOUT_MS: '10000'
+      RAG_ENABLED: 'false'
+      EVIDENCE_TRANSPORT: mcp
+      MCP_SCOPE_SECRET: pytest-mcp-scope-secret-0001
+    depends_on:
+      ingestion-service:
+        condition: service_healthy
+      ollama-stub:
+        condition: service_healthy
