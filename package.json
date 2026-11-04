@@ -41,6 +41,7 @@
     "test:system": "cd tests/backend && pytest -m system",
     "test:ui": "npm test --workspace=tests/ui",
     "coverage:backend": "bash scripts/coverage-backend.sh",
+    "deps:check-overrides": "node scripts/check-overrides.mjs",
     "typecheck:tests": "tsc -p tests/ui/tsconfig.json"
   },
   "devDependencies": {

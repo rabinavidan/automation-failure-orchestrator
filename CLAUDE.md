@@ -40,6 +40,7 @@ npm run test:backend              # pytest suite (tests/backend) against a runni
 npm run test:smoke                # pytest -m smoke
 npm run test:system               # pytest -m system (dashboard proxy, observability, AWS-local, Shuffle)
 npm run test:python               # ruff + mypy + pytest for apps/enrichment-service (needs its venv: pip install -e '.[dev]')
+npm run deps:check-overrides      # which npm overrides (pinned patched transitive deps) upstream has made unnecessary; weekly in CI
 ```
 
 Tests are black-box and need a running stack (`docker compose -f docker-compose.yml -f docker-compose.test.yml up --build -d`, see `tests/README.md`). Select a layer or a test:

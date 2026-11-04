@@ -255,7 +255,7 @@ npm run demo:aws-local
 | AI agents with guardrails               | LangGraph supervisor, code-owned guardrails, hallucinated-IOC gate, prompt-injection hardening ([`soc-investigation.ts`](apps/ingestion-service/src/services/soc-investigation.ts))                                                  |
 | Cloud & IaC                             | Terraform for ECS Fargate, RDS, SQS + DLQ, WAF, KMS and GitHub OIDC; Checkov-gated ([`infra/terraform`](infra/terraform/README.md))                                                                                                  |
 | Test automation architecture            | Layered black-box suites: pytest for contract → API → pipeline → agents → system, Playwright TS for UI; contract-generated schemas, scriptable model stub, coverage gate ([`tests/`](tests/README.md))                               |
-| DevSecOps                               | CI quality gates, Trivy image scanning, dependency review, no long-lived cloud credentials (OIDC)                                                                                                                                    |
+| DevSecOps                               | CI quality gates, Trivy image scanning, dependency review, a weekly job that flags npm overrides upstream has made unnecessary, no long-lived cloud credentials (OIDC)                                                               |
 | Azure DevOps pipelines                  | [`azure-pipelines.yml`](azure-pipelines.yml): the same gates as YAML stages with step templates and versioned image artifacts; a CI test fails if it drifts from GitHub Actions                                                      |
 
 ## Honest scope
