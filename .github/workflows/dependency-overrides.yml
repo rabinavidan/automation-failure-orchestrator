@@ -1,0 +1,56 @@
+name: Dependency overrides
+
+# The npm `overrides` in package.json pin patched versions of transitive packages while upstream
+# still depends on vulnerable ranges. This job checks weekly whether upstream has shipped the fix,
+# and opens (or updates) one issue listing the overrides that can now be deleted.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1' # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Overrides still needed?
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check each override against a fresh resolution
+        id: check
+        run: |
+          status=0
+          node scripts/check-overrides.mjs --markdown > report.md || status=$?
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" = 1 ]; then exit 1; fi
+          echo "removable=$([ "$status" = 3 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Open or update the removal issue
+        if: steps.check.outputs.removable == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title='npm overrides can be removed: upstream shipped the fix'
+          {
+            echo 'Upstream now resolves at least one overridden package to a safe version on its own.'
+            echo 'Delete each **removable** override from `package.json`, run `npm install`, and confirm'
+            echo '`npm audit` stays clean (`node scripts/check-overrides.mjs` re-checks locally).'
+            echo
+            cat report.md
+            echo
+            echo "_Checked by [${GITHUB_WORKFLOW}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})._"
+          } > body.md
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file body.md
+          else
+            gh issue create --title "$title" --body-file body.md
+          fi
