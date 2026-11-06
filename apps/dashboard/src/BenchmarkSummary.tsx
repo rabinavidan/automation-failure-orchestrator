@@ -62,14 +62,14 @@ export function BenchmarkSummary() {
       )}
       {!failed && !reports && <div className="mt-3 h-16 animate-pulse bg-slate-100" />}
       {reports && reports.length === 0 && (
-        <p className="mt-2 text-xs text-slate-500">No benchmark report has been committed yet.</p>
+        <p className="mt-2 text-xs text-slate-600">No benchmark report has been committed yet.</p>
       )}
       {reports?.map((report) => {
         const det = report.summaries[0]?.decision.byTrack ?? {};
         const agents = report.summaries.filter((s) => s.agent);
         return (
           <div key={report.id} className="mt-3 border-t border-slate-200 pt-3 text-xs">
-            <p className="font-mono text-[10px] text-slate-500">
+            <p className="font-mono text-[10px] text-slate-600">
               {report.meta.dataset} · {report.meta.datasetCases} cases ·{' '}
               {report.meta.humanValidatedLabels ? 'human-validated labels' : 'synthetic labels'} ·
               commit {report.meta.commit.slice(0, 7)} ·{' '}
@@ -85,7 +85,7 @@ export function BenchmarkSummary() {
             </p>
             <table className="mt-2 w-full text-left">
               <caption className="sr-only">Deterministic decision quality by track</caption>
-              <thead className="text-[10px] uppercase text-slate-500">
+              <thead className="text-[10px] uppercase text-slate-600">
                 <tr>
                   <th scope="col">Track</th>
                   <th scope="col">n</th>
@@ -105,7 +105,7 @@ export function BenchmarkSummary() {
               </tbody>
             </table>
             {agents.length === 0 ? (
-              <p className="mt-2 text-slate-500">
+              <p className="mt-2 text-slate-600">
                 Agent configurations not run in this report: no real-model quality claim.
               </p>
             ) : (

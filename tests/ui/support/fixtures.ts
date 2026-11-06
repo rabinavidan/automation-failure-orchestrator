@@ -9,6 +9,9 @@ import { test as base } from '@playwright/test';
 import { ApprovalQueuePage } from '../pages/ApprovalQueuePage';
 import { CommandCenterPage } from '../pages/CommandCenterPage';
 import { DashboardPage } from '../pages/DashboardPage';
+import { InvestigationsPage } from '../pages/InvestigationsPage';
+import { KnowledgePage } from '../pages/KnowledgePage';
+import { ObservabilityPage } from '../pages/ObservabilityPage';
 import { SocConsolePage } from '../pages/SocConsolePage';
 import { Api, TOKENS, type Role } from './api';
 
@@ -18,6 +21,9 @@ interface Fixtures {
   commandCenter: CommandCenterPage;
   approvals: ApprovalQueuePage;
   socConsole: SocConsolePage;
+  investigations: InvestigationsPage;
+  observability: ObservabilityPage;
+  knowledge: KnowledgePage;
   signedInAs: (role: Role) => Promise<void>;
 }
 
@@ -32,6 +38,9 @@ export const test = base.extend<Fixtures>({
   commandCenter: async ({ page }, use) => use(new CommandCenterPage(page)),
   approvals: async ({ page }, use) => use(new ApprovalQueuePage(page)),
   socConsole: async ({ page }, use) => use(new SocConsolePage(page)),
+  investigations: async ({ page }, use) => use(new InvestigationsPage(page)),
+  observability: async ({ page }, use) => use(new ObservabilityPage(page)),
+  knowledge: async ({ page }, use) => use(new KnowledgePage(page)),
   signedInAs: async ({ page }, use) => {
     await use(async (role) => {
       await page.addInitScript((token) => {

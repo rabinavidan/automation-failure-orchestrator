@@ -155,11 +155,11 @@ function Kpi({
   return (
     <article className="border border-ink/10 bg-white p-5 shadow-panel">
       <div className="flex items-start justify-between">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{title}</p>
-        <Icon size={18} className="text-slate-500" />
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-600">{title}</p>
+        <Icon size={18} className="text-slate-600" />
       </div>
       <p className="mt-4 text-3xl font-extrabold tracking-[-0.04em] text-ink">{value}</p>
-      <p className="mt-2 text-xs text-slate-500">{note}</p>
+      <p className="mt-2 text-xs text-slate-600">{note}</p>
     </article>
   );
 }
@@ -343,7 +343,7 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
                 </li>
               ))
             ) : (
-              <li className="text-xs text-slate-500">No technique data yet.</li>
+              <li className="text-xs text-slate-600">No technique data yet.</li>
             )}
           </ul>
         </article>
@@ -355,7 +355,7 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
             <h2 className="flex items-center gap-2 font-bold">
               <ShieldCheck size={16} /> Containment approval queue
             </h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-600">
               Playbooks never contain on their own. Guards are re-checked when you approve. Acting
               as{' '}
               <span className="font-mono">
@@ -372,7 +372,7 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
           </button>
         </div>
         {pending.length === 0 ? (
-          <p className="mt-4 text-sm text-slate-500">No containment awaiting approval.</p>
+          <p className="mt-4 text-sm text-slate-600">No containment awaiting approval.</p>
         ) : (
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {pending.map((a) => (
@@ -384,14 +384,14 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-mono text-[10px] uppercase text-slate-500">
+                    <p className="font-mono text-[10px] uppercase text-slate-600">
                       #{a.id} · {a.playbook_id} · {a.triage_priority}
                     </p>
                     <p className="mt-1 text-sm font-bold">
                       {a.action} → <span className="font-mono">{a.target_value}</span>
                     </p>
                     <p className="mt-1 text-xs text-slate-600">{a.description}</p>
-                    <p className="mt-1 text-xs text-slate-500">{a.alert_title}</p>
+                    <p className="mt-1 text-xs text-slate-600">{a.alert_title}</p>
                   </div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
@@ -416,7 +416,7 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
         )}
         {executed.length > 0 && (
           <div className="mt-5 border-t border-slate-200 pt-4">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-600">
               Active containment (reversible)
             </p>
             <ul className="mt-2 divide-y divide-slate-100">
@@ -429,7 +429,7 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
                 >
                   <span>
                     <span className="font-mono">#{a.id}</span> {a.detail}{' '}
-                    <span className="text-slate-500">by {a.reviewer}</span>
+                    <span className="text-slate-600">by {a.reviewer}</span>
                   </span>
                   <button
                     disabled={!session.can('soc_responder') || busyAction === a.id}
@@ -451,7 +451,7 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
         <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="font-bold">Alert queue</h2>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-600">
               Most urgent first: priority, risk, recency.
             </p>
           </div>
@@ -470,13 +470,13 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
           </select>
         </div>
         {alerts.length === 0 ? (
-          <p className="p-5 text-sm text-slate-500">
+          <p className="p-5 text-sm text-slate-600">
             No alerts yet. Run <span className="font-mono">npm run demo:soc-triage</span>.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 font-mono text-[10px] uppercase text-slate-500">
+              <thead className="bg-slate-50 font-mono text-[10px] uppercase text-slate-600">
                 <tr>
                   <th className="px-4 py-2">Priority</th>
                   <th className="px-4 py-2">Alert</th>
@@ -499,21 +499,21 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
                     <td className="px-4 py-2 font-mono font-bold">{a.triage_priority ?? '—'}</td>
                     <td className="px-4 py-2">
                       <p className="font-semibold">{a.title}</p>
-                      <p className="font-mono text-[10px] text-slate-500">
+                      <p className="font-mono text-[10px] text-slate-600">
                         {a.vendor} · {a.severity} · {a.status}
                       </p>
                     </td>
                     <td className="px-4 py-2 font-mono">
                       {a.host ?? '—'}
                       <br />
-                      <span className="text-slate-500">{a.user_name ?? ''}</span>
+                      <span className="text-slate-600">{a.user_name ?? ''}</span>
                     </td>
                     <td className="px-4 py-2">
                       <Pill value={a.triage_disposition} />
                     </td>
                     <td className="px-4 py-2 font-mono">{a.enrichment_verdict ?? '—'}</td>
                     <td className="px-4 py-2 font-mono">{a.risk_score ?? '—'}</td>
-                    <td className="px-4 py-2 font-mono text-slate-500">
+                    <td className="px-4 py-2 font-mono text-slate-600">
                       {a.ai_investigation_status ?? '—'}
                     </td>
                   </tr>
@@ -537,14 +537,14 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
               <div>
                 <Pill value={selected.triage_disposition} />
                 <h2 className="mt-3 text-xl font-extrabold">{selected.title}</h2>
-                <p className="mt-1 font-mono text-[10px] text-slate-500">{selected.alert_id}</p>
+                <p className="mt-1 font-mono text-[10px] text-slate-600">{selected.alert_id}</p>
               </div>
               <button onClick={() => setSelected(undefined)} aria-label="Close">
                 <X size={18} />
               </button>
             </div>
 
-            <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">
               Deterministic triage · {selected.triage_priority} · risk {selected.risk_score}
             </h3>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
@@ -552,13 +552,13 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
                 <li key={reason}>{reason}</li>
               ))}
             </ul>
-            <p className="mt-2 font-mono text-[10px] text-slate-500">
+            <p className="mt-2 font-mono text-[10px] text-slate-600">
               ATT&amp;CK {selected.triage?.mitre.techniques.join(', ') || '—'} (
               {selected.triage?.mitre.tactics.join(', ') || '—'})
               {selected.triage?.mitre.inferred ? ' · inferred from rule name' : ''}
             </p>
 
-            <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">
               Threat intel · {selected.enrichment?.summary.verdict ?? 'not enriched'}
             </h3>
             <ul className="mt-2 space-y-1 font-mono text-[11px]">
@@ -566,7 +566,7 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
                 <li key={`${e.indicator.type}:${e.normalizedValue}`}>
                   {e.indicator.type} {e.normalizedValue} →{' '}
                   {e.skippedReason ? (
-                    <span className="text-slate-500">{e.skippedReason}</span>
+                    <span className="text-slate-600">{e.skippedReason}</span>
                   ) : (
                     e.verdict
                   )}
@@ -574,12 +574,12 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
               ))}
             </ul>
 
-            <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">
               Advisory AI investigation · {selected.ai_investigation_status ?? 'not run'}
             </h3>
             {selected.ai_investigation_status &&
               selected.ai_investigation_status !== 'disabled' && (
-                <p className="mt-1 flex items-center gap-2 font-mono text-[10px] text-slate-500">
+                <p className="mt-1 flex items-center gap-2 font-mono text-[10px] text-slate-600">
                   {selected.ai_model ?? 'model unknown'}
                   <BackendBadge backend={selected.ai_model_backend} />
                 </p>
@@ -608,24 +608,24 @@ export function SocConsole({ session }: { session: ReviewerSession }) {
                 </p>
               </div>
             ) : (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-600">
                 Runs only for true positives and the analyst queue when AI is enabled.
               </p>
             )}
 
-            <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+            <h3 className="mt-6 text-xs font-bold uppercase tracking-[0.14em] text-slate-600">
               Response actions
             </h3>
             <ul className="mt-2 divide-y divide-slate-100 text-xs">
               {selectedActions.length === 0 && (
-                <li className="py-2 text-slate-500">No playbook matched.</li>
+                <li className="py-2 text-slate-600">No playbook matched.</li>
               )}
               {selectedActions.map((a) => (
                 <li key={a.id} className="flex justify-between gap-3 py-2">
                   <span>
                     <span className="font-mono">#{a.id}</span> {a.action}{' '}
                     <span className="font-mono">{a.target_value}</span>
-                    {a.detail ? <span className="text-slate-500"> · {a.detail}</span> : null}
+                    {a.detail ? <span className="text-slate-600"> · {a.detail}</span> : null}
                   </span>
                   <Pill value={a.status} style="border-slate-300 bg-slate-50 text-slate-700" />
                 </li>

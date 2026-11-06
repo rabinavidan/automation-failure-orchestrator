@@ -37,6 +37,15 @@ export class DashboardPage {
     await expect(this.navItem(view)).toHaveAttribute('aria-current', 'page');
   }
 
+  /** The value shown on a metric card, by its label (e.g. "Agent executions"). */
+  metric(label: string): Locator {
+    return this.page
+      .getByRole('article')
+      .filter({ has: this.page.getByText(label, { exact: true }) })
+      .locator('p')
+      .nth(1);
+  }
+
   async refresh(): Promise<void> {
     await this.refreshButton.click();
     await expect(this.refreshButton).toBeEnabled();

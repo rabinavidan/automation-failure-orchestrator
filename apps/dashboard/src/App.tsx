@@ -283,11 +283,11 @@ function Metric({
     <article className="panel-hover relative overflow-hidden border border-ink/10 bg-white p-5 shadow-panel">
       <div className={`absolute inset-x-0 top-0 h-1 ${accent}`} />
       <div className="flex items-start justify-between">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">{label}</p>
-        <Icon size={19} strokeWidth={1.8} className="text-slate-500" />
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-600">{label}</p>
+        <Icon size={19} strokeWidth={1.8} className="text-slate-600" />
       </div>
       <p className="mt-5 text-4xl font-extrabold tracking-[-0.05em] text-ink">{value}</p>
-      <p className="mt-2 text-xs text-slate-500">{note}</p>
+      <p className="mt-2 text-xs text-slate-600">{note}</p>
     </article>
   );
 }
@@ -297,7 +297,7 @@ function EmptyState({ label }: { label: string }) {
     <div className="flex min-h-52 flex-col items-center justify-center border border-dashed border-slate-300 bg-white/60 p-8 text-center">
       <CircleDot className="mb-3 text-slate-400" size={26} />
       <p className="font-semibold text-slate-700">No {label} yet</p>
-      <p className="mt-1 max-w-sm text-sm text-slate-500">
+      <p className="mt-1 max-w-sm text-sm text-slate-600">
         Run a demo scenario, then refresh this view.
       </p>
     </div>
@@ -333,19 +333,19 @@ function ClassificationDistribution({ failures }: { failures: Failure[] }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-bold">Signal composition</h2>
-          <p className="mt-1 text-xs text-slate-500">Classification mix by unique fingerprint</p>
+          <p className="mt-1 text-xs text-slate-600">Classification mix by unique fingerprint</p>
         </div>
         <BarChart3 size={19} className="text-slate-400" />
       </div>
       {counts.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-500">No classified signals yet.</p>
+        <p className="mt-6 text-sm text-slate-600">No classified signals yet.</p>
       ) : (
         <div className="mt-6 space-y-4">
           {counts.map(([classification, count]) => (
             <div key={classification}>
               <div className="mb-1.5 flex items-center justify-between text-xs">
                 <span className="font-semibold capitalize">{humanize(classification)}</span>
-                <span className="font-mono text-[10px] text-slate-500">
+                <span className="font-mono text-[10px] text-slate-600">
                   {count} / {failures.length}
                 </span>
               </div>
@@ -553,7 +553,7 @@ function App() {
           </div>
           <div>
             <p className="text-lg font-extrabold tracking-tight">SignalOps</p>
-            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/45">
+            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/70">
               Agentic reliability
             </p>
           </div>
@@ -565,13 +565,13 @@ function App() {
               key={id}
               onClick={() => setView(id)}
               aria-current={view === id ? 'page' : undefined}
-              className={`flex w-full items-center gap-3 px-3 py-3 text-left text-sm transition ${view === id ? 'bg-white text-ink' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
+              className={`flex w-full items-center gap-3 px-3 py-3 text-left text-sm transition ${view === id ? 'bg-white text-ink' : 'text-white/75 hover:bg-white/10 hover:text-white'}`}
             >
               <Icon size={17} />
               <span className="min-w-0 flex-1 truncate">{label}</span>
               {navCount[id] !== undefined && (
                 <span
-                  className={`min-w-6 px-1.5 py-0.5 text-center font-mono text-[9px] ${view === id ? 'bg-ink text-white' : 'bg-white/10 text-white/65'}`}
+                  className={`min-w-6 px-1.5 py-0.5 text-center font-mono text-[9px] ${view === id ? 'bg-ink text-white' : 'bg-white/10 text-white/75'}`}
                 >
                   {navCount[id]}
                 </span>
@@ -587,7 +587,7 @@ function App() {
             />
             {error ? 'Degraded' : 'Systems online'}
           </div>
-          <div className="mt-4 space-y-2 font-mono text-[10px] text-white/45">
+          <div className="mt-4 space-y-2 font-mono text-[10px] text-white/70">
             <p className="flex justify-between">
               <span>POLICY</span>
               <span>GUARDED</span>
@@ -607,7 +607,7 @@ function App() {
       <main className="grid-noise min-w-0 overflow-hidden px-4 py-5 sm:px-7 lg:px-10 lg:py-8">
         <header className="flex flex-col gap-5 border-b border-ink/15 pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="mb-2 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <p className="mb-2 flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600">
               <ShieldCheck size={13} /> Guarded AI operations
             </p>
             <h1 className="text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
@@ -616,7 +616,7 @@ function App() {
             <RuntimeModes />
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden font-mono text-[10px] uppercase text-slate-500 sm:block">
+            <span className="hidden font-mono text-[10px] uppercase text-slate-600 sm:block">
               Updated {lastRefresh ? lastRefresh.toLocaleTimeString() : '—'}
             </span>
             <button
@@ -649,9 +649,9 @@ function App() {
                   </p>
                   <h2 className="mt-4 max-w-3xl text-3xl font-extrabold leading-tight tracking-[-0.045em] sm:text-4xl">
                     Failures become decisions,
-                    <span className="text-white/45"> not ticket noise.</span>
+                    <span className="text-white/70"> not ticket noise.</span>
                   </h2>
-                  <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 font-mono text-[10px] uppercase tracking-wide text-white/55">
+                  <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 font-mono text-[10px] uppercase tracking-wide text-white/70">
                     <span className="flex items-center gap-2">
                       <Database size={13} className="text-signal" /> PostgreSQL state
                     </span>
@@ -673,7 +673,7 @@ function App() {
                   <div className="absolute inset-[10px] rounded-full bg-ink" />
                   <div className="relative text-center">
                     <p className="font-mono text-3xl font-semibold text-signal">{runHealth}%</p>
-                    <p className="mt-1 font-mono text-[8px] uppercase tracking-[0.18em] text-white/45">
+                    <p className="mt-1 font-mono text-[8px] uppercase tracking-[0.18em] text-white/70">
                       run health
                     </p>
                   </div>
@@ -716,12 +716,12 @@ function App() {
                 <div className="flex flex-col gap-3 border-b border-ink/10 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h2 className="font-bold">Failure intelligence</h2>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-slate-600">
                       History-aware classifications across the system
                     </p>
                   </div>
                   <label className="flex items-center gap-2 border border-slate-300 bg-canvas px-3 py-2">
-                    <Search size={14} className="text-slate-500" />
+                    <Search size={14} className="text-slate-600" />
                     <input
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
@@ -756,11 +756,11 @@ function App() {
                             )}
                           </div>
                           <p className="mt-2 truncate text-sm font-bold">{failure.title}</p>
-                          <p className="mt-1 truncate font-mono text-[10px] text-slate-500">
+                          <p className="mt-1 truncate font-mono text-[10px] text-slate-600">
                             {failure.fingerprint.slice(0, 18)} · {failure.suite}
                           </p>
                         </div>
-                        <div className="flex items-center gap-5 text-xs text-slate-500">
+                        <div className="flex items-center gap-5 text-xs text-slate-600">
                           <span>
                             <b className="text-ink">{failure.run_count}</b> runs
                           </span>
@@ -782,19 +782,19 @@ function App() {
                   </div>
                   <div className="mt-6 grid grid-cols-2 gap-px bg-white/10">
                     <div className="bg-ink p-4">
-                      <p className="font-mono text-[9px] text-white/45">AUTONOMY</p>
+                      <p className="font-mono text-[9px] text-white/70">AUTONOMY</p>
                       <p className="mt-2 font-bold text-signal">Guarded</p>
                     </div>
                     <div className="bg-ink p-4">
-                      <p className="font-mono text-[9px] text-white/45">TOOLS</p>
+                      <p className="font-mono text-[9px] text-white/70">TOOLS</p>
                       <p className="mt-2 font-bold">2 bounded</p>
                     </div>
                     <div className="bg-ink p-4">
-                      <p className="font-mono text-[9px] text-white/45">FALLBACK</p>
+                      <p className="font-mono text-[9px] text-white/70">FALLBACK</p>
                       <p className="mt-2 font-bold">Deterministic</p>
                     </div>
                     <div className="bg-ink p-4">
-                      <p className="font-mono text-[9px] text-white/45">INFERENCE</p>
+                      <p className="font-mono text-[9px] text-white/70">INFERENCE</p>
                       <p className="mt-2 font-bold">Local</p>
                     </div>
                   </div>
@@ -813,13 +813,13 @@ function App() {
                             <CheckCircle2 size={15} className="text-emerald-600" />
                           )}
                         </div>
-                        <p className="mt-1 flex items-center gap-1 font-mono text-[9px] text-slate-500">
+                        <p className="mt-1 flex items-center gap-1 font-mono text-[9px] text-slate-600">
                           <GitBranch size={10} /> {run.branch} · {formatTime(run.created_at)}
                         </p>
                       </div>
                     ))}
                     {data.runs.length === 0 && (
-                      <p className="text-sm text-slate-500">No runs persisted yet.</p>
+                      <p className="text-sm text-slate-600">No runs persisted yet.</p>
                     )}
                   </div>
                 </div>
@@ -854,7 +854,7 @@ function App() {
                       </div>
                     </div>
                     <div className="mt-5 border-l-4 border-signal bg-lime-50 p-4">
-                      <p className="font-mono text-[9px] font-semibold uppercase tracking-widest text-slate-500">
+                      <p className="font-mono text-[9px] font-semibold uppercase tracking-widest text-slate-600">
                         Suspected root cause
                       </p>
                       <p className="mt-2 text-sm font-bold">{agent.suspectedRootCause}</p>
@@ -908,7 +908,7 @@ function App() {
                           {tool}
                         </span>
                       ))}
-                      <span className="ml-auto font-mono text-[9px] text-slate-500">
+                      <span className="ml-auto font-mono text-[9px] text-slate-600">
                         {agent.model}
                       </span>
                     </div>
@@ -938,7 +938,7 @@ function App() {
             <div className="mb-6 flex flex-col gap-3 border border-ink/10 bg-white p-5 shadow-panel sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="font-bold">Human control plane</h2>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-600">
                   Decisions resume the exact persisted LangGraph thread.
                 </p>
               </div>
@@ -965,7 +965,7 @@ function App() {
                       </span>
                     </div>
                     <div className="mt-5 border-l-4 border-amber-400 bg-amber-50 p-4">
-                      <p className="font-mono text-[9px] uppercase text-slate-500">
+                      <p className="font-mono text-[9px] uppercase text-slate-600">
                         Agent recommendation
                       </p>
                       <p className="mt-2 text-sm font-bold">
@@ -975,7 +975,7 @@ function App() {
                         {approval.investigation.explanation}
                       </p>
                     </div>
-                    <div className="mt-4 flex items-center justify-between font-mono text-[9px] text-slate-500">
+                    <div className="mt-4 flex items-center justify-between font-mono text-[9px] text-slate-600">
                       <span>{approval.requested_action}</span>
                       <span>{Math.round(approval.investigation.confidence * 100)}% confidence</span>
                     </div>
@@ -1045,7 +1045,7 @@ function App() {
             <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
               <article className="border border-ink/10 bg-white p-5 shadow-panel">
                 <h2 className="font-bold">Node performance</h2>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-600">
                   Prompt lineage, latency, and token consumption by role
                 </p>
                 <div className="mt-5 space-y-3">
@@ -1057,14 +1057,14 @@ function App() {
                           {Math.round(node.avg_duration_ms)}ms avg
                         </span>
                       </div>
-                      <p className="mt-2 font-mono text-[9px] text-slate-500">
+                      <p className="mt-2 font-mono text-[9px] text-slate-600">
                         {node.calls} calls · {node.prompt_tokens} prompt · {node.completion_tokens}{' '}
                         completion tokens
                       </p>
                     </div>
                   ))}
                   {data.observability.byNode.length === 0 && (
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-slate-600">
                       Run an AI scenario to capture model telemetry.
                     </p>
                   )}
@@ -1073,11 +1073,16 @@ function App() {
               <article className="overflow-hidden border border-ink/10 bg-white shadow-panel">
                 <div className="border-b border-slate-200 p-5">
                   <h2 className="font-bold">Recent model calls</h2>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-slate-600">
                     Traceable model and prompt versions per graph node
                   </p>
                 </div>
-                <div className="max-h-[430px] overflow-auto">
+                <div
+                  className="max-h-[430px] overflow-auto"
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Recent model calls list"
+                >
                   {data.observability.recentCalls.map((call) => (
                     <div
                       key={call.id}
@@ -1089,7 +1094,7 @@ function App() {
                           {call.prompt_version} · {call.model}
                         </p>
                       </div>
-                      <div className="text-right font-mono text-[9px] text-slate-500">
+                      <div className="text-right font-mono text-[9px] text-slate-600">
                         <p>{call.duration_ms}ms</p>
                         <p>{call.prompt_tokens + call.completion_tokens} tokens</p>
                       </div>
@@ -1192,10 +1197,10 @@ function App() {
                     className="border border-ink/10 bg-white p-5 shadow-panel"
                   >
                     <div className="flex items-center justify-between gap-4">
-                      <span className="bg-[#1769e0] px-2.5 py-1 font-mono text-xs font-bold text-white">
+                      <span className="bg-[#1257c4] px-2.5 py-1 font-mono text-xs font-bold text-white">
                         {issue.key}
                       </span>
-                      <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                      <span className="flex items-center gap-1.5 text-xs text-slate-600">
                         <CircleDot size={13} />
                         {issue.fields.status?.name ?? 'Open'}
                       </span>
@@ -1214,7 +1219,7 @@ function App() {
                         </span>
                       ))}
                     </div>
-                    <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4 text-xs text-slate-500">
+                    <div className="mt-5 flex items-center justify-between border-t border-slate-200 pt-4 text-xs text-slate-600">
                       <span>{issue.comments?.length ?? 0} comments</span>
                       <span>{formatTime(issue.created)}</span>
                     </div>
@@ -1235,7 +1240,7 @@ function App() {
                   <MessageSquare size={20} />
                   <div>
                     <h2 className="font-bold">#ci-failure-intelligence</h2>
-                    <p className="text-xs text-white/60">Automation signal stream</p>
+                    <p className="text-xs text-white/75">Automation signal stream</p>
                   </div>
                 </div>
                 <div className="divide-y divide-slate-100">
@@ -1256,7 +1261,7 @@ function App() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-baseline gap-2">
                             <p className="text-sm font-bold">SignalOps Agent</p>
-                            <span className="font-mono text-[9px] text-slate-400">
+                            <span className="font-mono text-[9px] text-slate-600">
                               {formatTime(message.receivedAt)}
                             </span>
                           </div>
@@ -1293,7 +1298,7 @@ function App() {
             >
               Close
             </button>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-slate-600">
               Failure dossier
             </p>
             <h2 className="mt-4 pr-20 text-2xl font-extrabold tracking-tight">
@@ -1312,7 +1317,7 @@ function App() {
                 ['Last seen', formatTime(selectedFailure.last_seen_at)],
               ].map(([label, value]) => (
                 <div key={label} className="bg-white p-4">
-                  <dt className="font-mono text-[9px] uppercase text-slate-400">{label}</dt>
+                  <dt className="font-mono text-[9px] uppercase text-slate-600">{label}</dt>
                   <dd className="mt-1 truncate text-xs font-bold">{value}</dd>
                 </div>
               ))}
@@ -1371,7 +1376,7 @@ function App() {
                 {selectedFailure.agent_investigation.specialistReports &&
                   selectedFailure.agent_investigation.specialistReports.length > 0 && (
                     <div className="mt-5">
-                      <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500">
+                      <p className="font-mono text-[9px] uppercase tracking-widest text-slate-600">
                         Supervisor team reports
                       </p>
                       <div className="mt-3 grid gap-3">
@@ -1404,7 +1409,7 @@ function App() {
                 {selectedFailure.agent_investigation.sources &&
                   selectedFailure.agent_investigation.sources.length > 0 && (
                     <div className="mt-5">
-                      <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500">
+                      <p className="font-mono text-[9px] uppercase tracking-widest text-slate-600">
                         Retrieved sources
                       </p>
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -1421,7 +1426,7 @@ function App() {
                   )}
               </div>
             ) : (
-              <div className="mt-8 border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+              <div className="mt-8 border border-dashed border-slate-300 p-5 text-sm text-slate-600">
                 No persisted agent investigation for this historical signal. Run a new scenario with
                 AI enabled.
               </div>
@@ -1453,14 +1458,14 @@ function App() {
                 <div className="mt-4 h-24 animate-pulse bg-slate-100" />
               ) : agentExecutions.length > 0 ? (
                 <div className="mt-5">
-                  <div className="mb-4 flex items-center justify-between text-[10px] text-slate-500">
+                  <div className="mb-4 flex items-center justify-between text-[10px] text-slate-600">
                     <span className="flex items-center gap-2 font-mono">
                       {agentExecutions[0].model}
                       <BackendBadge backend={agentExecutions[0].model_backend} />
                     </span>
                     <span>{formatTime(agentExecutions[0].started_at)}</span>
                   </div>
-                  <p className="mb-4 font-mono text-[10px] text-slate-500">
+                  <p className="mb-4 font-mono text-[10px] text-slate-600">
                     {agentExecutions[0].graph_version ?? 'graph unknown'} ·{' '}
                     {agentExecutions[0].model_calls ?? 0} model calls ·{' '}
                     {Number(agentExecutions[0].prompt_tokens ?? 0) +
@@ -1474,12 +1479,12 @@ function App() {
                         <span className="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full border-2 border-white bg-cyan shadow-sm" />
                         <div className="flex items-center justify-between gap-4">
                           <span className="text-xs font-bold">{humanize(event.node)}</span>
-                          <span className="font-mono text-[9px] uppercase text-slate-400">
+                          <span className="font-mono text-[9px] uppercase text-slate-600">
                             {event.status}
                           </span>
                         </div>
                         {Object.keys(event.details).length > 0 && (
-                          <p className="mt-1 break-words font-mono text-[9px] leading-4 text-slate-500">
+                          <p className="mt-1 break-words font-mono text-[9px] leading-4 text-slate-600">
                             {JSON.stringify(event.details)}
                           </p>
                         )}
@@ -1488,7 +1493,7 @@ function App() {
                   </ol>
                 </div>
               ) : (
-                <p className="mt-4 text-sm text-slate-500">
+                <p className="mt-4 text-sm text-slate-600">
                   No checkpoint-backed execution is available for this historical signal yet.
                 </p>
               )}

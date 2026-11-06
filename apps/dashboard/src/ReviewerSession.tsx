@@ -8,7 +8,7 @@ export function ReviewerSignIn({ session }: { session: ReviewerSession }) {
       <div className="flex items-center gap-3 text-xs">
         <span>
           Signed in as <strong className="font-mono">{session.identity.name}</strong>{' '}
-          <span className="text-slate-500">({session.identity.roles.join(', ')})</span>
+          <span className="text-slate-600">({session.identity.roles.join(', ')})</span>
         </span>
         <button
           type="button"
