@@ -77,6 +77,20 @@ def ingestion_single_agent(settings: Settings) -> Iterator[IngestionClient]:
 
 
 @pytest.fixture(scope="session")
+def ingestion_rag(settings: Settings) -> Iterator[IngestionClient]:
+    """The API instance with RAG on: a fixture corpus indexed with the stub's embeddings."""
+    try:
+        healthy = httpx.get(f"{settings.ingestion_rag_url}/health", timeout=3.0).status_code == 200
+    except httpx.HTTPError:
+        healthy = False
+    if not healthy:
+        pytest.skip(f"RAG instance not running at {settings.ingestion_rag_url}")
+    client = IngestionClient(settings.ingestion_rag_url, settings.webhook_secret)
+    yield client
+    client.close()
+
+
+@pytest.fixture(scope="session")
 def mcp(settings: Settings, ingestion_ai: IngestionClient) -> Iterator[McpClient]:
     client = McpClient(settings.ingestion_ai_url)
     yield client

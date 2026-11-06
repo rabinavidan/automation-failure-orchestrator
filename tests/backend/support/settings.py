@@ -14,6 +14,7 @@ class Settings:
     ingestion_url: str
     ingestion_ai_url: str
     ingestion_single_agent_url: str
+    ingestion_rag_url: str
     mcp_scope_secret: str
     mock_url: str
     enrichment_url: str
@@ -33,6 +34,7 @@ class Settings:
             ingestion_ai_url=env("INGESTION_AI_URL", "http://localhost:3011"),
             # Third instance: the single-agent tool-calling graph instead of the supervisor.
             ingestion_single_agent_url=env("INGESTION_SINGLE_AGENT_URL", "http://localhost:3012"),
+            ingestion_rag_url=env("INGESTION_RAG_URL", "http://localhost:3013"),
             mcp_scope_secret=env("MCP_SCOPE_SECRET", "pytest-mcp-scope-secret-0001"),
             mock_url=env("MOCK_URL", "http://localhost:3002"),
             enrichment_url=env("ENRICHMENT_URL", "http://localhost:3003"),

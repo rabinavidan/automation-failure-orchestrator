@@ -1,0 +1,1 @@
+Plain-text notes: .txt is not an indexed extension, so this file must never be indexed.
