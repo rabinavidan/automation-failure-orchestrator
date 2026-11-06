@@ -133,6 +133,43 @@ export class Api {
     return failure;
   }
 
+  /**
+   * A failure the advisory agents investigated end to end (low risk, so nothing pauses): the
+   * scripted specialists and supervisor answer with text unique to this test, so the dossier
+   * can be found and checked word for word.
+   */
+  async failureWithInvestigation(): Promise<
+    SeededFailure & { rootCause: string; evidence: string }
+  > {
+    const testId = `tests/ui/${unique('search')}.spec.ts::filter-results`;
+    const rootCause = `Search index lags behind writes (${unique('cause')})`;
+    const evidence = `GET /api/search returned 0 results for ${testId}`;
+    const report = (agent: string) => ({
+      summary: `${agent} report for ${testId}`,
+      findings: [`${agent} finding for ${testId}`],
+      confidence: 0.7,
+    });
+    await this.http.post(`${STUB}/__scenario/scripts`, {
+      data: {
+        match: testId,
+        responses: [
+          report('triage'),
+          report('repository'),
+          { ...report('action'), proposedAction: 'create_issue', risk: 'low' },
+          {
+            suspectedRootCause: rootCause,
+            evidence: [evidence],
+            recommendedAction: 'create_issue',
+            confidence: 0.82,
+            explanation: `Writes reach the index asynchronously for ${testId}`,
+          },
+        ],
+      },
+    });
+    const failure = await this.failure({ testId, message: 'Expected 3 results, received 0' });
+    return { ...failure, rootCause, evidence };
+  }
+
   /** A confirmed brute force: triage P1 true_positive, an IP block waiting for approval. */
   async bruteForceAlert(): Promise<SeededAlert> {
     const host = `${unique('ws')}.corp.example.com`;

@@ -45,7 +45,7 @@ export function BackendBadge({ backend }: { backend?: string | null }) {
   return (
     <span
       className={`border px-2 py-0.5 font-mono text-[9px] uppercase ${
-        known ? backendStyle[known] : 'border-slate-300 bg-white text-slate-500'
+        known ? backendStyle[known] : 'border-slate-300 bg-white text-slate-600'
       }`}
       title={known ? backendLabel[known] : 'Recorded before backend tracking; treat as unverified'}
     >

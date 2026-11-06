@@ -106,7 +106,7 @@ flowchart TB
 | Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                 |
 | Drift        | pytest                                                | 54                | Artefacts that must agree: n8n vs. API decisions, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                              |
 | System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 16                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle                                                      |
-| UI           | Playwright TS                                         | 18                | Dashboard workflows through page objects, with data seeded through the API and one fixture per reviewer role                                                    |
+| UI           | Playwright TS                                         | 36                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                  |
 | Coverage     | pytest → V8 → c8                                      | the backend suite | **85% of TypeScript lines** reached by black-box tests; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                        |
 
 Principles that keep it maintainable:
@@ -121,7 +121,7 @@ Principles that keep it maintainable:
 - **Strict by default.** Unknown pytest markers fail the run; `ruff` and `mypy --strict` gate the
   test code itself.
 
-The suites found and pinned **seven real bugs** while they were being written, among them a flaky
+The suites found and pinned **eight real bugs** while they were being written, among them a flaky
 test opening a Jira issue, a test that failed on every retry being classified as flaky, and two
 service instances racing on LangGraph's checkpoint schema at startup. Details:
 [`tests/README.md`](tests/README.md).
@@ -133,7 +133,7 @@ service instances racing on LangGraph's checkpoint schema at startup. Details:
 | Static quality (lint, format, types, build)          | ESLint, Prettier, `tsc --build` across workspaces and the Playwright suite's types; JSON Schema contracts are not stale                                                        |
 | Backend tests (pytest)                               | Black-box layers: contract, API, pipeline, SOC, agents (scripted model replies), MCP, evaluation gates (incl. hallucinated-IOC) and drift                                      |
 | Backend coverage (pytest → c8)                       | The same pytest suite against natively started services under V8 coverage, mapped to TypeScript; fails below 80% lines / 70% branches                                          |
-| UI tests (Playwright)                                | Page objects over the dashboard with API-seeded data and role fixtures                                                                                                         |
+| UI tests (Playwright)                                | Every dashboard view through page objects with API-seeded data and role fixtures; axe-core WCAG 2.1 AA on every view                                                           |
 | Python enrichment service                            | `ruff` + `mypy --strict` + `pytest`; a golden response contract is shared with the TypeScript consumer                                                                         |
 | **Shuffle SOAR playbook (open source, self-hosted)** | Imports a playbook through Shuffle's REST API and runs it on real Shuffle. Asserts Splunk alert → orchestrator → `true_positive` → ChatOps message                             |
 | **Zero-cost AWS demo (SQS worker on moto)**          | API → SQS → investigation worker → persisted result, with no AWS account and no cost                                                                                           |

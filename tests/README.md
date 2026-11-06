@@ -77,15 +77,16 @@ pytest test, so a demo can never be the only evidence:
 
 Each was reproduced by a failing test first, then fixed; the test now pins the behaviour.
 
-| Bug                                                                                     | Pinned by                                                                                               |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| The Playwright reporter emitted payloads the webhook contract rejected                  | `contract/test_playwright_reporter.py::test_output_satisfies_the_webhook_contract`                      |
-| A test that passed on retry (flaky) opened a Jira issue                                 | `pipeline/test_retries.py::test_pass_after_retry_is_flaky_and_opens_no_jira_issue`                      |
-| A test that failed on every retry was classified as flaky instead of a regression       | `pipeline/test_retries.py::test_failure_on_every_retry_is_a_regression_not_flaky`                       |
-| "Possibly fixed" was announced on every pass after the threshold, not once              | `pipeline/test_recovery.py::test_consecutive_passes_after_a_tracked_failure_report_possibly_fixed_once` |
-| A passing run dropped the failure-history window                                        | `pipeline/test_recovery.py::test_history_keeps_the_last_five_outcomes`                                  |
-| The failure-mode sampler and model comparison CLIs crashed on SOC investigations        | `evaluation/test_offline_evaluation_tools.py`                                                           |
-| Two instances starting on a fresh database raced on LangGraph's checkpoint schema setup | `agents/test_single_agent.py`, in the coverage job (fresh database, instances started together)         |
+| Bug                                                                                                 | Pinned by                                                                                               |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| The Playwright reporter emitted payloads the webhook contract rejected                              | `contract/test_playwright_reporter.py::test_output_satisfies_the_webhook_contract`                      |
+| A test that passed on retry (flaky) opened a Jira issue                                             | `pipeline/test_retries.py::test_pass_after_retry_is_flaky_and_opens_no_jira_issue`                      |
+| A test that failed on every retry was classified as flaky instead of a regression                   | `pipeline/test_retries.py::test_failure_on_every_retry_is_a_regression_not_flaky`                       |
+| "Possibly fixed" was announced on every pass after the threshold, not once                          | `pipeline/test_recovery.py::test_consecutive_passes_after_a_tracked_failure_report_possibly_fixed_once` |
+| A passing run dropped the failure-history window                                                    | `pipeline/test_recovery.py::test_history_keeps_the_last_five_outcomes`                                  |
+| The failure-mode sampler and model comparison CLIs crashed on SOC investigations                    | `evaluation/test_offline_evaluation_tools.py`                                                           |
+| Two instances starting on a fresh database raced on LangGraph's checkpoint schema setup             | `agents/test_single_agent.py`, in the coverage job (fresh database, instances started together)         |
+| Every dashboard view failed WCAG 2.1 AA colour contrast, and a scroll area was keyboard-unreachable | `tests/ui/specs/accessibility.spec.ts`                                                                  |
 
 ## Design rules
 
@@ -123,9 +124,12 @@ depend on model behaviour, and agent tests control it completely.
 
 ```text
 tests/ui/
-  pages/      page objects: DashboardPage, CommandCenterPage, ApprovalQueuePage, SocConsolePage
-  support/    api.ts (seeds runs, alerts and paused approvals through the APIs), fixtures.ts
-  specs/      navigation, command center, approvals, SOC console, integrations, resilience
+  pages/      page objects: DashboardPage, CommandCenterPage, ApprovalQueuePage, SocConsolePage,
+              InvestigationsPage, ObservabilityPage, KnowledgePage
+  support/    api.ts (seeds runs, alerts, investigations and paused approvals through the APIs),
+              fixtures.ts
+  specs/      navigation, command center, approvals, SOC console, integrations, resilience,
+              investigations, observability (+ benchmark), knowledge, accessibility
 ```
 
 - **Locators**: roles and accessible names first (`getByRole('button', { name: 'Approve & resume' })`);
@@ -138,6 +142,14 @@ tests/ui/
 - **Agents**: approvals are produced by scripting the Ollama stub per test
   (`POST /__scenario/scripts` with the test's own ID as the match), so parallel tests never
   consume each other's model replies.
+- **Every view is covered**: each of the eight views has at least one spec, including the
+  honesty checks: the deterministic benchmark makes no model-quality claim, investigations
+  name the stub as their model, and an unavailable API is shown as such (`page.route` faults).
+- **Accessibility**: `accessibility.spec.ts` runs axe-core (WCAG 2.1 A and AA) on every view in
+  its populated state and on the SOC alert dialog, and fails with the rule and the elements. It
+  runs with reduced motion, so colours are measured after the fade-in. Its first run found
+  insufficient contrast on all eight views and a scroll area unreachable by keyboard; both
+  were fixed in the dashboard.
 - **Dogfooding**: the SignalOps reporter is one of the configured reporters; in CI it delivers
   the UI suite's own results to the platform it is testing.
 - **Artifacts**: trace, screenshot and video are kept on failure; HTML and JUnit reports are
