@@ -465,7 +465,8 @@ automation-failure-orchestrator/
 
 Every pull request and main-branch update is evaluated as a deployable system, not only as a collection of source files:
 
-- **Quality gate**: ESLint, Prettier, TypeScript builds, unit tests, and deterministic Agent evaluation suites.
+- **Quality gate**: ESLint, Prettier, TypeScript builds and type-checking of the Playwright suite (static, no stack).
+- **Test gates**: black-box pytest layers (contract, API, pipeline, SOC, agents, MCP, evaluation, drift), a TypeScript coverage gate measured from those tests, Playwright UI tests, and system jobs per optional stack.
 - **Python gate**: ruff (lint + bandit security rules), ruff format, `mypy --strict`, and pytest for the enrichment service.
 - **Infrastructure gate**: `terraform fmt/validate` and a Checkov IaC security scan of `infra/terraform`.
 - **Supply-chain controls**: GitHub dependency review, weekly Dependabot updates, and a high-severity production dependency audit.
@@ -743,7 +744,7 @@ npm run compare:versions --workspace=apps/ingestion-service -- --before-model=qw
 
 The Playwright reporter (`packages/playwright-reporter`) emits the webhook contract with one record per test and its final outcome (a pass after a retry is flaky; a failure on every retry is not), stable relative test IDs, real error classes and no terminal colour codes. It writes `test-results/normalized-results.json` and, with `SIGNALOPS_INGEST_URL` set, posts the run to the orchestrator. Its output is verified end to end by `tests/backend/contract/test_playwright_reporter.py`.
 
-GitHub Actions performs linting, formatting checks, workspace builds, unit tests, browser tests, artifact upload, and optional delivery to n8n when secrets are configured.
+GitHub Actions performs linting, formatting checks, workspace builds, black-box pytest suites with a coverage gate, Playwright browser tests, artifact upload, and optional delivery to n8n when secrets are configured.
 
 `azure-pipelines.yml` runs the same gates on Azure DevOps: a `Quality` stage (Node quality gate, Python service, Terraform + Checkov, dependency audit) and a `Containers` stage (Compose smoke test, image build + Trivy scan). Shared steps live in `.azure-pipelines/templates/`. Builds from `main` publish the scanned images as a pipeline artifact named after the build number. `tests/backend/drift/test_azure_pipeline.py` fails CI when its commands or pinned tool versions drift from `ci.yml`. It has been checked against Microsoft's pipeline schema but not run in an Azure DevOps organization.
 

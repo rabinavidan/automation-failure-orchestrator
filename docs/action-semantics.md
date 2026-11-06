@@ -85,5 +85,6 @@ An atomic local decision does **not** make the external call exactly-once. What 
 
 - Two-person approval for P1 isolation, and SSO/OIDC reviewer identity.
 - An outbox with reconciliation for external actions after approval.
-- Fault-injection tests that kill the API process mid-approval. The SQS worker's
-  failure and redelivery behaviour is covered by unit tests and the moto demo.
+- Fault-injection tests that kill the API process mid-approval, or the SQS worker mid-message.
+  `tests/backend/system/test_aws_local.py` covers the worker's happy path on moto (message
+  processed and deleted, dead-letter queue empty); redelivery after a crash is not automated.

@@ -37,7 +37,7 @@ workflow and the owner.
 | SQS worker path                                  | no                             | yes, on moto emulator | no                              | no                  | **no**            |
 | Shuffle SOAR playbook                            | no                             | yes                   | n/a                             | n/a                 | n/a               |
 | Terraform validate + Checkov                     | no                             | yes                   | n/a                             | n/a                 | **never applied** |
-| Benchmark, deterministic                         | yes                            | via unit tests        | n/a                             | n/a                 | n/a               |
+| Benchmark, deterministic                         | yes                            | pytest gate           | n/a                             | n/a                 | n/a               |
 | Benchmark, single and multi-agent                | harness only (scripted client) | no                    | **not run**                     | n/a                 | n/a               |
 | MCP evidence tools                               | contract tests and live local  | contract tests        | **no model-initiated call yet** | n/a                 | n/a               |
 | Dashboard flows (Chromium)                       | yes, live services, stub model | no                    | no                              | n/a                 | n/a               |

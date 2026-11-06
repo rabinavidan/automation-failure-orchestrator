@@ -2,13 +2,21 @@
 
 Two test stacks, one per layer, each in the language that fits it:
 
-| Layer                                                 | Tool                        | Location                   | Talks to the system through                                                      |
-| ----------------------------------------------------- | --------------------------- | -------------------------- | -------------------------------------------------------------------------------- |
-| Backend: contract, API, pipeline, SOC, agents, system | **pytest**                  | [`tests/backend`](backend) | HTTP APIs, PostgreSQL (read-only), mock integrations, the scriptable Ollama stub |
-| UI: the operations dashboard                          | **Playwright (TypeScript)** | [`tests/ui`](ui)           | The browser, seeded through the API                                              |
+| Layer                                                 | Tool                        | Location                                                            | Talks to the system through                                                      |
+| ----------------------------------------------------- | --------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Backend: contract, API, pipeline, SOC, agents, system | **pytest**                  | [`tests/backend`](backend)                                          | HTTP APIs, PostgreSQL (read-only), mock integrations, the scriptable Ollama stub |
+| UI: the operations dashboard                          | **Playwright (TypeScript)** | [`tests/ui`](ui)                                                    | The browser, seeded through the API                                              |
+| Enrichment service (Python) internals                 | **pytest**                  | [`apps/enrichment-service/tests`](../apps/enrichment-service/tests) | The service's own functions and its FastAPI app in-process (respx for providers) |
 
-Both are black-box: they test the running services, not internal functions, so they can be
-pointed at any environment (local Docker, CI, a staging URL) through environment variables.
+The first two are black-box: they test the running services, not internal functions, so they can
+be pointed at any environment (local Docker, CI, a staging URL) through environment variables.
+The enrichment suite is the one unit-level layer, deliberately kept next to the Python service it
+tests: it ships with that service's own `ruff` + `mypy --strict` + `pytest` gate (`npm run
+test:python`) and its golden response contract, which `tests/backend/contract` also checks from the
+TypeScript side.
+
+No other test framework is used: the TypeScript services have no unit-test runner, and their
+coverage is measured from the black-box pytest suite (see Coverage below).
 
 ## Backend layers (pytest markers)
 
@@ -44,6 +52,26 @@ and 70% branches (`COVERAGE_LINES`, `COVERAGE_BRANCHES`); the HTML report lands 
 
 Not measured there, by design: the SQS investigation worker (covered by the AWS-local system
 job), repository knowledge/RAG (needs an embedding model) and static labeled datasets.
+
+## Demo scripts are not tests
+
+`npm run demo:*` scripts are presentation walkthroughs for a running stack: they print what
+happens and stop only if the stack is unreachable. Every behaviour a demo shows is pinned by a
+pytest test, so a demo can never be the only evidence:
+
+| Demo                                                     | Pinned by                                                                                               |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `demo:new-regression`                                    | `pipeline/test_new_regression.py::test_new_failure_opens_one_jira_issue_and_notifies_slack`             |
+| `demo:duplicate-delivery`                                | `pipeline/test_new_regression.py::test_redelivered_run_is_idempotent`                                   |
+| `demo:known-bug`                                         | `pipeline/test_classification.py::test_known_bug_comments_on_the_existing_issue_instead_of_opening_one` |
+| `demo:infrastructure-failure`, `demo:automation-failure` | `pipeline/test_classification.py::test_error_signatures_map_to_their_class`                             |
+| `demo:flaky-test`                                        | `pipeline/test_retries.py`                                                                              |
+| `demo:recovered-bug`                                     | `pipeline/test_recovery.py`                                                                             |
+| `demo:soc-brute-force`                                   | `soc/test_dedup_and_suppression.py` (redelivery, suppression, one user in two spellings)                |
+| `demo:soc-triage`                                        | `soc/test_triage.py`                                                                                    |
+| `demo:soc-malware`, `demo:soc-response`                  | `soc/test_response_actions.py`                                                                          |
+| `demo:soc-multi-siem`                                    | `soc/test_cross_siem.py`                                                                                |
+| `demo:aws-local`, `demo:observability`                   | are pytest: `system/test_aws_local.py`, `system/test_observability.py`                                  |
 
 ## Bugs these suites found
 

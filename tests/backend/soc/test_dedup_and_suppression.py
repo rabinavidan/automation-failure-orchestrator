@@ -44,6 +44,32 @@ def test_repeat_of_the_same_activity_is_suppressed_onto_one_fingerprint(
     assert len(aggregate["occurrences"]) == 2
 
 
+def test_one_user_in_two_spellings_is_suppressed_as_the_same_activity(
+    ingestion: IngestionClient, mock: MockIntegrationsClient
+) -> None:
+    """Identity normalization: DOMAIN\\user and user@domain are the same account."""
+    dest = alerts.host()
+    first = ingestion.post_alert(alerts.splunk_brute_force(dest=dest, user="CORP\\jdoe"), "splunk")
+    upn = ingestion.post_alert(
+        alerts.splunk_brute_force(dest=dest, user="jdoe@corp.example.com"), "splunk"
+    ).json()
+
+    assert upn["fingerprint"] == first.json()["fingerprint"]
+    assert upn["status"] == "suppressed"
+    assert "response" not in upn
+
+
+def test_a_different_user_on_the_same_host_is_a_new_incident(ingestion: IngestionClient) -> None:
+    dest = alerts.host()
+    first = ingestion.post_alert(alerts.splunk_brute_force(dest=dest, user="CORP\\jdoe"), "splunk")
+    other = ingestion.post_alert(
+        alerts.splunk_brute_force(dest=dest, user="CORP\\asmith"), "splunk"
+    ).json()
+
+    assert other["fingerprint"] != first.json()["fingerprint"]
+    assert other["status"] == "new"
+
+
 def test_different_target_is_a_different_incident(
     ingestion: IngestionClient, mock: MockIntegrationsClient
 ) -> None:
