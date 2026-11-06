@@ -11,7 +11,7 @@ human approves anything risky.
 [![SOAR](https://img.shields.io/badge/SOAR-Shuffle_·_n8n-EA4B71)](docs/shuffle-soar-lab.md)
 [![AWS](https://img.shields.io/badge/AWS-Terraform_·_Checkov--gated-FF9900?logo=amazonwebservices&logoColor=white)](infra/terraform/README.md)
 [![Tests](https://img.shields.io/badge/tests-pytest_·_Playwright_TS-2EAD33?logo=pytest&logoColor=white)](#test-automation-architecture)
-[![Coverage gate](<https://img.shields.io/badge/backend_coverage-85%25_lines_(gate_80%25)-brightgreen>)](#test-automation-architecture)
+[![Coverage gate](<https://img.shields.io/badge/backend_coverage-88%25_lines_(gate_80%25)-brightgreen>)](#test-automation-architecture)
 
 ![Runtime mode strip: demo stub (not real AI), multi-agent graph, mock Jira/Slack, in-process queue, enrichment mode](docs/screenshots/runtime-modes.png)
 
@@ -95,19 +95,19 @@ flowchart TB
     L1 -.-> COV
 ```
 
-| Layer        | Tool                                                  | Tests             | What it pins down                                                                                                                                               |
-| ------------ | ----------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Static       | ESLint, Prettier, `tsc`                               | every workspace   | Types across packages, the Playwright suite's types, and that the committed JSON Schemas match the Zod contracts                                                |
-| Contract     | pytest + JSON Schema                                  | 35                | Webhook, SIEM, enrichment, playbook and policy payloads against schemas **exported from the Zod source**; test factories are validated against the same schemas |
-| API          | pytest                                                | 21                | One endpoint at a time: auth, validation, status codes, read models                                                                                             |
-| Pipeline     | pytest                                                | 25                | CI failure flow end to end: `/api/runs` → PostgreSQL → Jira → Slack; idempotency, retries, flaky handling, recovery                                             |
-| SOC          | pytest                                                | 36                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                               |
-| Agents · MCP | pytest + scriptable model stub                        | 36                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens        |
-| Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                 |
-| Drift        | pytest                                                | 54                | Artefacts that must agree: n8n vs. API decisions, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                              |
-| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 16                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle                                                      |
-| UI           | Playwright TS                                         | 36                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                  |
-| Coverage     | pytest → V8 → c8                                      | the backend suite | **85% of TypeScript lines** reached by black-box tests; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                        |
+| Layer        | Tool                                                  | Tests             | What it pins down                                                                                                                                                                                        |
+| ------------ | ----------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Static       | ESLint, Prettier, `tsc`                               | every workspace   | Types across packages, the Playwright suite's types, and that the committed JSON Schemas match the Zod contracts                                                                                         |
+| Contract     | pytest + JSON Schema                                  | 35                | Webhook, SIEM, enrichment, playbook and policy payloads against schemas **exported from the Zod source**; test factories are validated against the same schemas                                          |
+| API          | pytest                                                | 21                | One endpoint at a time: auth, validation, status codes, read models                                                                                                                                      |
+| Pipeline     | pytest                                                | 25                | CI failure flow end to end: `/api/runs` → PostgreSQL → Jira → Slack; idempotency, retries, flaky handling, recovery                                                                                      |
+| SOC          | pytest                                                | 36                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                                                                        |
+| Agents · MCP | pytest + scriptable model stub                        | 45                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens, RAG over a fixture corpus with stub embeddings |
+| Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                                                          |
+| Drift        | pytest                                                | 54                | Artefacts that must agree: n8n vs. API decisions, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                                                                       |
+| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 16                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle                                                                                               |
+| UI           | Playwright TS                                         | 36                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                                                           |
+| Coverage     | pytest → V8 → c8                                      | the backend suite | **88% of TypeScript lines** reached by black-box tests, the SQS worker included; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                                        |
 
 Principles that keep it maintainable:
 

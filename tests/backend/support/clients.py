@@ -150,6 +150,12 @@ class OllamaStubClient:
             body["fail"] = fail
         self.http.put("/__scenario", json=body).raise_for_status()
 
+    def fail_embeddings(self, times: int = 1, status: int = 500) -> None:
+        """Fail the next `times` embedding requests (resets scripted chat replies)."""
+        self.http.put(
+            "/__scenario", json={"embedFail": {"status": status, "times": times}}
+        ).raise_for_status()
+
     def script_for(self, match: str, responses: list[Json | str]) -> None:
         """Replies used only for requests whose messages contain `match` (parallel-safe)."""
         self.http.post(

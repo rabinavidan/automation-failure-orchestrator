@@ -82,8 +82,8 @@ jobs:
         run: |
           docker compose $COMPOSE_FILES up -d --build \
             postgres mock-integrations enrichment-service ollama-stub ingestion-service ingestion-ai \
-            ingestion-single-agent
-          for port in 3001 3011 3012; do
+            ingestion-single-agent ingestion-rag
+          for port in 3001 3011 3012 3013; do
             for i in $(seq 1 60); do
               curl -sf "http://localhost:$port/health" > /dev/null && break
               sleep 3
@@ -103,7 +103,7 @@ jobs:
           if-no-files-found: ignore
       - name: Capture container diagnostics
         if: failure()
-        run: docker compose $COMPOSE_FILES logs --no-color --tail=200 ingestion-service ingestion-ai ingestion-single-agent mock-integrations
+        run: docker compose $COMPOSE_FILES logs --no-color --tail=200 ingestion-service ingestion-ai ingestion-single-agent ingestion-rag mock-integrations
       - name: Stop
         if: always()
         run: docker compose $COMPOSE_FILES down --volumes
@@ -139,7 +139,7 @@ jobs:
             tests/backend/pyproject.toml
             apps/enrichment-service/pyproject.toml
       - name: Install the backend suite and the enrichment service
-        run: pip install "./tests/backend[dev]" ./apps/enrichment-service
+        run: pip install "./tests/backend[dev]" ./apps/enrichment-service "moto[server]==5.2.5"
       - name: Run the pytest suite against instrumented services and enforce coverage
         run: npm run coverage:backend
       - name: Coverage summary

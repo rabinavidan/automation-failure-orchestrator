@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Backend coverage gate: how much of the TypeScript backend the black-box pytest suite exercises.
 #
-# Starts the services natively (no Docker), the three API instances under NODE_V8_COVERAGE,
-# runs the whole pytest suite against them, shuts them down gracefully so V8 writes its
-# coverage, and maps it back to TypeScript through source maps with c8.
+# Starts the services natively (no Docker) and the four API instances under NODE_V8_COVERAGE,
+# runs the whole pytest suite against them, then a second phase for the queue path: moto (AWS
+# emulator), an API instance in SQS mode and the investigation worker, driven by the AWS-local
+# system test. Every process is shut down gracefully so V8 writes its coverage, which c8 maps
+# back to TypeScript through source maps.
 #
-#   npm run build && pip install "./tests/backend[dev]" "./apps/enrichment-service"
+#   npm run build && pip install "./tests/backend[dev]" "./apps/enrichment-service" "moto[server]"
 #   npm run coverage:backend            # needs PostgreSQL on localhost:5432 (orchestrator/orchestrator)
 #
 # Thresholds: COVERAGE_LINES (default 80) and COVERAGE_BRANCHES (default 70).
@@ -32,7 +34,7 @@ trap cleanup EXIT
 
 # A service already listening on one of these ports would answer the health checks and the tests
 # in place of the instrumented one, and its coverage would silently be lost.
-for port in 3001 3002 3003 3011 3012 11434; do
+for port in 3001 3002 3003 3011 3012 3013 3021 4566 11434; do
   if curl -s -o /dev/null --max-time 1 "http://localhost:$port/"; then
     echo "port $port is already in use; stop that service first" >&2
     exit 1
@@ -80,8 +82,11 @@ wait_for http://localhost:3001/health # migrations run once, before the other in
 start_api 3011 ingestion-ai AI_ENABLED=true EVIDENCE_TRANSPORT=mcp \
   MCP_SCOPE_SECRET=pytest-mcp-scope-secret-0001
 start_api 3012 ingestion-single-agent AI_ENABLED=true MULTI_AGENT_ENABLED=false
+start_api 3013 ingestion-rag AI_ENABLED=true RAG_ENABLED=true OLLAMA_EMBEDDING_MODEL=stub-embed \
+  RAG_SOURCE_ROOT="$ROOT/tests/backend/fixtures/rag-corpus"
 wait_for http://localhost:3011/health
 wait_for http://localhost:3012/health
+wait_for http://localhost:3013/health
 
 status=0
 # System tests need their own stacks (dashboard, LGTM, moto, Shuffle) and run in their own jobs.
@@ -89,10 +94,29 @@ status=0
 # compare:versions, sample:failure-modes through tsx), so offline tooling counts too.
 (cd tests/backend && TEST_DATABASE_URL="${TEST_DATABASE_URL:-$DATABASE_URL}" NODE_V8_COVERAGE="$V8" pytest -m "not system" --junitxml="$OUT/junit.xml") || status=$?
 
+# Phase 2, the queue path: API (INVESTIGATION_QUEUE=sqs) -> SQS on moto -> investigation worker.
+AWS_ENV=(AWS_ENDPOINT_URL=http://localhost:4566 AWS_REGION=us-east-1 AWS_ACCESS_KEY_ID=test
+  AWS_SECRET_ACCESS_KEY=test INVESTIGATION_QUEUE=sqs
+  INVESTIGATION_QUEUE_URL=http://localhost:4566/123456789012/soc-investigations)
+moto_server -p 4566 >"$LOGS/moto.log" 2>&1 &
+PIDS+=($!)
+wait_for http://localhost:4566/moto-api/
+AWS_ENDPOINT_URL=http://localhost:4566 node scripts/aws-local-init.mjs >"$LOGS/aws-init.log" 2>&1
+start_api 3021 ingestion-sqs AI_ENABLED=true "${AWS_ENV[@]}"
+(cd apps/ingestion-service && exec env DATABASE_URL="$DATABASE_URL" AI_ENABLED=true \
+  MULTI_AGENT_ENABLED=true RAG_ENABLED=false OLLAMA_HOST=http://localhost:11434 \
+  OLLAMA_MODEL=demo-stub WEBHOOK_SECRET=local-dev-secret NODE_V8_COVERAGE="$V8" "${AWS_ENV[@]}" \
+  node dist/workers/investigation-worker.js) >"$LOGS/worker.log" 2>&1 &
+API_PIDS+=($!)
+wait_for http://localhost:3021/health
+(cd tests/backend && INGESTION_URL=http://localhost:3021 AWS_ENDPOINT_URL=http://localhost:4566 \
+  REQUIRE_STACKS=aws-local TEST_DATABASE_URL="${TEST_DATABASE_URL:-$DATABASE_URL}" \
+  pytest -m system -k aws_local --junitxml="$OUT/junit-sqs.xml") || status=$((status == 0 ? 1 : status))
+
 # Graceful shutdown: V8 writes coverage when the process exits.
 for pid in "${API_PIDS[@]}"; do kill -TERM "$pid" 2>/dev/null || true; done
 for pid in "${API_PIDS[@]}"; do
-  for _ in $(seq 1 30); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
+  for _ in $(seq 1 60); do kill -0 "$pid" 2>/dev/null || break; sleep 0.5; done
 done
 
 # --all with --src on the compiled output: modules that no test loads count as 0%, instead of

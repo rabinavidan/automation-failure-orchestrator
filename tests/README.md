@@ -45,13 +45,15 @@ that starts a stack declares it in `REQUIRE_STACKS` (`dashboard`, `observability
 
 `npm run coverage:backend` measures how much of the TypeScript backend the black-box pytest
 suite exercises: it starts the services natively (PostgreSQL on `:5432` required) under
-`NODE_V8_COVERAGE`, runs `pytest -m "not system"`, shuts them down gracefully and maps V8
-coverage back to TypeScript with c8. Modules no test loads count as 0%. The gate is 80% lines
+`NODE_V8_COVERAGE` and runs `pytest -m "not system"` against them. A second phase covers the
+queue path: moto (`pip install "moto[server]"`), an API instance with `INVESTIGATION_QUEUE=sqs`
+and the investigation worker, driven by the AWS-local system test. Every process is then shut
+down gracefully and c8 maps V8 coverage back to TypeScript. Modules no test loads count as 0%. The gate is 80% lines
 and 70% branches (`COVERAGE_LINES`, `COVERAGE_BRANCHES`); the HTML report lands in
 `coverage/backend/`. CI job **Backend coverage** runs it on every push.
 
-Not measured there, by design: the SQS investigation worker (covered by the AWS-local system
-job), repository knowledge/RAG (needs an embedding model) and static labeled datasets.
+Not measured, by design: static labeled datasets (`judge-labeled-set.ts`), which are data,
+not behaviour.
 
 ## Demo scripts are not tests
 
@@ -111,14 +113,24 @@ pip install "./tests/backend[dev]"
 npm run test:backend                      # or: cd tests/backend && pytest -m pipeline
 ```
 
-Configuration: `INGESTION_URL`, `INGESTION_AI_URL`, `MOCK_URL`, `OLLAMA_STUB_URL`,
+Configuration: `INGESTION_URL`, `INGESTION_AI_URL`, `INGESTION_SINGLE_AGENT_URL`,
+`INGESTION_RAG_URL`, `MOCK_URL`, `OLLAMA_STUB_URL`,
 `TEST_DATABASE_URL`, `WEBHOOK_SECRET`, `MCP_SCOPE_SECRET` (defaults match the Compose stack on
 localhost).
 
-The test stack runs **two API instances** on one database: `ingestion-service` (:3001, agents
-off) for deterministic layers, and `ingestion-ai` (:3011, agents on against the scripted stub,
-MCP evidence enabled) for the `agents` and `mcp` layers. Deterministic tests therefore never
-depend on model behaviour, and agent tests control it completely.
+The test stack runs **four API instances** on one database, each configured for one concern:
+
+| Instance                 | Port  | Configuration                                       | Used by                       |
+| ------------------------ | ----- | --------------------------------------------------- | ----------------------------- |
+| `ingestion-service`      | :3001 | agents off                                          | deterministic layers          |
+| `ingestion-ai`           | :3011 | supervisor graph on the scripted stub, MCP evidence | `agents`, `mcp`               |
+| `ingestion-single-agent` | :3012 | single-agent tool-calling graph on the stub         | `agents/test_single_agent.py` |
+| `ingestion-rag`          | :3013 | RAG on a fixture corpus with the stub's embeddings  | `agents/test_rag.py`          |
+
+Deterministic tests therefore never depend on model behaviour, and agent tests control it
+completely. The stub's embeddings are a hashed bag of words: texts that share words are close,
+so retrieval over `fixtures/rag-corpus` is predictable. They test the RAG plumbing (allowlist,
+model separation, ranking, failure handling, citations), not semantic quality.
 
 ## UI layer (Playwright)
 
