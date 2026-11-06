@@ -72,7 +72,7 @@ a series.
 ## Design choices
 
 - **API-only domain code.** `observability/telemetry.ts` uses only `@opentelemetry/api`, so every
-  call is a no-op without the SDK and unit tests need no exporter. `observability/register.ts`
+  call is a no-op without the SDK and code paths run unchanged with telemetry off. `observability/register.ts`
   starts the SDK and must be imported first in each entry point, so HTTP, Express and pg are
   instrumented.
 - **One hook for model calls.** Every graph (single agent, supervisor, SOC) already reports
