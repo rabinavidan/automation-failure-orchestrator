@@ -177,17 +177,17 @@ Some things look duplicated but carry their own weight; this review recommends k
 One pull request per step, each merged on green CI. The order removes risk first and makes later
 steps cheaper.
 
-| Step | Change                                                     | Findings | Proven by                                     |
-| ---- | ---------------------------------------------------------- | -------- | --------------------------------------------- |
-| 1    | Remove dead code and unused dependencies                   | 9        | build, `npm ls`, existing suites              |
-| 2    | n8n CI workflow becomes a thin front door                  | 1        | drift test (fails before, passes after)       |
-| 3    | One action plan and executor for the CI track              | 2        | approval-parity pytest                        |
-| 4    | Central Zod-validated configuration                        | 3        | invalid-config pytest, `.env.example` drift   |
-| 5    | Response schemas in `shared-types`; dashboard imports them | 4        | read-model contract tests                     |
-| 6    | Generated OpenAPI; retire `api.md`                         | 5        | route-coverage drift test                     |
-| 7    | `packages/evaluation` workspace; one model-client factory  | 6        | evaluation layer unchanged; image smoke check |
-| 8    | Dashboard split per view with routing                      | 7        | the 36 Playwright tests unchanged             |
-| 9    | Documentation restructure                                  | 8        | link check                                    |
+| Step | Change                                                     | Findings | Proven by                                     | Status |
+| ---- | ---------------------------------------------------------- | -------- | --------------------------------------------- | ------ |
+| 1    | Remove dead code and unused dependencies                   | 9        | build, `npm ls`, existing suites              | done   |
+| 2    | n8n CI workflow becomes a thin front door                  | 1        | drift test (fails before, passes after)       | to do  |
+| 3    | One action plan and executor for the CI track              | 2        | approval-parity pytest                        | to do  |
+| 4    | Central Zod-validated configuration                        | 3        | invalid-config pytest, `.env.example` drift   | to do  |
+| 5    | Response schemas in `shared-types`; dashboard imports them | 4        | read-model contract tests                     | to do  |
+| 6    | Generated OpenAPI; retire `api.md`                         | 5        | route-coverage drift test                     | to do  |
+| 7    | `packages/evaluation` workspace; one model-client factory  | 6        | evaluation layer unchanged; image smoke check | to do  |
+| 8    | Dashboard split per view with routing                      | 7        | the 36 Playwright tests unchanged             | to do  |
+| 9    | Documentation restructure                                  | 8        | link check                                    | to do  |
 
 Expected effect: about 2,000 lines leave the production service, the CI policy and configuration
 each have one source of truth, the n8n bypass of the approval gate closes, and the API contract

@@ -11,7 +11,7 @@ human approves anything risky.
 [![SOAR](https://img.shields.io/badge/SOAR-Shuffle_·_n8n-EA4B71)](docs/shuffle-soar-lab.md)
 [![AWS](https://img.shields.io/badge/AWS-Terraform_·_Checkov--gated-FF9900?logo=amazonwebservices&logoColor=white)](infra/terraform/README.md)
 [![Tests](https://img.shields.io/badge/tests-pytest_·_Playwright_TS-2EAD33?logo=pytest&logoColor=white)](#test-automation-architecture)
-[![Coverage gate](<https://img.shields.io/badge/backend_coverage-88%25_lines_(gate_80%25)-brightgreen>)](#test-automation-architecture)
+[![Coverage gate](<https://img.shields.io/badge/backend_coverage-89%25_lines_(gate_80%25)-brightgreen>)](#test-automation-architecture)
 
 ![Runtime mode strip: demo stub (not real AI), multi-agent graph, mock Jira/Slack, in-process queue, enrichment mode](docs/screenshots/runtime-modes.png)
 
@@ -72,7 +72,7 @@ through HTTP, PostgreSQL and the browser, never internal functions, so the same 
 local Docker, CI or any environment reachable by URL.
 
 **331 tests**: 250 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
-enrichment service, and 36 Playwright tests for the dashboard. Black-box tests reach **88.6% of
+enrichment service, and 36 Playwright tests for the dashboard. Black-box tests reach **89.4% of
 the TypeScript backend's lines**, the SQS worker included.
 
 ```mermaid
@@ -93,7 +93,7 @@ flowchart TB
     subgraph L3["UI · Playwright TS · tests/ui"]
         U["page objects · API-seeded data · role fixtures · axe WCAG 2.1 AA"]
     end
-    COV[["Coverage gate · pytest → V8 → c8 → TypeScript, SQS worker included<br/>88.6% lines · fails below 80% lines / 70% branches"]]
+    COV[["Coverage gate · pytest → V8 → c8 → TypeScript, SQS worker included<br/>89.4% lines · fails below 80% lines / 70% branches"]]
     L0 --> L1 --> L2
     L1 --> L3
     L1 -.-> COV
@@ -112,7 +112,7 @@ flowchart TB
 | System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 16                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle                                                                                                    |
 | UI           | Playwright TS                                         | 36                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                                                                |
 | Enrichment   | pytest + respx (inside `apps/enrichment-service`)     | 45                | The Python threat-intel service's own unit layer: IOC normalization and eligibility (private IPs never leave the network), TTL cache, providers (mocked with respx), the API and its golden response contract |
-| Coverage     | pytest → V8 → c8                                      | the backend suite | **88% of TypeScript lines** reached by black-box tests, the SQS worker included; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                                             |
+| Coverage     | pytest → V8 → c8                                      | the backend suite | **89% of TypeScript lines** reached by black-box tests, the SQS worker included; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                                             |
 
 Principles that keep it maintainable:
 
@@ -137,7 +137,7 @@ service instances racing on LangGraph's checkpoint schema at startup. Details:
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Static quality (lint, format, types, build)          | ESLint, Prettier, `tsc --build` across workspaces and the Playwright suite's types; JSON Schema contracts are not stale                                                         |
 | Backend tests (pytest)                               | Black-box layers: contract, API, pipeline, SOC, agents (scripted model replies), RAG over a fixture corpus, MCP, evaluation gates (incl. hallucinated-IOC) and drift            |
-| Backend coverage (pytest → c8)                       | The same pytest suite against natively started services under V8 coverage, plus the SQS worker on moto, mapped to TypeScript: 88.6% lines; fails below 80% lines / 70% branches |
+| Backend coverage (pytest → c8)                       | The same pytest suite against natively started services under V8 coverage, plus the SQS worker on moto, mapped to TypeScript: 89.4% lines; fails below 80% lines / 70% branches |
 | UI tests (Playwright)                                | Every dashboard view through page objects with API-seeded data and role fixtures; axe-core WCAG 2.1 AA on every view                                                            |
 | Python enrichment service                            | `ruff` + `mypy --strict` + `pytest`; a golden response contract is shared with the TypeScript consumer                                                                          |
 | **Shuffle SOAR playbook (open source, self-hosted)** | Imports a playbook through Shuffle's REST API and runs it on real Shuffle. Asserts Splunk alert → orchestrator → `true_positive` → ChatOps message                              |
