@@ -13,13 +13,13 @@ import {
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { Ollama } from 'ollama';
 import type { Message, Tool, ToolCall } from 'ollama';
-import { z } from 'zod';
 import type {
   AgentInvestigation,
   FailureHistory,
   TestResult,
   WebhookPayload,
 } from '@orchestrator/shared-types';
+import { AgentFindingSchema } from '@orchestrator/shared-types';
 import type { JiraIssue } from './jira-adapter';
 import { getAgentCheckpointer } from '../db/agent-checkpointer';
 import {
@@ -109,13 +109,8 @@ function describeEvidenceError(error: unknown): string {
   return `evidence unavailable: ${error instanceof Error ? error.message : 'lookup failed'}`;
 }
 
-const InvestigationSchema = z.object({
-  suspectedRootCause: z.string().min(1),
-  evidence: z.array(z.string()).max(8),
-  recommendedAction: z.enum(['create_issue', 'update_issue', 'notify_only', 'human_review']),
-  confidence: z.number().min(0).max(1),
-  explanation: z.string().min(1),
-});
+// The model's final answer: the same schema the API contract exports (shared-types).
+const InvestigationSchema = AgentFindingSchema;
 
 export interface InvestigationContext {
   test: TestResult;

@@ -1,3 +1,4 @@
+import type { AgentInvestigation } from '@orchestrator/shared-types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackendBadge, RuntimeModes } from './RuntimeModes';
 import { BenchmarkSummary } from './BenchmarkSummary';
@@ -42,26 +43,6 @@ type View =
   | 'investigations'
   | 'jira'
   | 'slack';
-
-type AgentInvestigation = {
-  suspectedRootCause: string;
-  evidence: string[];
-  recommendedAction: string;
-  confidence: number;
-  explanation: string;
-  toolsUsed: string[];
-  model: string;
-  sources?: Array<{ path: string; chunk: number; score: number }>;
-  orchestration?: 'single_agent' | 'supervisor';
-  specialistReports?: Array<{
-    agent: string;
-    summary: string;
-    findings: string[];
-    confidence: number;
-    proposedAction?: string;
-    risk?: string;
-  }>;
-};
 
 type AgentExecution = {
   thread_id: string;

@@ -71,7 +71,7 @@ One tool per layer, each in the language that fits it: **pytest** for everything
 through HTTP, PostgreSQL and the browser, never internal functions, so the same suites run against
 local Docker, CI or any environment reachable by URL.
 
-**341 tests**: 260 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
+**347 tests**: 266 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
 enrichment service, and 36 Playwright tests for the dashboard. Black-box tests reach **89.4% of
 the TypeScript backend's lines**, the SQS worker included.
 
@@ -102,7 +102,7 @@ flowchart TB
 | Layer        | Tool                                                  | Tests             | What it pins down                                                                                                                                                                                             |
 | ------------ | ----------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Static       | ESLint, Prettier, `tsc`                               | every workspace   | Types across packages, the Playwright suite's types, and that the committed JSON Schemas match the Zod contracts                                                                                              |
-| Contract     | pytest + JSON Schema                                  | 35                | Webhook, SIEM, enrichment, playbook and policy payloads against schemas **exported from the Zod source**; test factories are validated against the same schemas                                               |
+| Contract     | pytest + JSON Schema                                  | 41                | Webhook, SIEM, enrichment, playbook and policy payloads, and the runs API's responses, against schemas **exported from the Zod source**; test factories are validated against the same schemas                |
 | API          | pytest                                                | 29                | One endpoint at a time: auth, validation, status codes, read models; startup refuses invalid configuration                                                                                                    |
 | Pipeline     | pytest                                                | 25                | CI failure flow end to end: `/api/runs` → PostgreSQL → Jira → Slack; idempotency, retries, flaky handling, recovery                                                                                           |
 | SOC          | pytest                                                | 36                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                                                                             |

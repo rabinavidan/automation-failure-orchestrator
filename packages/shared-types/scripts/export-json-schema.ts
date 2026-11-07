@@ -9,8 +9,10 @@ import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { z } from 'zod';
 import {
+  AgentInvestigationSchema,
   EnrichmentResponseSchema,
   PlaybookSchema,
+  ProcessingResultSchema,
   SecurityAlertSchema,
   SentinelAlertSchema,
   SplunkAlertWebhookSchema,
@@ -21,6 +23,7 @@ import {
 
 const OUT = join(__dirname, '../../../contracts/json-schema');
 
+// Inputs: what a producer may send (fields with defaults are optional on the wire).
 const contracts: Record<string, z.ZodType> = {
   'webhook-payload': WebhookPayloadSchema,
   'security-alert': SecurityAlertSchema,
@@ -34,10 +37,19 @@ const contracts: Record<string, z.ZodType> = {
   'triage-policy': TriagePolicySchema,
 };
 
+// Outputs: what the API returns, validated against live responses by the pytest contract layer.
+const responses: Record<string, z.ZodType> = {
+  'processing-result': ProcessingResultSchema,
+  'agent-investigation': AgentInvestigationSchema,
+};
+
 mkdirSync(OUT, { recursive: true });
-for (const [name, schema] of Object.entries(contracts)) {
-  // `input`: what a producer may send (fields with defaults are optional on the wire).
-  const json = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' });
+const all = [
+  ...Object.entries(contracts).map(([name, schema]) => [name, schema, 'input'] as const),
+  ...Object.entries(responses).map(([name, schema]) => [name, schema, 'output'] as const),
+];
+for (const [name, schema, io] of all) {
+  const json = z.toJSONSchema(schema, { io, unrepresentable: 'any' });
   const document = {
     $id: `https://signalops.local/contracts/${name}.schema.json`,
     title: name,

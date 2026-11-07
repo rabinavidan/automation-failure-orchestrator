@@ -1,0 +1,200 @@
+{
+  "$id": "https://signalops.local/contracts/processing-result.schema.json",
+  "title": "processing-result",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "runId": {
+      "type": "string"
+    },
+    "processed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "skipped": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "testId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "known_bug",
+              "new_regression",
+              "flaky",
+              "infrastructure",
+              "automation_failure",
+              "possibly_fixed"
+            ]
+          },
+          "jiraKey": {
+            "type": "string"
+          },
+          "slackSent": {
+            "type": "boolean"
+          },
+          "agentInvestigation": {
+            "type": "object",
+            "properties": {
+              "suspectedRootCause": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "recommendedAction": {
+                "type": "string",
+                "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "explanation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "toolsUsed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "model": {
+                "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "chunk": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "score": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["path", "chunk", "score"],
+                  "additionalProperties": false
+                }
+              },
+              "orchestration": {
+                "type": "string",
+                "enum": ["single_agent", "supervisor"]
+              },
+              "specialistReports": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "agent": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "proposedAction": {
+                      "type": "string",
+                      "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+                    },
+                    "risk": {
+                      "type": "string",
+                      "enum": ["low", "medium", "high"]
+                    }
+                  },
+                  "required": ["agent", "summary", "findings", "confidence"],
+                  "additionalProperties": false
+                }
+              },
+              "guardrailOverride": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["from", "reason"],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "suspectedRootCause",
+              "evidence",
+              "recommendedAction",
+              "confidence",
+              "explanation",
+              "toolsUsed",
+              "model"
+            ],
+            "additionalProperties": false
+          },
+          "approval": {
+            "type": "object",
+            "properties": {
+              "threadId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["pending", "approved", "rejected"]
+              }
+            },
+            "required": ["threadId", "status"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["testId", "title", "fingerprint", "classification"],
+        "additionalProperties": false
+      }
+    },
+    "duplicateRun": {
+      "type": "boolean"
+    }
+  },
+  "required": ["runId", "processed", "skipped", "failures"],
+  "additionalProperties": false
+}

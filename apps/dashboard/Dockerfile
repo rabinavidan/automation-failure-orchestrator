@@ -3,7 +3,12 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/dashboard/package.json ./apps/dashboard/
+COPY packages/shared-types/package.json ./packages/shared-types/
 RUN npm install --legacy-peer-deps
+# The dashboard imports its API types from the shared contract package (types only).
+COPY tsconfig.json ./
+COPY packages/shared-types ./packages/shared-types/
+RUN npm run build --workspace=@orchestrator/shared-types
 COPY apps/dashboard ./apps/dashboard/
 RUN npm run build --workspace=@orchestrator/dashboard
 
