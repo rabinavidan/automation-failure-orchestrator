@@ -10,7 +10,8 @@ import type {
 import { generateFingerprint, fingerprintLabel } from '@orchestrator/fingerprint-engine';
 import { classify } from '@orchestrator/failure-classifier';
 import { query } from '../db/client';
-import { searchByLabel, createIssue, addComment } from './jira-adapter';
+import { searchByLabel, addComment } from './jira-adapter';
+import { executeFailureActions, planFailureActions } from './failure-actions';
 import { sendSlackNotification } from './slack-adapter';
 import { investigateFailure } from './failure-investigation-agent';
 import { createApprovalRequest } from './approval-requests';
@@ -242,67 +243,11 @@ async function processTest(
     return;
   }
 
-  let jiraKey: string | undefined;
-  let slackSent: boolean;
-
-  // Take action based on classification
-  switch (classification) {
-    case FailureClassification.NewRegression: {
-      jiraKey = (await handleNewRegression(test, payload, fp, label)) ?? undefined;
-      slackSent = await sendSlackNotification({
-        classification,
-        testTitle: test.title,
-        suite: test.suite,
-        fingerprint: fp,
-        jiraKey,
-        runId: payload.runId,
-        branch: payload.branch,
-        environment: payload.environment,
-        errorMessage: test.error?.message,
-        agentSummary: agentInvestigation?.explanation,
-        agentConfidence: agentInvestigation?.confidence,
-      });
-      break;
-    }
-
-    case FailureClassification.KnownBug: {
-      jiraKey = existingIssue?.key;
-      if (jiraKey) {
-        await handleKnownBug(test, payload, jiraKey, fp);
-      }
-      slackSent = await sendSlackNotification({
-        classification,
-        testTitle: test.title,
-        suite: test.suite,
-        fingerprint: fp,
-        jiraKey,
-        runId: payload.runId,
-        branch: payload.branch,
-        environment: payload.environment,
-        errorMessage: test.error?.message,
-        agentSummary: agentInvestigation?.explanation,
-        agentConfidence: agentInvestigation?.confidence,
-      });
-      break;
-    }
-
-    default: {
-      // Flaky, Infra, Automation — Slack only
-      slackSent = await sendSlackNotification({
-        classification,
-        testTitle: test.title,
-        suite: test.suite,
-        fingerprint: fp,
-        runId: payload.runId,
-        branch: payload.branch,
-        environment: payload.environment,
-        errorMessage: test.error?.message,
-        agentSummary: agentInvestigation?.explanation,
-        agentConfidence: agentInvestigation?.confidence,
-      });
-      break;
-    }
-  }
+  // The action policy lives in one place (failure-actions.ts), shared with the approval path.
+  const { jiraKey, slackSent } = await executeFailureActions(
+    planFailureActions(classification, existingIssue?.key),
+    { test, payload, fingerprint: fp, classification, agentInvestigation }
+  );
 
   // Update failure history
   await upsertFailureHistory(
@@ -388,62 +333,6 @@ async function handlePassedTest(test: TestResult, payload: WebhookPayload): Prom
   }
 
   void fp; // unused but computed for structure
-}
-
-async function handleNewRegression(
-  test: TestResult,
-  payload: WebhookPayload,
-  fingerprint: string,
-  label: string
-): Promise<string | null> {
-  const description = [
-    `*Automated Test Failure Report*`,
-    ``,
-    `*Test:* ${test.title}`,
-    `*Suite:* ${test.suite}`,
-    `*File:* ${test.file}`,
-    `*Branch:* ${payload.branch}`,
-    `*Environment:* ${payload.environment}`,
-    `*Run ID:* ${payload.runId}`,
-    `*Fingerprint:* \`${fingerprint}\``,
-    ``,
-    `*Error:*`,
-    `{code}`,
-    test.error?.message ?? 'Unknown error',
-    `{code}`,
-    ``,
-    `*Stack Trace:*`,
-    `{code}`,
-    test.error?.stack ?? 'No stack trace',
-    `{code}`,
-  ].join('\n');
-
-  return createIssue({
-    summary: `[AUTO] ${test.suite}: ${test.title}`,
-    description,
-    labels: [label, 'automated-test', `env-${payload.environment}`],
-    priority: test.metadata?.severity === 'critical' ? 'Critical' : 'Medium',
-  });
-}
-
-async function handleKnownBug(
-  test: TestResult,
-  payload: WebhookPayload,
-  jiraKey: string,
-  fingerprint: string
-): Promise<void> {
-  const comment = [
-    `*Test failure recurred*`,
-    ``,
-    `Run: ${payload.runId}`,
-    `Branch: ${payload.branch}`,
-    `Environment: ${payload.environment}`,
-    `Fingerprint: \`${fingerprint}\``,
-    ``,
-    `Error: ${test.error?.message ?? 'Unknown'}`,
-  ].join('\n');
-
-  await addComment(jiraKey, comment);
 }
 
 async function getFailureHistory(fingerprint: string): Promise<FailureHistory | null> {
@@ -557,31 +446,12 @@ export async function executeApprovedFailureActions(input: {
   classification: FailureClassification;
   agentInvestigation: AgentInvestigation;
 }): Promise<{ jiraKey?: string; slackSent: boolean }> {
-  const label = fingerprintLabel(input.fingerprint);
-  const existingIssue = await searchByLabel(label);
-  let jiraKey: string | undefined;
-
-  if (input.classification === FailureClassification.NewRegression) {
-    jiraKey =
-      (await handleNewRegression(input.test, input.payload, input.fingerprint, label)) ?? undefined;
-  } else if (input.classification === FailureClassification.KnownBug) {
-    jiraKey = existingIssue?.key;
-    if (jiraKey) await handleKnownBug(input.test, input.payload, jiraKey, input.fingerprint);
-  }
-
-  const slackSent = await sendSlackNotification({
-    classification: input.classification,
-    testTitle: input.test.title,
-    suite: input.test.suite,
-    fingerprint: input.fingerprint,
-    jiraKey,
-    runId: input.payload.runId,
-    branch: input.payload.branch,
-    environment: input.payload.environment,
-    errorMessage: input.test.error?.message,
-    agentSummary: input.agentInvestigation.explanation,
-    agentConfidence: input.agentInvestigation.confidence,
-  });
+  // Re-read the Jira state at approval time: an issue may have been opened since the pause.
+  const existingIssue = await searchByLabel(fingerprintLabel(input.fingerprint));
+  const { jiraKey, slackSent } = await executeFailureActions(
+    planFailureActions(input.classification, existingIssue?.key),
+    input
+  );
 
   if (jiraKey) {
     await query(`UPDATE failure_history SET jira_issue_key = $2 WHERE fingerprint = $1`, [
