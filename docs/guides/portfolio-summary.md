@@ -29,7 +29,7 @@ at zero cost and has Terraform for AWS (validated and Checkov-scanned, never app
   cases. It compares deterministic, single-agent and multi-agent configurations, refuses
   stub-backed runs, and reports policy compliance, unsupported claims, safety violations and
   cost separately. The deterministic baseline is 21/24 on CI cases and 11/11 on SOC cases
-  ([report](../benchmark/results/baseline-deterministic/report.md)).
+  ([report](../../benchmark/results/baseline-deterministic/report.md)).
 - Added a Model Context Protocol evidence server (Streamable HTTP) with HMAC scope tokens the
   model never sees. Tools are read-only and audited per call. Contract tests prove
   cross-investigation denial, bounded output and prompt-injection resistance. Reviewer

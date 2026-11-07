@@ -272,7 +272,7 @@ SIEM) and a Wazuh container profile. The normalizers already accept their native
 
 ## M7 — AWS deployment (done)
 
-`infra/terraform` provisions the platform on AWS (see its [README](../infra/terraform/README.md)
+`infra/terraform` provisions the platform on AWS (see its [README](../../infra/terraform/README.md)
 for the architecture, security controls, deploy steps and cost):
 
 - **Compute**: ECS Fargate services for the API, the Python enrichment service, the new
@@ -308,4 +308,4 @@ operator's AWS account and is run deliberately with `terraform apply`.
   a drawer bug (a transformed ancestor made `position: fixed` relative to the section), fixed
   with a React portal.
 - README repositioned around the SOC track with a Mermaid architecture diagram and screenshots;
-  [interview guide](soc-interview-guide.md).
+  [interview guide](../guides/demo.md).

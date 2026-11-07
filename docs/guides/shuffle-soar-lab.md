@@ -42,7 +42,7 @@ Things to notice:
 - **`$ingest.body.triage.disposition`** references the previous node's output by its label. The
   HTTP app returns `{status, body, headers}`, with `body` already parsed as JSON.
 - Shuffle stores the playbook (actions, branches) as JSON. Compare it with
-  [`shuffle/soc-alert-playbook.json`](../shuffle/soc-alert-playbook.json).
+  [`shuffle/soc-alert-playbook.json`](../../shuffle/soc-alert-playbook.json).
 
 ## 2. Run it and read the execution
 
