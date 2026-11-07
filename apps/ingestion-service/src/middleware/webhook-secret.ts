@@ -1,8 +1,9 @@
 import { timingSafeEqual } from 'crypto';
 import type { Request, Response, NextFunction } from 'express';
+import { config } from '../config';
 
 export function webhookSecret(req: Request, res: Response, next: NextFunction): void {
-  const secret = process.env.WEBHOOK_SECRET;
+  const secret = config().WEBHOOK_SECRET;
 
   // If no secret configured, allow all requests (dev mode)
   if (!secret) {

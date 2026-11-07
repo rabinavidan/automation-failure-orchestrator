@@ -1,4 +1,5 @@
 import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
+import { config } from '../config';
 
 /**
  * Durable hand-off for advisory SOC investigations. Locally (default) work runs
@@ -36,8 +37,8 @@ export function createSqsQueue(
 /** Null means "run in-process". Misconfiguration is reported once and falls back safely. */
 export function getInvestigationQueue(): InvestigationQueue | null {
   if (cached !== undefined) return cached;
-  if (process.env.INVESTIGATION_QUEUE !== 'sqs') return (cached = null);
-  const url = process.env.INVESTIGATION_QUEUE_URL;
+  if (config().INVESTIGATION_QUEUE !== 'sqs') return (cached = null);
+  const url = config().INVESTIGATION_QUEUE_URL;
   if (!url) {
     console.error(
       '[Queue] INVESTIGATION_QUEUE=sqs but INVESTIGATION_QUEUE_URL is unset; using in-process'

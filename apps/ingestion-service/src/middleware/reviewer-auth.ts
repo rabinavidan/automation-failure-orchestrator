@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
+import { config } from '../config';
 
 /**
  * Minimal, server-enforced reviewer identity for approval and response endpoints (portfolio
@@ -54,7 +55,7 @@ export function parseReviewerTokens(raw: string | undefined): {
 let cache: { raw: string | undefined; identities: Identity[] } | null = null;
 
 function identities(): Identity[] {
-  const raw = process.env.REVIEWER_TOKENS;
+  const raw = config().REVIEWER_TOKENS;
   if (!cache || cache.raw !== raw) {
     const parsed = parseReviewerTokens(raw);
     for (const error of parsed.errors) console.error(`[Auth] REVIEWER_TOKENS ${error}; ignored`);

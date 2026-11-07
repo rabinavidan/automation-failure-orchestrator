@@ -1,3 +1,4 @@
+import { config } from '../config';
 /**
  * Jira adapter — delegates to mock or real Jira based on INTEGRATION_MODE env var.
  */
@@ -17,7 +18,7 @@ export interface CreateIssueParams {
 }
 
 async function jiraRequest(path: string, options: RequestInit = {}): Promise<unknown> {
-  const baseUrl = process.env.JIRA_BASE_URL ?? 'http://localhost:3002';
+  const baseUrl = config().JIRA_BASE_URL;
   const url = `${baseUrl}${path}`;
 
   const response = await fetch(url, {
@@ -70,7 +71,7 @@ export async function createIssue(params: CreateIssueParams): Promise<string | n
         summary: params.summary,
         description: params.description,
         issuetype: { name: 'Bug' },
-        project: { key: process.env.JIRA_PROJECT_KEY ?? 'AUTO' },
+        project: { key: config().JIRA_PROJECT_KEY },
         labels: params.labels,
         priority: { name: params.priority ?? 'Medium' },
       },

@@ -6,12 +6,10 @@ import type {
   SecuritySeverity,
 } from '@orchestrator/shared-types';
 import { getPool } from '../db/client';
-
-const DEFAULT_SUPPRESSION_WINDOW_MINUTES = 60;
+import { config } from '../config';
 
 export function suppressionWindowMinutes(): number {
-  const raw = Number(process.env.ALERT_SUPPRESSION_WINDOW_MINUTES);
-  return Number.isFinite(raw) && raw >= 0 ? raw : DEFAULT_SUPPRESSION_WINDOW_MINUTES;
+  return config().ALERT_SUPPRESSION_WINDOW_MINUTES;
 }
 
 /**

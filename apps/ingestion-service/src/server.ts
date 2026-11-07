@@ -4,15 +4,16 @@ import app from './app';
 import { runMigrations } from './db/migrations';
 import { closePool } from './db/client';
 import { setupAgentCheckpointer } from './db/agent-checkpointer';
+import { config, validateConfig } from './config';
 
-const PORT = parseInt(process.env.PORT ?? '3001', 10);
-const SHUTDOWN_GRACE_MS = parseInt(process.env.SHUTDOWN_GRACE_MS ?? '10000', 10);
+// Fail fast, naming every invalid variable, before migrations or traffic.
+const { PORT, SHUTDOWN_GRACE_MS } = validateConfig();
 
 async function main(): Promise<void> {
   // Run DB migrations before accepting traffic
   try {
     await runMigrations();
-    if (process.env.AI_ENABLED === 'true') await setupAgentCheckpointer();
+    if (config().AI_ENABLED) await setupAgentCheckpointer();
   } catch (err) {
     console.warn('[Server] Could not run migrations (DB may not be available):', err);
   }

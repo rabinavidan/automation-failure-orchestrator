@@ -2,6 +2,7 @@
  * Slack adapter — sends notifications via incoming webhook.
  */
 import { FailureClassification } from '@orchestrator/shared-types';
+import { config } from '../config';
 
 export interface SlackMessage {
   text: string;
@@ -43,7 +44,7 @@ function classificationEmoji(c: FailureClassification): string {
 
 export async function sendSlackNotification(params: NotifyParams): Promise<boolean> {
   const webhookUrl =
-    process.env.SLACK_WEBHOOK_URL ?? 'http://localhost:3002/slack/services/T00/B00/xxx';
+    config().SLACK_WEBHOOK_URL ?? 'http://localhost:3002/slack/services/T00/B00/xxx';
 
   const emoji = classificationEmoji(params.classification);
   const jiraLink = params.jiraKey ? ` | Jira: *${params.jiraKey}*` : '';

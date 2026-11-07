@@ -3,6 +3,7 @@ import { join } from 'path';
 import { parse } from 'yaml';
 import { PlaybookSchema } from '@orchestrator/shared-types';
 import type { AlertTriage, Playbook, TriagePriority } from '@orchestrator/shared-types';
+import { config } from '../config';
 
 const DEFAULT_PLAYBOOK_DIR = join(__dirname, '../../../../config/playbooks');
 const PRIORITY_RANK: Record<TriagePriority, number> = { P1: 1, P2: 2, P3: 3, P4: 4 };
@@ -16,7 +17,7 @@ export interface PlaybookLoadResult {
 let cache: PlaybookLoadResult | null = null;
 
 export function loadPlaybooks(
-  dir: string = process.env.SOC_PLAYBOOK_DIR ?? DEFAULT_PLAYBOOK_DIR
+  dir: string = config().SOC_PLAYBOOK_DIR ?? DEFAULT_PLAYBOOK_DIR
 ): PlaybookLoadResult {
   const result: PlaybookLoadResult = { playbooks: [], errors: [] };
   let files: string[];

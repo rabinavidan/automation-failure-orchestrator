@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { config } from '../config';
 
 export interface Runbook {
   /** File name, used as the citation id (e.g. `credential-brute-force.md`). */
@@ -27,8 +28,8 @@ export function parseRunbook(file: string, content: string): Runbook {
 
 let cache: Runbook[] | null = null;
 
-export function loadRunbooks(dir: string = process.env.SOC_RUNBOOK_DIR ?? DEFAULT_RUNBOOK_DIR) {
-  if (cache && dir === (process.env.SOC_RUNBOOK_DIR ?? DEFAULT_RUNBOOK_DIR)) return cache;
+export function loadRunbooks(dir: string = config().SOC_RUNBOOK_DIR ?? DEFAULT_RUNBOOK_DIR) {
+  if (cache && dir === (config().SOC_RUNBOOK_DIR ?? DEFAULT_RUNBOOK_DIR)) return cache;
   let runbooks: Runbook[] = [];
   try {
     runbooks = readdirSync(dir)

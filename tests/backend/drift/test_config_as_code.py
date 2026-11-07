@@ -89,3 +89,22 @@ def test_running_service_loaded_every_playbook(ingestion: IngestionClient) -> No
     body = ingestion.get("/api/responses/playbooks").raise_for_status().json()
     loaded = {p["id"] for p in body["playbooks"]}
     assert loaded == {_load(p)["id"] for p in PLAYBOOKS}
+
+
+# --- service configuration: every variable the code validates is documented ---------------
+
+
+def test_every_ingestion_setting_is_documented_in_env_example() -> None:
+    schema = (REPO_ROOT / "apps/ingestion-service/src/config.ts").read_text()
+    body = schema[schema.index("const ConfigSchema") : schema.index(".superRefine")]
+    settings = set(re.findall(r"^\s{4}([A-Z][A-Z0-9_]+):", body, flags=re.M))
+    documented = set(
+        re.findall(
+            r"^#?\s?([A-Z][A-Z0-9_]+)=",
+            (REPO_ROOT / ".env.example").read_text(),
+            flags=re.M,
+        )
+    )
+
+    assert len(settings) > 25, "the schema parser found too few settings"
+    assert sorted(settings - documented) == []
