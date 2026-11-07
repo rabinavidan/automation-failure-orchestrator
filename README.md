@@ -71,6 +71,10 @@ One tool per layer, each in the language that fits it: **pytest** for everything
 through HTTP, PostgreSQL and the browser, never internal functions, so the same suites run against
 local Docker, CI or any environment reachable by URL.
 
+**331 tests**: 250 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
+enrichment service, and 36 Playwright tests for the dashboard. Black-box tests reach **88.6% of
+the TypeScript backend's lines**, the SQS worker included.
+
 ```mermaid
 flowchart TB
     subgraph L0["Static · npm run quality"]
@@ -80,34 +84,35 @@ flowchart TB
         direction LR
         B1["smoke · contract · api"]
         B2["pipeline · soc"]
-        B3["agents · mcp · evaluation"]
+        B3["agents (incl. RAG) · mcp · evaluation"]
         B4["drift · harness"]
     end
     subgraph L2["System · pytest -m system"]
         SY["dashboard proxy · OpenTelemetry / Grafana · AWS SQS on moto · Shuffle SOAR"]
     end
     subgraph L3["UI · Playwright TS · tests/ui"]
-        U["page objects · API-seeded data · role fixtures"]
+        U["page objects · API-seeded data · role fixtures · axe WCAG 2.1 AA"]
     end
-    COV[["Coverage gate · pytest → V8 → c8 → TypeScript<br/>fails below 80% lines / 70% branches"]]
+    COV[["Coverage gate · pytest → V8 → c8 → TypeScript, SQS worker included<br/>88.6% lines · fails below 80% lines / 70% branches"]]
     L0 --> L1 --> L2
     L1 --> L3
     L1 -.-> COV
 ```
 
-| Layer        | Tool                                                  | Tests             | What it pins down                                                                                                                                                                                        |
-| ------------ | ----------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Static       | ESLint, Prettier, `tsc`                               | every workspace   | Types across packages, the Playwright suite's types, and that the committed JSON Schemas match the Zod contracts                                                                                         |
-| Contract     | pytest + JSON Schema                                  | 35                | Webhook, SIEM, enrichment, playbook and policy payloads against schemas **exported from the Zod source**; test factories are validated against the same schemas                                          |
-| API          | pytest                                                | 21                | One endpoint at a time: auth, validation, status codes, read models                                                                                                                                      |
-| Pipeline     | pytest                                                | 25                | CI failure flow end to end: `/api/runs` → PostgreSQL → Jira → Slack; idempotency, retries, flaky handling, recovery                                                                                      |
-| SOC          | pytest                                                | 36                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                                                                        |
-| Agents · MCP | pytest + scriptable model stub                        | 45                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens, RAG over a fixture corpus with stub embeddings |
-| Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                                                          |
-| Drift        | pytest                                                | 54                | Artefacts that must agree: n8n vs. API decisions, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                                                                       |
-| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 16                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle                                                                                               |
-| UI           | Playwright TS                                         | 36                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                                                           |
-| Coverage     | pytest → V8 → c8                                      | the backend suite | **88% of TypeScript lines** reached by black-box tests, the SQS worker included; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                                        |
+| Layer        | Tool                                                  | Tests             | What it pins down                                                                                                                                                                                             |
+| ------------ | ----------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Static       | ESLint, Prettier, `tsc`                               | every workspace   | Types across packages, the Playwright suite's types, and that the committed JSON Schemas match the Zod contracts                                                                                              |
+| Contract     | pytest + JSON Schema                                  | 35                | Webhook, SIEM, enrichment, playbook and policy payloads against schemas **exported from the Zod source**; test factories are validated against the same schemas                                               |
+| API          | pytest                                                | 21                | One endpoint at a time: auth, validation, status codes, read models                                                                                                                                           |
+| Pipeline     | pytest                                                | 25                | CI failure flow end to end: `/api/runs` → PostgreSQL → Jira → Slack; idempotency, retries, flaky handling, recovery                                                                                           |
+| SOC          | pytest                                                | 36                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                                                                             |
+| Agents · MCP | pytest + scriptable model stub                        | 45                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens, RAG over a fixture corpus with stub embeddings      |
+| Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                                                               |
+| Drift        | pytest                                                | 54                | Artefacts that must agree: n8n vs. API decisions, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                                                                            |
+| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 16                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle                                                                                                    |
+| UI           | Playwright TS                                         | 36                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                                                                |
+| Enrichment   | pytest + respx (inside `apps/enrichment-service`)     | 45                | The Python threat-intel service's own unit layer: IOC normalization and eligibility (private IPs never leave the network), TTL cache, providers (mocked with respx), the API and its golden response contract |
+| Coverage     | pytest → V8 → c8                                      | the backend suite | **88% of TypeScript lines** reached by black-box tests, the SQS worker included; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                                             |
 
 Principles that keep it maintainable:
 
@@ -128,19 +133,19 @@ service instances racing on LangGraph's checkpoint schema at startup. Details:
 
 ## Proof, not claims: what CI runs on every push
 
-| CI job                                               | What it proves                                                                                                                                                                 |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Static quality (lint, format, types, build)          | ESLint, Prettier, `tsc --build` across workspaces and the Playwright suite's types; JSON Schema contracts are not stale                                                        |
-| Backend tests (pytest)                               | Black-box layers: contract, API, pipeline, SOC, agents (scripted model replies), MCP, evaluation gates (incl. hallucinated-IOC) and drift                                      |
-| Backend coverage (pytest → c8)                       | The same pytest suite against natively started services under V8 coverage, mapped to TypeScript; fails below 80% lines / 70% branches                                          |
-| UI tests (Playwright)                                | Every dashboard view through page objects with API-seeded data and role fixtures; axe-core WCAG 2.1 AA on every view                                                           |
-| Python enrichment service                            | `ruff` + `mypy --strict` + `pytest`; a golden response contract is shared with the TypeScript consumer                                                                         |
-| **Shuffle SOAR playbook (open source, self-hosted)** | Imports a playbook through Shuffle's REST API and runs it on real Shuffle. Asserts Splunk alert → orchestrator → `true_positive` → ChatOps message                             |
-| **Zero-cost AWS demo (SQS worker on moto)**          | API → SQS → investigation worker → persisted result, with no AWS account and no cost                                                                                           |
-| Terraform validate and IaC security scan             | `terraform validate` + Checkov: any unskipped finding fails the build (each skip is documented inline with a reason)                                                           |
-| Docker build and smoke test                          | The full stack starts; API, proxy, action and idempotency smoke checks pass                                                                                                    |
-| **OpenTelemetry traces and metrics (Grafana LGTM)**  | A run produces one trace in Tempo (HTTP → run → test → GenAI model calls, PostgreSQL and Jira spans) and SignalOps metrics in Prometheus; the Grafana dashboard is provisioned |
-| Runtime image security · dependency audit/review     | Trivy scans the ingestion, dashboard and enrichment images for critical CVEs; production dependency audit and review                                                           |
+| CI job                                               | What it proves                                                                                                                                                                  |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Static quality (lint, format, types, build)          | ESLint, Prettier, `tsc --build` across workspaces and the Playwright suite's types; JSON Schema contracts are not stale                                                         |
+| Backend tests (pytest)                               | Black-box layers: contract, API, pipeline, SOC, agents (scripted model replies), RAG over a fixture corpus, MCP, evaluation gates (incl. hallucinated-IOC) and drift            |
+| Backend coverage (pytest → c8)                       | The same pytest suite against natively started services under V8 coverage, plus the SQS worker on moto, mapped to TypeScript: 88.6% lines; fails below 80% lines / 70% branches |
+| UI tests (Playwright)                                | Every dashboard view through page objects with API-seeded data and role fixtures; axe-core WCAG 2.1 AA on every view                                                            |
+| Python enrichment service                            | `ruff` + `mypy --strict` + `pytest`; a golden response contract is shared with the TypeScript consumer                                                                          |
+| **Shuffle SOAR playbook (open source, self-hosted)** | Imports a playbook through Shuffle's REST API and runs it on real Shuffle. Asserts Splunk alert → orchestrator → `true_positive` → ChatOps message                              |
+| **Zero-cost AWS demo (SQS worker on moto)**          | API → SQS → investigation worker → persisted result, with no AWS account and no cost                                                                                            |
+| Terraform validate and IaC security scan             | `terraform validate` + Checkov: any unskipped finding fails the build (each skip is documented inline with a reason)                                                            |
+| Docker build and smoke test                          | The full stack starts; API, proxy, action and idempotency smoke checks pass                                                                                                     |
+| **OpenTelemetry traces and metrics (Grafana LGTM)**  | A run produces one trace in Tempo (HTTP → run → test → GenAI model calls, PostgreSQL and Jira spans) and SignalOps metrics in Prometheus; the Grafana dashboard is provisioned  |
+| Runtime image security · dependency audit/review     | Trivy scans the ingestion, dashboard and enrichment images for critical CVEs; production dependency audit and review                                                            |
 
 ## Architecture
 
