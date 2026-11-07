@@ -636,13 +636,17 @@ It uses same-origin Nginx proxies to the ingestion and mock-integration services
 
 ## n8n workflow
 
-The workflow at `n8n/workflows/main-workflow.json` contains:
+The workflow at `n8n/workflows/main-workflow.json` is a thin front door:
 
 ```text
-Webhook -> Validate -> Split -> Filter failures -> Fingerprint
-        -> Search Jira -> Classify -> Route
-        -> Jira / Slack -> Persist -> Respond
+Webhook -> POST /api/runs (x-webhook-secret) -> Respond with the API's decisions
 ```
+
+It holds no fingerprinting, classification or Jira/Slack calls, so runs that arrive through n8n
+get exactly the API's policy, history, idempotency and approval gate. An earlier version decided
+and acted on its own and then also forwarded the run, which could open duplicate issues and skip
+approval. `tests/backend/drift/test_n8n_workflows.py` pins the structure, and CI job
+`n8n-front-doors` runs both workflows in real n8n (`tests/backend/system/test_n8n.py`).
 
 Automated import:
 

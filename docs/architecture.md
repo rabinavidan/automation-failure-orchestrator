@@ -14,20 +14,14 @@ The Bug-Aware Test Failure Orchestrator is a multi-service system that intellige
                        │ POST /webhook/test-results
                        ▼
 ┌─────────────────────────────────────────────────────────┐
-│                    n8n Workflow                          │
-│  1. Validate payload                                    │
-│  2. Split test results                                  │
-│  3. Generate fingerprints                               │
-│  4. Classify failures                                   │
-│  5. Route by classification                             │
-└────────┬──────────────────────────┬─────────────────────┘
-         │                          │
-         ▼                          ▼
-┌────────────────┐        ┌─────────────────────┐
-│  Jira (Mock)   │        │  Slack (Mock)        │
-│  - Create      │        │  - Notifications     │
-│  - Comment     │        │                      │
-└────────────────┘        └─────────────────────┘
+│              n8n Workflow (thin front door)              │
+│  Forwards the payload to POST /api/runs and relays the  │
+│  API's decisions. No classification, no Jira or Slack.  │
+└──────────────────────┬──────────────────────────────────┘
+                       │ POST /api/runs
+                       ▼
+             Ingestion service: classification,
+             policy, approval gate, Jira and Slack
          │
          ▼
 ┌─────────────────────────────────────────────────────────┐

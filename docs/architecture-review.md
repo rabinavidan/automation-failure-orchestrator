@@ -180,7 +180,7 @@ steps cheaper.
 | Step | Change                                                     | Findings | Proven by                                     | Status |
 | ---- | ---------------------------------------------------------- | -------- | --------------------------------------------- | ------ |
 | 1    | Remove dead code and unused dependencies                   | 9        | build, `npm ls`, existing suites              | done   |
-| 2    | n8n CI workflow becomes a thin front door                  | 1        | drift test (fails before, passes after)       | to do  |
+| 2    | n8n CI workflow becomes a thin front door                  | 1        | drift test (fails before, passes after)       | done   |
 | 3    | One action plan and executor for the CI track              | 2        | approval-parity pytest                        | to do  |
 | 4    | Central Zod-validated configuration                        | 3        | invalid-config pytest, `.env.example` drift   | to do  |
 | 5    | Response schemas in `shared-types`; dashboard imports them | 4        | read-model contract tests                     | to do  |

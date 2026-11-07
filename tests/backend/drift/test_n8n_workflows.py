@@ -1,5 +1,7 @@
-"""n8n workflows are a second entry point into the same pipeline. They must stay a thin front
-door: same classification rules as the API, and no triage or policy logic of their own."""
+"""n8n workflows are second entry points into the same pipelines. They must stay thin front
+doors: they forward to the API and relay its answer, with no classification, triage or policy
+logic of their own, so every decision and side effect goes through the API's policy, history,
+idempotency and approval gate."""
 
 from __future__ import annotations
 
@@ -9,8 +11,8 @@ from typing import Any
 import pytest
 
 from support import alerts, factories
-from support.clients import IngestionClient, MockIntegrationsClient
-from support.node import run_n8n_code_node
+from support.clients import IngestionClient
+from support.node import evaluate_n8n_expression, run_n8n_code_node
 from support.settings import REPO_ROOT
 
 pytestmark = pytest.mark.drift
@@ -22,6 +24,11 @@ SOC = REPO_ROOT / "n8n" / "workflows" / "soc-alert-workflow.json"
 def _workflow(path: Any) -> dict[str, Any]:
     data: dict[str, Any] = json.loads(path.read_text())
     return data
+
+
+def _node(workflow: dict[str, Any], name: str) -> dict[str, Any]:
+    [node] = [n for n in workflow["nodes"] if n["name"] == name]
+    return dict(node)
 
 
 @pytest.mark.parametrize("path", [MAIN, SOC], ids=["main", "soc"])
@@ -36,68 +43,70 @@ def test_every_connection_targets_an_existing_node(path: Any) -> None:
                 assert edge["node"] in names
 
 
-# --- main workflow: same decisions as the API ---------------------------------------------
-
-CASES = [
-    ("Error", "connect ECONNREFUSED 10.0.0.12:5432", "failed", 0),
-    ("Error", "browserType.launch: Executable doesn't exist", "failed", 0),
-    ("Error", "locator.click: strict mode violation: resolved to 2 elements", "failed", 0),
-    ("AssertionError", "Expected 201, received 500", "failed", 0),
-    ("AssertionError", "Expected 201, received 500", "failed", 2),  # failed on every retry
-    ("AssertionError", "cart badge shows 0", "passed", 1),  # flaky pass
-]
+# --- main (CI) workflow: a front door that forwards to the API ----------------------------
 
 
-@pytest.mark.parametrize(("name", "message", "status", "retry"), CASES)
-def test_n8n_classifies_like_the_api(
-    ingestion: IngestionClient,
-    mock: MockIntegrationsClient,
-    name: str,
-    message: str,
-    status: str,
-    retry: int,
-) -> None:
-    test = factories.result(status=status, retry=retry, error_name=name, error_message=message)
-    test["error"] = {"name": name, "message": message}
-    [api] = ingestion.post_run(factories.run_payload([test])).json()["failures"]
-
-    [item] = run_n8n_code_node(
-        MAIN,
-        "Classify Failure",
-        {"input": {"issues": []}, "nodes": {"Generate Fingerprint": test}},
-    )
-
-    assert item["json"]["_classification"] == api["classification"]
+def _http_urls(workflow: dict[str, Any]) -> list[str]:
+    return [
+        str(n["parameters"]["url"])
+        for n in workflow["nodes"]
+        if n["type"] == "n8n-nodes-base.httpRequest"
+    ]
 
 
-def test_n8n_known_bug_follows_the_jira_lookup() -> None:
-    test = factories.result()
-    [item] = run_n8n_code_node(
-        MAIN,
-        "Classify Failure",
-        {"input": {"issues": [{"key": "AUTO-1"}]}, "nodes": {"Generate Fingerprint": test}},
-    )
-    assert (item["json"]["_classification"], item["json"]["_jiraKey"]) == ("known_bug", "AUTO-1")
+def test_ci_workflow_receives_on_its_webhook_and_only_calls_the_runs_api() -> None:
+    workflow = _workflow(MAIN)
+    webhook = _node(workflow, "Receive Test Results")["parameters"]
+    assert (webhook["httpMethod"], webhook["path"]) == ("POST", "test-results")
+    assert _http_urls(workflow) == ["http://ingestion-service:3001/api/runs"]
+    ingest = _node(workflow, "Ingest via Orchestrator")["parameters"]
+    assert "x-webhook-secret" in json.dumps(ingest["headerParameters"])
 
 
-@pytest.mark.parametrize(
-    ("status", "retry", "forwarded"),
-    [("failed", 0, True), ("passed", 0, False), ("passed", 1, True), ("skipped", 0, False)],
-)
-def test_filter_forwards_failures_and_flaky_passes_only(
-    status: str, retry: int, forwarded: bool
-) -> None:
-    test = factories.result(status=status, retry=retry)
-    items = run_n8n_code_node(MAIN, "Filter Failed Tests", {"input": test})
-    assert bool(items) is forwarded
+def test_ci_workflow_has_no_logic_of_its_own() -> None:
+    """Fingerprinting, classification and every Jira or Slack action belong to the API, where
+    policy, history, idempotency and the human approval gate apply."""
+    workflow = _workflow(MAIN)
+    assert not [n["name"] for n in workflow["nodes"] if n["type"] == "n8n-nodes-base.code"]
+    for url in _http_urls(workflow):
+        assert "jira" not in url.lower()
+        assert "slack" not in url.lower()
+
+
+@pytest.mark.parametrize("wrapped", [False, True], ids=["raw", "webhook-wrapped"])
+def test_ci_workflow_forwards_the_payload_unchanged(wrapped: bool) -> None:
+    payload = factories.run_payload([factories.result()])
+    expression = _node(_workflow(MAIN), "Ingest via Orchestrator")["parameters"]["jsonBody"]
+
+    body = evaluate_n8n_expression(expression, {"body": payload} if wrapped else payload)
+
+    assert json.loads(body) == payload
+
+
+def test_ci_workflow_responds_with_the_api_decisions(ingestion: IngestionClient) -> None:
+    api = ingestion.post_run(factories.run_payload([factories.result()])).json()
+    expression = _node(_workflow(MAIN), "Respond to CI")["parameters"]["responseBody"]
+
+    response = json.loads(evaluate_n8n_expression(expression, api))
+
+    [failure] = api["failures"]
+    assert response == {
+        "ok": True,
+        "runId": api["runId"],
+        "duplicate": False,
+        "failures": [
+            {
+                "testId": failure["testId"],
+                "fingerprint": failure["fingerprint"],
+                "classification": failure["classification"],
+                "jiraKey": failure.get("jiraKey"),
+                "awaitingApproval": False,
+            }
+        ],
+    }
 
 
 # --- SOC workflow: a front door, not a second brain ---------------------------------------
-
-
-def _node(workflow: dict[str, Any], name: str) -> dict[str, Any]:
-    [node] = [n for n in workflow["nodes"] if n["name"] == name]
-    return dict(node)
 
 
 def test_soc_workflow_receives_on_its_webhook_and_calls_the_vendor_endpoint() -> None:
