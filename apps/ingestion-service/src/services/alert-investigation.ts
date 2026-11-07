@@ -15,7 +15,7 @@ import {
   startAlertAgentExecution,
 } from './agent-execution-audit';
 import { createDatabaseTelemetrySink } from './agent-telemetry';
-import { createOllamaClient } from './failure-investigation-agent';
+import { createOllamaClient } from './model-client';
 import type { InvestigationModel } from './failure-investigation-agent';
 import { evaluateSocInvestigation } from './soc-agent-evaluation';
 import { SOC_GRAPH_VERSION, runSocInvestigation } from './soc-investigation';

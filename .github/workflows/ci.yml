@@ -232,6 +232,8 @@ jobs:
         env:
           REQUIRE_STACKS: dashboard
         run: npm run test:smoke && npm run test:system
+      - name: Service image ships no offline evaluation tooling
+        run: bash scripts/check-image-contents.sh
       - name: Capture container diagnostics
         if: failure()
         run: docker compose logs --no-color --tail=300

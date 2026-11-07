@@ -133,6 +133,8 @@ stages:
             displayName: Build and start core platform
           - script: npm run test:smoke && npm run test:system
             displayName: Smoke and system checks (API health, dashboard same-origin proxy)
+          - script: bash scripts/check-image-contents.sh
+            displayName: Service image ships no offline evaluation tooling
           - script: docker compose logs --no-color --tail=300
             displayName: Capture container diagnostics
             condition: failed()

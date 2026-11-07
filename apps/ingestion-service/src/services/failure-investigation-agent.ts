@@ -11,7 +11,6 @@ import {
   isInterrupted,
 } from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
-import { Ollama } from 'ollama';
 import type { Message, Tool, ToolCall } from 'ollama';
 import type {
   AgentInvestigation,
@@ -38,6 +37,7 @@ import {
 } from './multi-agent-investigation';
 import { createDatabaseTelemetrySink } from './agent-telemetry';
 import { config } from '../config';
+import { createOllamaClient } from './model-client';
 
 const MAX_REASONING_STEPS = 4;
 
@@ -544,22 +544,6 @@ export async function runFailureInvestigationGraph(
     });
   }
   return finalState.result;
-}
-
-/** Ollama client with a per-request timeout (OLLAMA_TIMEOUT_MS); shared by the CI and SOC agents. */
-export function createOllamaClient(): { client: Ollama; model: string } {
-  const model = config().OLLAMA_MODEL;
-  const host = config().OLLAMA_HOST;
-  const timeoutMs = config().OLLAMA_TIMEOUT_MS;
-  const client = new Ollama({
-    host,
-    fetch: (input, init) => {
-      const timeoutSignal = AbortSignal.timeout(timeoutMs);
-      const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
-      return fetch(input, { ...init, signal });
-    },
-  });
-  return { client, model };
 }
 
 export async function investigateFailure(

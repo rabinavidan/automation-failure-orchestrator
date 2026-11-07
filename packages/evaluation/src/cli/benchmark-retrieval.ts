@@ -10,14 +10,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { z } from 'zod';
-import { closePool } from '../db/client';
+import { closePool } from '@orchestrator/ingestion-service/db/client';
 import { meanReciprocalRank, recallAtK } from '../benchmark/metrics';
 import { assertRealModel } from '../benchmark/runner';
 import {
   getRepositoryKnowledgeStatus,
   searchRepositoryKnowledge,
-} from '../services/repository-knowledge';
-import { detectModelBackend } from '../services/runtime-capabilities';
+} from '@orchestrator/ingestion-service/services/repository-knowledge';
+import { detectModelBackend } from '@orchestrator/ingestion-service/services/runtime-capabilities';
 
 const REPO_ROOT = resolve(__dirname, '../../../..');
 

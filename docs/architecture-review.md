@@ -185,7 +185,7 @@ steps cheaper.
 | 4    | Central Zod-validated configuration                        | 3        | invalid-config pytest, `.env.example` drift   | done   |
 | 5    | Response schemas in `shared-types`; dashboard imports them | 4        | read-model contract tests                     | done   |
 | 6    | Generated OpenAPI; retire `api.md`                         | 5        | route-coverage drift test                     | done   |
-| 7    | `packages/evaluation` workspace; one model-client factory  | 6        | evaluation layer unchanged; image smoke check | to do  |
+| 7    | `packages/evaluation` workspace; one model-client factory  | 6        | evaluation layer unchanged; image smoke check | done   |
 | 8    | Dashboard split per view with routing                      | 7        | the 36 Playwright tests unchanged             | to do  |
 | 9    | Documentation restructure                                  | 8        | link check                                    | to do  |
 
@@ -193,6 +193,12 @@ Steps 5 and 6 together: the agent investigation, the `POST /api/runs` response a
 models the dashboard uses have Zod schemas, the dashboard imports them, and all 29 routes are in
 the generated OpenAPI spec. Responses of the remaining GET endpoints (alerts, response actions,
 run and failure detail) are listed with their status codes; their schemas are future work.
+
+Step 7: the benchmark, the failure-mode sampler, version comparison and the LLM judge (about
+1,800 lines) moved to `packages/evaluation`, which imports the service's modules through a path
+alias and is type-checked but never built into the image; `scripts/check-image-contents.sh` asserts
+that in the container smoke job. `services/model-client.ts` is the one Ollama client factory (it
+replaced two copies in the CLIs and one in the agent).
 
 Expected effect: about 2,000 lines leave the production service, the CI policy and configuration
 each have one source of truth, the n8n bypass of the approval gate closes, and the API contract

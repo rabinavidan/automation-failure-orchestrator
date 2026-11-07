@@ -1,5 +1,5 @@
 import type { AgentInvestigation } from '@orchestrator/shared-types';
-import { query } from '../db/client';
+import { query } from '@orchestrator/ingestion-service/db/client';
 import type { ExecutionFetcher, ExecutionRecord } from './failure-mode-taxonomy';
 
 interface ExecutionRow {

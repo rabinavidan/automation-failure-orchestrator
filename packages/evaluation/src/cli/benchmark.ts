@@ -27,11 +27,12 @@ import {
   type CaseOutcome,
   type ConfigSummary,
 } from '../benchmark/runner';
-import { loadTriagePolicy } from '../services/alert-triage';
-import { createOllamaClient } from '../services/failure-investigation-agent';
-import { detectModelBackend } from '../services/runtime-capabilities';
-import { SOC_GRAPH_VERSION } from '../services/soc-investigation';
-import { loadRunbooks } from '../services/soc-runbooks';
+import { loadTriagePolicy } from '@orchestrator/ingestion-service/services/alert-triage';
+import { config } from '@orchestrator/ingestion-service/config';
+import { createOllamaClient } from '@orchestrator/ingestion-service/services/model-client';
+import { detectModelBackend } from '@orchestrator/ingestion-service/services/runtime-capabilities';
+import { SOC_GRAPH_VERSION } from '@orchestrator/ingestion-service/services/soc-investigation';
+import { loadRunbooks } from '@orchestrator/ingestion-service/services/soc-runbooks';
 
 const REPO_ROOT = resolve(__dirname, '../../../..');
 
@@ -157,7 +158,7 @@ async function main(): Promise<void> {
     process.env.AI_ENABLED = process.env.AI_ENABLED ?? 'true';
     assertRealModel(await detectModelBackend());
     ({ client, model } = createOllamaClient());
-    digest = await modelDigest(process.env.OLLAMA_HOST ?? 'http://localhost:11434', model);
+    digest = await modelDigest(config().OLLAMA_HOST, model);
     if (subset === 'full' && reps < 3) {
       console.warn('Warning: a full agent benchmark should use --reps=3 or more.');
     }

@@ -7,11 +7,7 @@
     "build": "tsc --build",
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
-    "clean": "rm -rf dist",
-    "sample:failure-modes": "tsx src/scripts/sample-failure-modes.ts",
-    "compare:versions": "tsx src/scripts/compare-versions.ts",
-    "benchmark": "tsx src/scripts/benchmark.ts",
-    "benchmark:retrieval": "tsx src/scripts/benchmark-retrieval.ts"
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@aws-sdk/client-sqs": "^3.1146.0",

@@ -8,7 +8,7 @@ import type {
   WebhookPayload,
 } from '@orchestrator/shared-types';
 import { generateFingerprint } from '@orchestrator/fingerprint-engine';
-import type { JiraIssue } from '../services/jira-adapter';
+import type { JiraIssue } from '@orchestrator/ingestion-service/services/jira-adapter';
 
 const CiActionSchema = z.enum(['create_issue', 'update_issue', 'notify_only', 'human_review']);
 const SocResponseSchema = z.enum(['contain', 'investigate', 'monitor', 'close']);
