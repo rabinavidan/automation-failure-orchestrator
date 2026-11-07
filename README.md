@@ -71,7 +71,7 @@ One tool per layer, each in the language that fits it: **pytest** for everything
 through HTTP, PostgreSQL and the browser, never internal functions, so the same suites run against
 local Docker, CI or any environment reachable by URL.
 
-**328 tests**: 247 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
+**332 tests**: 251 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
 enrichment service, and 36 Playwright tests for the dashboard. Black-box tests reach **89.4% of
 the TypeScript backend's lines**, the SQS worker included.
 
@@ -106,7 +106,7 @@ flowchart TB
 | API          | pytest                                                | 21                | One endpoint at a time: auth, validation, status codes, read models                                                                                                                                           |
 | Pipeline     | pytest                                                | 25                | CI failure flow end to end: `/api/runs` → PostgreSQL → Jira → Slack; idempotency, retries, flaky handling, recovery                                                                                           |
 | SOC          | pytest                                                | 36                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                                                                             |
-| Agents · MCP | pytest + scriptable model stub                        | 45                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens, RAG over a fixture corpus with stub embeddings      |
+| Agents · MCP | pytest + scriptable model stub                        | 49                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens, RAG over a fixture corpus with stub embeddings      |
 | Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                                                               |
 | Drift        | pytest                                                | 48                | Artefacts that must agree: n8n workflows stay front doors with no decisions of their own, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                                    |
 | System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 19                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle, real n8n                                                                                          |
