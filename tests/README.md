@@ -39,7 +39,7 @@ Run a layer with `pytest -m <marker>`. Markers are strict: an unknown marker fai
 
 `system` tests skip when their stack is not running, so one command works everywhere. A CI job
 that starts a stack declares it in `REQUIRE_STACKS` (`dashboard`, `observability`, `aws-local`,
-`shuffle`), which turns an unreachable stack into a failure instead of a silent skip.
+`shuffle`, `n8n`), which turns an unreachable stack into a failure instead of a silent skip.
 
 ## Coverage
 
