@@ -2,8 +2,8 @@
   "name": "automation-failure-orchestrator",
   "private": true,
   "workspaces": [
-    "apps/*",
     "packages/*",
+    "apps/*",
     "tests/ui"
   ],
   "scripts": {

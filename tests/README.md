@@ -22,7 +22,7 @@ coverage is measured from the black-box pytest suite (see Coverage below).
 
 ```text
 smoke      is the stack up? fail fast
-contract   payloads vs. JSON Schema generated from the Zod contracts (contracts/json-schema)
+contract   payloads and API responses vs. JSON Schema generated from the Zod contracts
 api        one endpoint: auth, validation, status codes
 pipeline   CI failure pipeline: /api/runs -> PostgreSQL -> Jira -> Slack
 soc        SOC alert pipeline: /api/alerts, triage, response actions

@@ -9,7 +9,11 @@ import {
 } from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
 import { z } from 'zod';
-import type { AgentInvestigation, AgentSpecialistReport } from '@orchestrator/shared-types';
+import {
+  AgentFindingSchema,
+  type AgentInvestigation,
+  type AgentSpecialistReport,
+} from '@orchestrator/shared-types';
 import type { InvestigationContext, InvestigationModel } from './failure-investigation-agent';
 import type { AgentAuditSink } from './agent-execution-audit';
 import { searchRepositoryKnowledge } from './repository-knowledge';
@@ -31,13 +35,8 @@ const ActionSchema = SpecialistSchema.extend({
   risk: z.enum(['low', 'medium', 'high']),
 });
 
-const FinalSchema = z.object({
-  suspectedRootCause: z.string().min(1),
-  evidence: z.array(z.string()).min(1).max(8),
-  recommendedAction: z.enum(['create_issue', 'update_issue', 'notify_only', 'human_review']),
-  confidence: z.number().min(0).max(1),
-  explanation: z.string().min(1),
-});
+// The supervisor's answer: the shared finding schema, with at least one piece of evidence.
+const FinalSchema = AgentFindingSchema.extend({ evidence: z.array(z.string()).min(1).max(8) });
 
 const specialistFormat = {
   type: 'object',
