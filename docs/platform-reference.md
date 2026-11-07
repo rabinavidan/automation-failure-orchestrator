@@ -609,7 +609,7 @@ curl -X POST http://localhost:3002/reset
 
 ### SignalOps dashboard
 
-Open [http://localhost:4173](http://localhost:4173) after `docker compose up --build -d`. The dashboard refreshes every 15 seconds and provides:
+Open [http://localhost:4173](http://localhost:4173) after `docker compose up --build -d`. The dashboard refreshes the view on screen every 15 seconds and provides:
 
 - a command center with run, fingerprint, investigation, and confidence metrics
 - searchable failure intelligence with status-transition history
@@ -620,6 +620,8 @@ Open [http://localhost:4173](http://localhost:4173) after `docker compose up --b
 - drill-down failure dossiers instead of raw JSON as the primary UI
 
 It uses same-origin Nginx proxies to the ingestion and mock-integration services, avoiding browser CORS coupling while keeping service boundaries explicit.
+
+Each view is its own folder under `apps/dashboard/src/views/` (component, data loader, types from `@orchestrator/shared-types`) and fetches only its own endpoints while it is shown; the shell (`App.tsx`) holds navigation, the refresh tick and the degraded banner. The URL hash names the view (`#/approvals`, `#/soc`, ...), so views can be linked, bookmarked and reached with the back button; hash routing needs no server rewrite rule. Pending approvals are the one nav badge kept live on every view, because they wait on a human; the other badges fill in as their views load.
 
 ### What to explain in an interview
 

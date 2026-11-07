@@ -186,7 +186,7 @@ steps cheaper.
 | 5    | Response schemas in `shared-types`; dashboard imports them | 4        | read-model contract tests                     | done   |
 | 6    | Generated OpenAPI; retire `api.md`                         | 5        | route-coverage drift test                     | done   |
 | 7    | `packages/evaluation` workspace; one model-client factory  | 6        | evaluation layer unchanged; image smoke check | done   |
-| 8    | Dashboard split per view with routing                      | 7        | the 36 Playwright tests unchanged             | to do  |
+| 8    | Dashboard split per view with routing                      | 7        | the 36 Playwright tests unchanged             | done   |
 | 9    | Documentation restructure                                  | 8        | link check                                    | to do  |
 
 Steps 5 and 6 together: the agent investigation, the `POST /api/runs` response and the five read
@@ -199,6 +199,13 @@ Step 7: the benchmark, the failure-mode sampler, version comparison and the LLM 
 alias and is type-checked but never built into the image; `scripts/check-image-contents.sh` asserts
 that in the container smoke job. `services/model-client.ts` is the one Ollama client factory (it
 replaced two copies in the CLIs and one in the agent).
+
+Step 8: `App.tsx` went from 1,423 lines to a 166-line shell; each view has a folder under
+`apps/dashboard/src/views/` and loads its own endpoints through one `useViewData` hook, so the
+command center no longer fetches Jira, Slack, knowledge and observability data it does not show.
+Views are addressed by the URL hash. The 36 existing Playwright tests pass unchanged; three new
+ones cover deep links and history, the unknown-route fallback, and per-view fetching (the first
+and last fail against the old monolith).
 
 Expected effect: about 2,000 lines leave the production service, the CI policy and configuration
 each have one source of truth, the n8n bypass of the approval gate closes, and the API contract
