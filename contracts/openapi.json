@@ -1,0 +1,2150 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SignalOps ingestion service",
+    "version": "1.0.0",
+    "description": "Generated from packages/shared-types/src/api.ts. Do not edit: run npm run contracts:export."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "webhookSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-webhook-secret"
+      },
+      "reviewerToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Reviewer identity (REVIEWER_TOKENS)"
+      },
+      "mcpScopeToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Per-investigation MCP scope token"
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["platform"],
+        "summary": "Liveness and database check",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/capabilities": {
+      "get": {
+        "tags": ["platform"],
+        "summary": "Configured and reachable runtime modes (model, integrations, queue); never secrets",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/benchmark/summary": {
+      "get": {
+        "tags": ["platform"],
+        "summary": "Committed benchmark reports, exactly as stored",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "tags": ["agents"],
+        "summary": "MCP evidence server (read-only tools, per-investigation scope token)",
+        "security": [
+          {
+            "mcpScopeToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          }
+        }
+      }
+    },
+    "/api/runs": {
+      "post": {
+        "tags": ["ci"],
+        "summary": "Ingest a test run: fingerprint, classify, investigate, act by policy",
+        "security": [
+          {
+            "webhookSecret": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "schemaVersion": {
+                    "type": "string"
+                  },
+                  "runId": {
+                    "type": "string"
+                  },
+                  "repository": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "commitSha": {
+                    "type": "string"
+                  },
+                  "environment": {
+                    "type": "string"
+                  },
+                  "triggeredBy": {
+                    "type": "string"
+                  },
+                  "startedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "finishedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "reportUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "summary": {
+                    "type": "object",
+                    "properties": {
+                      "total": {
+                        "type": "number"
+                      },
+                      "passed": {
+                        "type": "number"
+                      },
+                      "failed": {
+                        "type": "number"
+                      },
+                      "skipped": {
+                        "type": "number"
+                      }
+                    },
+                    "required": ["total", "passed", "failed", "skipped"]
+                  },
+                  "tests": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "testId": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "suite": {
+                          "type": "string"
+                        },
+                        "file": {
+                          "type": "string"
+                        },
+                        "owner": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["passed", "failed", "skipped"],
+                          "description": "Final outcome of the test after all retries. Send one record per test."
+                        },
+                        "durationMs": {
+                          "type": "number"
+                        },
+                        "retry": {
+                          "default": 0,
+                          "description": "Retries used before the final outcome. passed with retry > 0 means flaky (failed, then passed); failed with retry > 0 means it failed on every attempt.",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "error": {
+                          "description": "For a failed test, the final error; for a flaky pass, the error of the first failed attempt.",
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "stack": {
+                              "type": "string"
+                            },
+                            "expected": {},
+                            "actual": {}
+                          },
+                          "required": ["name", "message"]
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "properties": {
+                            "service": {
+                              "type": "string"
+                            },
+                            "endpoint": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string",
+                              "enum": ["low", "medium", "high", "critical"]
+                            },
+                            "tags": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "artifacts": {
+                          "type": "object",
+                          "properties": {
+                            "traceUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "uri"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "screenshotUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "uri"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "videoUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "uri"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "logsUrl": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "format": "uri"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "required": ["testId", "title", "suite", "file", "status", "durationMs"]
+                    }
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "runId",
+                  "repository",
+                  "branch",
+                  "commitSha",
+                  "environment",
+                  "triggeredBy",
+                  "startedAt",
+                  "finishedAt",
+                  "summary",
+                  "tests"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "processed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "skipped": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "failures": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "testId": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "fingerprint": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{64}$"
+                          },
+                          "classification": {
+                            "type": "string",
+                            "enum": [
+                              "known_bug",
+                              "new_regression",
+                              "flaky",
+                              "infrastructure",
+                              "automation_failure",
+                              "possibly_fixed"
+                            ]
+                          },
+                          "jiraKey": {
+                            "type": "string"
+                          },
+                          "slackSent": {
+                            "type": "boolean"
+                          },
+                          "agentInvestigation": {
+                            "type": "object",
+                            "properties": {
+                              "suspectedRootCause": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "evidence": {
+                                "maxItems": 8,
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "recommendedAction": {
+                                "type": "string",
+                                "enum": [
+                                  "create_issue",
+                                  "update_issue",
+                                  "notify_only",
+                                  "human_review"
+                                ]
+                              },
+                              "confidence": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "explanation": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "toolsUsed": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "sources": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "path": {
+                                      "type": "string"
+                                    },
+                                    "chunk": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "score": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": ["path", "chunk", "score"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "orchestration": {
+                                "type": "string",
+                                "enum": ["single_agent", "supervisor"]
+                              },
+                              "specialistReports": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "agent": {
+                                      "type": "string"
+                                    },
+                                    "summary": {
+                                      "type": "string"
+                                    },
+                                    "findings": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "confidence": {
+                                      "type": "number",
+                                      "minimum": 0,
+                                      "maximum": 1
+                                    },
+                                    "proposedAction": {
+                                      "type": "string",
+                                      "enum": [
+                                        "create_issue",
+                                        "update_issue",
+                                        "notify_only",
+                                        "human_review"
+                                      ]
+                                    },
+                                    "risk": {
+                                      "type": "string",
+                                      "enum": ["low", "medium", "high"]
+                                    }
+                                  },
+                                  "required": ["agent", "summary", "findings", "confidence"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "guardrailOverride": {
+                                "type": "object",
+                                "properties": {
+                                  "from": {
+                                    "type": "string",
+                                    "enum": [
+                                      "create_issue",
+                                      "update_issue",
+                                      "notify_only",
+                                      "human_review"
+                                    ]
+                                  },
+                                  "reason": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["from", "reason"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "suspectedRootCause",
+                              "evidence",
+                              "recommendedAction",
+                              "confidence",
+                              "explanation",
+                              "toolsUsed",
+                              "model"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "approval": {
+                            "type": "object",
+                            "properties": {
+                              "threadId": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": ["pending", "approved", "rejected"]
+                              }
+                            },
+                            "required": ["threadId", "status"],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": ["testId", "title", "fingerprint", "classification"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "duplicateRun": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": ["runId", "processed", "skipped", "failures"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          }
+        }
+      },
+      "get": {
+        "tags": ["ci"],
+        "summary": "Recent runs",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "runs": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "run_id": {
+                            "type": "string"
+                          },
+                          "repository": {
+                            "type": "string"
+                          },
+                          "branch": {
+                            "type": "string"
+                          },
+                          "commit_sha": {
+                            "type": "string"
+                          },
+                          "environment": {
+                            "type": "string"
+                          },
+                          "triggered_by": {
+                            "type": "string"
+                          },
+                          "started_at": {
+                            "type": "string"
+                          },
+                          "finished_at": {
+                            "type": "string"
+                          },
+                          "summary": {
+                            "type": "object",
+                            "properties": {
+                              "total": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "passed": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "failed": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "skipped": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": ["total", "passed", "failed", "skipped"],
+                            "additionalProperties": false
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "run_id",
+                          "repository",
+                          "branch",
+                          "commit_sha",
+                          "environment",
+                          "triggered_by",
+                          "started_at",
+                          "finished_at",
+                          "summary",
+                          "created_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["runs", "total", "limit", "offset"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{runId}": {
+      "get": {
+        "tags": ["ci"],
+        "summary": "One run with its test results",
+        "security": [],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/failures": {
+      "get": {
+        "tags": ["ci"],
+        "summary": "Tracked failures with their latest classification and investigation",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "failures": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "fingerprint": {
+                            "type": "string"
+                          },
+                          "test_id": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "suite": {
+                            "type": "string"
+                          },
+                          "run_count": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "fail_count": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "pass_count": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "last_statuses": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": ["passed", "failed", "skipped"]
+                            }
+                          },
+                          "consecutive_passes": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "jira_issue_key": {
+                            "type": ["string", "null"]
+                          },
+                          "last_seen_at": {
+                            "type": "string"
+                          },
+                          "first_seen_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "classification": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "known_bug",
+                                  "new_regression",
+                                  "flaky",
+                                  "infrastructure",
+                                  "automation_failure",
+                                  "possibly_fixed"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "agent_investigation": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "suspectedRootCause": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "evidence": {
+                                    "maxItems": 8,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "recommendedAction": {
+                                    "type": "string",
+                                    "enum": [
+                                      "create_issue",
+                                      "update_issue",
+                                      "notify_only",
+                                      "human_review"
+                                    ]
+                                  },
+                                  "confidence": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "maximum": 1
+                                  },
+                                  "explanation": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "toolsUsed": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "model": {
+                                    "type": "string"
+                                  },
+                                  "sources": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "path": {
+                                          "type": "string"
+                                        },
+                                        "chunk": {
+                                          "type": "integer",
+                                          "minimum": -9007199254740991,
+                                          "maximum": 9007199254740991
+                                        },
+                                        "score": {
+                                          "type": "number"
+                                        }
+                                      },
+                                      "required": ["path", "chunk", "score"],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "orchestration": {
+                                    "type": "string",
+                                    "enum": ["single_agent", "supervisor"]
+                                  },
+                                  "specialistReports": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "agent": {
+                                          "type": "string"
+                                        },
+                                        "summary": {
+                                          "type": "string"
+                                        },
+                                        "findings": {
+                                          "type": "array",
+                                          "items": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "confidence": {
+                                          "type": "number",
+                                          "minimum": 0,
+                                          "maximum": 1
+                                        },
+                                        "proposedAction": {
+                                          "type": "string",
+                                          "enum": [
+                                            "create_issue",
+                                            "update_issue",
+                                            "notify_only",
+                                            "human_review"
+                                          ]
+                                        },
+                                        "risk": {
+                                          "type": "string",
+                                          "enum": ["low", "medium", "high"]
+                                        }
+                                      },
+                                      "required": ["agent", "summary", "findings", "confidence"],
+                                      "additionalProperties": false
+                                    }
+                                  },
+                                  "guardrailOverride": {
+                                    "type": "object",
+                                    "properties": {
+                                      "from": {
+                                        "type": "string",
+                                        "enum": [
+                                          "create_issue",
+                                          "update_issue",
+                                          "notify_only",
+                                          "human_review"
+                                        ]
+                                      },
+                                      "reason": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": ["from", "reason"],
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "suspectedRootCause",
+                                  "evidence",
+                                  "recommendedAction",
+                                  "confidence",
+                                  "explanation",
+                                  "toolsUsed",
+                                  "model"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "test_result_created_at": {
+                            "type": ["string", "null"]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "fingerprint",
+                          "test_id",
+                          "title",
+                          "suite",
+                          "run_count",
+                          "fail_count",
+                          "pass_count",
+                          "last_statuses",
+                          "consecutive_passes",
+                          "jira_issue_key",
+                          "last_seen_at",
+                          "first_seen_at",
+                          "updated_at",
+                          "classification",
+                          "agent_investigation",
+                          "test_result_created_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "required": ["failures", "total", "limit", "offset"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/failures/{fingerprint}": {
+      "get": {
+        "tags": ["ci"],
+        "summary": "Failure history and recent results for one fingerprint",
+        "security": [],
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/failures/{fingerprint}/agent-executions": {
+      "get": {
+        "tags": ["ci"],
+        "summary": "Agent executions and graph events for one fingerprint",
+        "security": [],
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/failures/{fingerprint}/reclassify": {
+      "post": {
+        "tags": ["ci"],
+        "summary": "Human reclassification of a failure",
+        "security": [
+          {
+            "reviewerToken": []
+          }
+        ],
+        "x-required-role": "ci_reviewer",
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Requires the ci_reviewer role"
+          }
+        }
+      }
+    },
+    "/api/approvals": {
+      "get": {
+        "tags": ["ci"],
+        "summary": "Investigations paused for human review",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "approvals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "thread_id": {
+                            "type": "string"
+                          },
+                          "run_id": {
+                            "type": "string"
+                          },
+                          "fingerprint": {
+                            "type": "string"
+                          },
+                          "test_id": {
+                            "type": "string"
+                          },
+                          "classification": {
+                            "type": "string",
+                            "enum": [
+                              "known_bug",
+                              "new_regression",
+                              "flaky",
+                              "infrastructure",
+                              "automation_failure",
+                              "possibly_fixed"
+                            ]
+                          },
+                          "requested_action": {
+                            "type": "string",
+                            "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": ["pending", "approved", "rejected"]
+                          },
+                          "investigation": {
+                            "type": "object",
+                            "properties": {
+                              "suspectedRootCause": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "evidence": {
+                                "maxItems": 8,
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "recommendedAction": {
+                                "type": "string",
+                                "enum": [
+                                  "create_issue",
+                                  "update_issue",
+                                  "notify_only",
+                                  "human_review"
+                                ]
+                              },
+                              "confidence": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 1
+                              },
+                              "explanation": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "toolsUsed": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "model": {
+                                "type": "string"
+                              },
+                              "sources": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "path": {
+                                      "type": "string"
+                                    },
+                                    "chunk": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "score": {
+                                      "type": "number"
+                                    }
+                                  },
+                                  "required": ["path", "chunk", "score"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "orchestration": {
+                                "type": "string",
+                                "enum": ["single_agent", "supervisor"]
+                              },
+                              "specialistReports": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "agent": {
+                                      "type": "string"
+                                    },
+                                    "summary": {
+                                      "type": "string"
+                                    },
+                                    "findings": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "confidence": {
+                                      "type": "number",
+                                      "minimum": 0,
+                                      "maximum": 1
+                                    },
+                                    "proposedAction": {
+                                      "type": "string",
+                                      "enum": [
+                                        "create_issue",
+                                        "update_issue",
+                                        "notify_only",
+                                        "human_review"
+                                      ]
+                                    },
+                                    "risk": {
+                                      "type": "string",
+                                      "enum": ["low", "medium", "high"]
+                                    }
+                                  },
+                                  "required": ["agent", "summary", "findings", "confidence"],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "guardrailOverride": {
+                                "type": "object",
+                                "properties": {
+                                  "from": {
+                                    "type": "string",
+                                    "enum": [
+                                      "create_issue",
+                                      "update_issue",
+                                      "notify_only",
+                                      "human_review"
+                                    ]
+                                  },
+                                  "reason": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["from", "reason"],
+                                "additionalProperties": false
+                              }
+                            },
+                            "required": [
+                              "suspectedRootCause",
+                              "evidence",
+                              "recommendedAction",
+                              "confidence",
+                              "explanation",
+                              "toolsUsed",
+                              "model"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "reviewer": {
+                            "type": ["string", "null"]
+                          },
+                          "review_comment": {
+                            "type": ["string", "null"]
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "decided_at": {
+                            "type": ["string", "null"]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "thread_id",
+                          "run_id",
+                          "fingerprint",
+                          "test_id",
+                          "classification",
+                          "requested_action",
+                          "status",
+                          "investigation",
+                          "reviewer",
+                          "review_comment",
+                          "created_at",
+                          "decided_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["approvals"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/approvals/{threadId}/decision": {
+      "post": {
+        "tags": ["ci"],
+        "summary": "Approve or reject a paused investigation; approval executes the planned actions",
+        "security": [
+          {
+            "reviewerToken": []
+          }
+        ],
+        "x-required-role": "ci_reviewer",
+        "parameters": [
+          {
+            "name": "threadId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Requires the ci_reviewer role"
+          }
+        }
+      }
+    },
+    "/api/knowledge/status": {
+      "get": {
+        "tags": ["knowledge"],
+        "summary": "Repository index status for the active embedding model",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "chunkCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "sourceCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "embeddingModel": {
+                      "type": "string"
+                    },
+                    "activeModelChunkCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "latestRun": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": ["running", "completed", "failed"]
+                            },
+                            "embedding_model": {
+                              "type": "string"
+                            },
+                            "file_count": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "chunk_count": {
+                              "anyOf": [
+                                {
+                                  "type": "integer",
+                                  "minimum": -9007199254740991,
+                                  "maximum": 9007199254740991
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "error": {
+                              "type": ["string", "null"]
+                            },
+                            "started_at": {
+                              "type": "string"
+                            },
+                            "finished_at": {
+                              "type": ["string", "null"]
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "embedding_model",
+                            "file_count",
+                            "chunk_count",
+                            "error",
+                            "started_at",
+                            "finished_at"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "chunkCount",
+                    "sourceCount",
+                    "embeddingModel",
+                    "activeModelChunkCount",
+                    "latestRun"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge/search": {
+      "post": {
+        "tags": ["knowledge"],
+        "summary": "Semantic search over the repository index",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge/reindex": {
+      "post": {
+        "tags": ["knowledge"],
+        "summary": "Rebuild the repository index",
+        "security": [
+          {
+            "reviewerToken": []
+          }
+        ],
+        "x-required-role": "admin",
+        "responses": {
+          "201": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Requires the admin role"
+          }
+        }
+      }
+    },
+    "/api/observability/summary": {
+      "get": {
+        "tags": ["observability"],
+        "summary": "Agent executions, model calls, tokens and latency",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$schema": "https://json-schema.org/draft/2020-12/schema",
+                  "type": "object",
+                  "properties": {
+                    "window": {
+                      "type": "string"
+                    },
+                    "executions": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "completed": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "failed": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "paused": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "avg_duration_ms": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["total", "completed", "failed", "paused", "avg_duration_ms"],
+                      "additionalProperties": false
+                    },
+                    "modelCalls": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "prompt_tokens": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "completion_tokens": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "avg_call_duration_ms": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "calls",
+                        "prompt_tokens",
+                        "completion_tokens",
+                        "avg_call_duration_ms"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "byNode": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node": {
+                            "type": "string"
+                          },
+                          "calls": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "avg_duration_ms": {
+                            "type": "number"
+                          },
+                          "prompt_tokens": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "completion_tokens": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "node",
+                          "calls",
+                          "avg_duration_ms",
+                          "prompt_tokens",
+                          "completion_tokens"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "recentCalls": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "thread_id": {
+                            "type": "string"
+                          },
+                          "node": {
+                            "type": "string"
+                          },
+                          "prompt_version": {
+                            "type": "string"
+                          },
+                          "model": {
+                            "type": "string"
+                          },
+                          "prompt_tokens": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "completion_tokens": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "duration_ms": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "created_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "thread_id",
+                          "node",
+                          "prompt_version",
+                          "model",
+                          "prompt_tokens",
+                          "completion_tokens",
+                          "duration_ms",
+                          "created_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["window", "executions", "modelCalls", "byNode", "recentCalls"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts": {
+      "post": {
+        "tags": ["soc"],
+        "summary": "Ingest an alert in the normalized SecurityAlert contract",
+        "security": [
+          {
+            "webhookSecret": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                  "schemaVersion": {
+                    "type": "string"
+                  },
+                  "alertId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "vendor": {
+                        "type": "string",
+                        "enum": ["splunk", "sentinel", "wazuh", "generic"]
+                      },
+                      "product": {
+                        "type": "string"
+                      },
+                      "searchName": {
+                        "type": "string"
+                      },
+                      "resultsLink": {
+                        "type": "string",
+                        "format": "uri"
+                      }
+                    },
+                    "required": ["vendor"]
+                  },
+                  "ruleId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "ruleName": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": ["informational", "low", "medium", "high", "critical"]
+                  },
+                  "detectedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "host": {
+                    "type": "string"
+                  },
+                  "user": {
+                    "type": "string"
+                  },
+                  "indicators": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "ip",
+                            "domain",
+                            "url",
+                            "file_hash",
+                            "email",
+                            "user",
+                            "host",
+                            "process"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": ["source", "destination", "target", "observed"]
+                        }
+                      },
+                      "required": ["type", "value"]
+                    }
+                  },
+                  "mitre": {
+                    "type": "object",
+                    "properties": {
+                      "tactics": {
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "techniques": {
+                        "default": [],
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^T\\d{4}(\\.\\d{3})?$"
+                        }
+                      }
+                    }
+                  },
+                  "eventCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "raw": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "schemaVersion",
+                  "alertId",
+                  "source",
+                  "ruleId",
+                  "ruleName",
+                  "title",
+                  "severity",
+                  "detectedAt"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          }
+        }
+      },
+      "get": {
+        "tags": ["soc"],
+        "summary": "Alert queue with filters",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/{vendor}": {
+      "post": {
+        "tags": ["soc"],
+        "summary": "Ingest a native SIEM alert (splunk, sentinel, wazuh)",
+        "security": [
+          {
+            "webhookSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vendor",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          }
+        }
+      }
+    },
+    "/api/alerts/metrics": {
+      "get": {
+        "tags": ["soc"],
+        "summary": "SOC KPIs",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/triage-policy": {
+      "get": {
+        "tags": ["soc"],
+        "summary": "The active triage policy and its version",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/alerts/fingerprints/{fingerprint}": {
+      "get": {
+        "tags": ["soc"],
+        "summary": "One alert fingerprint with its occurrences",
+        "security": [],
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/alerts/{alertId}": {
+      "get": {
+        "tags": ["soc"],
+        "summary": "One alert",
+        "security": [],
+        "parameters": [
+          {
+            "name": "alertId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/responses/actions": {
+      "get": {
+        "tags": ["soc"],
+        "summary": "Response actions with filters",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/responses/actions/{id}": {
+      "get": {
+        "tags": ["soc"],
+        "summary": "One response action",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          }
+        }
+      }
+    },
+    "/api/responses/actions/{id}/decision": {
+      "post": {
+        "tags": ["soc"],
+        "summary": "Approve or reject a containment action",
+        "security": [
+          {
+            "reviewerToken": []
+          }
+        ],
+        "x-required-role": "soc_responder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Requires the soc_responder role"
+          }
+        }
+      }
+    },
+    "/api/responses/actions/{id}/rollback": {
+      "post": {
+        "tags": ["soc"],
+        "summary": "Roll back an executed containment action",
+        "security": [
+          {
+            "reviewerToken": []
+          }
+        ],
+        "x-required-role": "soc_responder",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Requires the soc_responder role"
+          }
+        }
+      }
+    },
+    "/api/responses/playbooks": {
+      "get": {
+        "tags": ["soc"],
+        "summary": "Loaded response playbooks and load errors",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success (response schema not yet published)",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,4 +1,10 @@
-import type { AgentInvestigation } from '@orchestrator/shared-types';
+import type {
+  ApprovalRequest,
+  FailureRow as Failure,
+  KnowledgeStatus,
+  ObservabilitySummary,
+  RunRow as Run,
+} from '@orchestrator/shared-types';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackendBadge, RuntimeModes } from './RuntimeModes';
 import { BenchmarkSummary } from './BenchmarkSummary';
@@ -67,32 +73,6 @@ type AgentExecution = {
   }>;
 };
 
-type Failure = {
-  fingerprint: string;
-  test_id: string;
-  title: string;
-  suite: string;
-  run_count: number;
-  fail_count: number;
-  pass_count: number;
-  last_statuses: Array<'passed' | 'failed' | 'skipped'>;
-  consecutive_passes: number;
-  jira_issue_key?: string;
-  classification?: string;
-  agent_investigation?: AgentInvestigation;
-  last_seen_at: string;
-};
-
-type Run = {
-  run_id: string;
-  repository: string;
-  branch: string;
-  commit_sha: string;
-  environment: string;
-  summary: { total: number; passed: number; failed: number; skipped: number };
-  created_at: string;
-};
-
 type JiraIssue = {
   key: string;
   fields: {
@@ -113,59 +93,7 @@ type SlackMessage = {
   receivedAt: string;
 };
 
-type ApprovalRequest = {
-  id: string;
-  thread_id: string;
-  fingerprint: string;
-  test_id: string;
-  classification: string;
-  requested_action: string;
-  status: string;
-  investigation: AgentInvestigation;
-  created_at: string;
-};
-
 type KnowledgeMatch = { sourcePath: string; chunkIndex: number; content: string; score: number };
-type KnowledgeStatus = {
-  chunkCount: number;
-  sourceCount: number;
-  latestRun?: { status: string; embedding_model: string; finished_at?: string };
-};
-
-type ObservabilitySummary = {
-  window: string;
-  executions: {
-    total: number;
-    completed: number;
-    failed: number;
-    paused: number;
-    avg_duration_ms: number;
-  };
-  modelCalls: {
-    calls: number;
-    prompt_tokens: number;
-    completion_tokens: number;
-    avg_call_duration_ms: number;
-  };
-  byNode: Array<{
-    node: string;
-    calls: number;
-    avg_duration_ms: number;
-    prompt_tokens: number;
-    completion_tokens: number;
-  }>;
-  recentCalls: Array<{
-    id: string;
-    node: string;
-    prompt_version: string;
-    model: string;
-    prompt_tokens: number;
-    completion_tokens: number;
-    duration_ms: number;
-    created_at: string;
-  }>;
-};
-
 type DashboardData = {
   runs: Run[];
   failures: Failure[];
@@ -189,7 +117,13 @@ const emptyData: DashboardData = {
   issues: [],
   messages: [],
   approvals: [],
-  knowledge: { chunkCount: 0, sourceCount: 0 },
+  knowledge: {
+    chunkCount: 0,
+    sourceCount: 0,
+    embeddingModel: '',
+    activeModelChunkCount: 0,
+    latestRun: null,
+  },
   observability: emptyObservability,
 };
 
@@ -233,11 +167,11 @@ function formatTime(value?: string) {
   }).format(new Date(value));
 }
 
-function humanize(value?: string) {
+function humanize(value?: string | null) {
   return (value ?? 'unclassified').replaceAll('_', ' ');
 }
 
-function Badge({ value }: { value?: string }) {
+function Badge({ value }: { value?: string | null }) {
   return (
     <span
       className={`inline-flex border px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wide ${classificationStyle[value ?? ''] ?? 'border-slate-300 bg-slate-100 text-slate-700'}`}

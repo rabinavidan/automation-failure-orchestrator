@@ -71,7 +71,7 @@ One tool per layer, each in the language that fits it: **pytest** for everything
 through HTTP, PostgreSQL and the browser, never internal functions, so the same suites run against
 local Docker, CI or any environment reachable by URL.
 
-**347 tests**: 266 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
+**356 tests**: 275 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
 enrichment service, and 36 Playwright tests for the dashboard. Black-box tests reach **89.4% of
 the TypeScript backend's lines**, the SQS worker included.
 
@@ -99,20 +99,20 @@ flowchart TB
     L1 -.-> COV
 ```
 
-| Layer        | Tool                                                  | Tests             | What it pins down                                                                                                                                                                                             |
-| ------------ | ----------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Static       | ESLint, Prettier, `tsc`                               | every workspace   | Types across packages, the Playwright suite's types, and that the committed JSON Schemas match the Zod contracts                                                                                              |
-| Contract     | pytest + JSON Schema                                  | 41                | Webhook, SIEM, enrichment, playbook and policy payloads, and the runs API's responses, against schemas **exported from the Zod source**; test factories are validated against the same schemas                |
-| API          | pytest                                                | 29                | One endpoint at a time: auth, validation, status codes, read models; startup refuses invalid configuration                                                                                                    |
-| Pipeline     | pytest                                                | 25                | CI failure flow end to end: `/api/runs` → PostgreSQL → Jira → Slack; idempotency, retries, flaky handling, recovery                                                                                           |
-| SOC          | pytest                                                | 36                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                                                                             |
-| Agents · MCP | pytest + scriptable model stub                        | 49                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens, RAG over a fixture corpus with stub embeddings      |
-| Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                                                               |
-| Drift        | pytest                                                | 49                | Artefacts that must agree: n8n workflows stay front doors with no decisions of their own, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                                    |
-| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 19                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle, real n8n                                                                                          |
-| UI           | Playwright TS                                         | 36                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                                                                |
-| Enrichment   | pytest + respx (inside `apps/enrichment-service`)     | 45                | The Python threat-intel service's own unit layer: IOC normalization and eligibility (private IPs never leave the network), TTL cache, providers (mocked with respx), the API and its golden response contract |
-| Coverage     | pytest → V8 → c8                                      | the backend suite | **89% of TypeScript lines** reached by black-box tests, the SQS worker included; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                                             |
+| Layer        | Tool                                                  | Tests             | What it pins down                                                                                                                                                                                                                |
+| ------------ | ----------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Static       | ESLint, Prettier, `tsc`                               | every workspace   | Types across packages, the Playwright suite's types, and that the committed JSON Schemas match the Zod contracts                                                                                                                 |
+| Contract     | pytest + JSON Schema                                  | 47                | Webhook, SIEM, enrichment, playbook and policy payloads, and API responses and read models, against schemas **exported from the Zod source**; test factories are validated against the same schemas                              |
+| API          | pytest                                                | 29                | One endpoint at a time: auth, validation, status codes, read models; startup refuses invalid configuration                                                                                                                       |
+| Pipeline     | pytest                                                | 25                | CI failure flow end to end: `/api/runs` → PostgreSQL → Jira → Slack; idempotency, retries, flaky handling, recovery                                                                                                              |
+| SOC          | pytest                                                | 36                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                                                                                                |
+| Agents · MCP | pytest + scriptable model stub                        | 49                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens, RAG over a fixture corpus with stub embeddings                         |
+| Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                                                                                  |
+| Drift        | pytest                                                | 52                | Artefacts that must agree: the generated OpenAPI spec vs. the registered routes, n8n workflows stay front doors with no decisions of their own, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas |
+| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 19                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle, real n8n                                                                                                             |
+| UI           | Playwright TS                                         | 36                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                                                                                   |
+| Enrichment   | pytest + respx (inside `apps/enrichment-service`)     | 45                | The Python threat-intel service's own unit layer: IOC normalization and eligibility (private IPs never leave the network), TTL cache, providers (mocked with respx), the API and its golden response contract                    |
+| Coverage     | pytest → V8 → c8                                      | the backend suite | **89% of TypeScript lines** reached by black-box tests, the SQS worker included; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                                                                |
 
 Principles that keep it maintainable:
 
@@ -283,18 +283,18 @@ Interviewers respect a clear boundary, so here is what this project is and isn't
 
 ## Go deeper
 
-| Document                                                                                                            | For                                                                              |
-| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| [`benchmark/README.md`](benchmark/README.md)                                                                        | Labeled benchmark, metrics, deterministic baseline, how to run on a real model   |
-| [`docs/mcp-evidence.md`](docs/mcp-evidence.md) · [`docs/action-semantics.md`](docs/action-semantics.md)             | MCP security boundary · approvals, retries and guarantees                        |
-| [`docs/release-notes-rc1.md`](docs/release-notes-rc1.md) · [`docs/flagship-progress.md`](docs/flagship-progress.md) | Verification matrix (local / CI / real model / cloud) · milestone evidence       |
-| [`docs/observability.md`](docs/observability.md)                                                                    | OpenTelemetry traces and metrics, Grafana dashboard, what is and is not exported |
-| [`docs/soc-interview-guide.md`](docs/soc-interview-guide.md)                                                        | 10-minute demo script, design questions with answers, where to look in the code  |
-| [`docs/platform-reference.md`](docs/platform-reference.md)                                                          | Full architecture, agent design, API surface, data model, configuration          |
-| [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md)                                                  | SOC milestones M1–M8 and safety properties                                       |
-| [`docs/shuffle-soar-lab.md`](docs/shuffle-soar-lab.md)                                                              | Hands-on Shuffle SOAR exercises                                                  |
-| [`infra/terraform/README.md`](infra/terraform/README.md)                                                            | AWS architecture, security controls, the zero-cost demo                          |
-| [`docs/api.md`](docs/api.md) · [`docs/architecture.md`](docs/architecture.md)                                       | API contracts · component details                                                |
+| Document                                                                                                                           | For                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| [`benchmark/README.md`](benchmark/README.md)                                                                                       | Labeled benchmark, metrics, deterministic baseline, how to run on a real model   |
+| [`docs/mcp-evidence.md`](docs/mcp-evidence.md) · [`docs/action-semantics.md`](docs/action-semantics.md)                            | MCP security boundary · approvals, retries and guarantees                        |
+| [`docs/release-notes-rc1.md`](docs/release-notes-rc1.md) · [`docs/flagship-progress.md`](docs/flagship-progress.md)                | Verification matrix (local / CI / real model / cloud) · milestone evidence       |
+| [`docs/observability.md`](docs/observability.md)                                                                                   | OpenTelemetry traces and metrics, Grafana dashboard, what is and is not exported |
+| [`docs/soc-interview-guide.md`](docs/soc-interview-guide.md)                                                                       | 10-minute demo script, design questions with answers, where to look in the code  |
+| [`docs/platform-reference.md`](docs/platform-reference.md)                                                                         | Full architecture, agent design, API surface, data model, configuration          |
+| [`docs/soc-automation-roadmap.md`](docs/soc-automation-roadmap.md)                                                                 | SOC milestones M1–M8 and safety properties                                       |
+| [`docs/shuffle-soar-lab.md`](docs/shuffle-soar-lab.md)                                                                             | Hands-on Shuffle SOAR exercises                                                  |
+| [`infra/terraform/README.md`](infra/terraform/README.md)                                                                           | AWS architecture, security controls, the zero-cost demo                          |
+| [`contracts/openapi.json`](contracts/openapi.json) · [`docs/api.md`](docs/api.md) · [`docs/architecture.md`](docs/architecture.md) | Generated OpenAPI 3.1 · authentication and examples · component details          |
 
 ```text
 apps/ingestion-service    TypeScript API: alert pipeline, triage, agents, playbooks
