@@ -40,3 +40,28 @@ def run_n8n_code_node(workflow: Path, node: str, payload: dict[str, Any]) -> Any
     if completed.returncode != 0:
         raise RuntimeError(out.get("error", completed.stderr))
     return out
+
+
+_EVALUATE = """
+let input = '';
+process.stdin.on('data', (c) => (input += c));
+process.stdin.on('end', () => {
+  const { expression, json } = JSON.parse(input);
+  const body = expression.replace(/^=\\{\\{/, '').replace(/\\}\\}$/, '');
+  const value = new Function('$json', `return (${body});`)(json);
+  process.stdout.write(JSON.stringify(value));
+});
+"""
+
+
+def evaluate_n8n_expression(expression: str, json_context: Any) -> Any:
+    """Evaluate an n8n `={{ ... }}` expression that only reads `$json`, as n8n would."""
+    completed = subprocess.run(  # noqa: S603 - fixed command, repository expressions only
+        [require("node"), "-e", _EVALUATE],
+        input=json.dumps({"expression": expression, "json": json_context}),
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
+    )
+    return json.loads(completed.stdout)

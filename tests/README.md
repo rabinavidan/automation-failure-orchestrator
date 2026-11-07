@@ -29,9 +29,9 @@ soc        SOC alert pipeline: /api/alerts, triage, response actions
 agents     advisory agents with scripted model replies (guardrails, fail-safe paths, approvals)
 mcp        MCP evidence server: scope tokens, read-only tools
 evaluation quality gates: benchmark regression vs. the committed baseline, agent output evaluators
-drift      artefacts that must agree: n8n vs. API decisions, Azure vs. GitHub CI, playbooks,
+drift      artefacts that must agree: n8n workflows stay front doors, Azure vs. GitHub CI, playbooks,
            runbooks and the triage policy vs. their schemas
-system     optional stacks: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle
+system     optional stacks: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle, n8n
 harness    self-tests of the test framework itself
 ```
 
@@ -79,16 +79,17 @@ pytest test, so a demo can never be the only evidence:
 
 Each was reproduced by a failing test first, then fixed; the test now pins the behaviour.
 
-| Bug                                                                                                 | Pinned by                                                                                               |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| The Playwright reporter emitted payloads the webhook contract rejected                              | `contract/test_playwright_reporter.py::test_output_satisfies_the_webhook_contract`                      |
-| A test that passed on retry (flaky) opened a Jira issue                                             | `pipeline/test_retries.py::test_pass_after_retry_is_flaky_and_opens_no_jira_issue`                      |
-| A test that failed on every retry was classified as flaky instead of a regression                   | `pipeline/test_retries.py::test_failure_on_every_retry_is_a_regression_not_flaky`                       |
-| "Possibly fixed" was announced on every pass after the threshold, not once                          | `pipeline/test_recovery.py::test_consecutive_passes_after_a_tracked_failure_report_possibly_fixed_once` |
-| A passing run dropped the failure-history window                                                    | `pipeline/test_recovery.py::test_history_keeps_the_last_five_outcomes`                                  |
-| The failure-mode sampler and model comparison CLIs crashed on SOC investigations                    | `evaluation/test_offline_evaluation_tools.py`                                                           |
-| Two instances starting on a fresh database raced on LangGraph's checkpoint schema setup             | `agents/test_single_agent.py`, in the coverage job (fresh database, instances started together)         |
-| Every dashboard view failed WCAG 2.1 AA colour contrast, and a scroll area was keyboard-unreachable | `tests/ui/specs/accessibility.spec.ts`                                                                  |
+| Bug                                                                                                                              | Pinned by                                                                                               |
+| -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| The Playwright reporter emitted payloads the webhook contract rejected                                                           | `contract/test_playwright_reporter.py::test_output_satisfies_the_webhook_contract`                      |
+| A test that passed on retry (flaky) opened a Jira issue                                                                          | `pipeline/test_retries.py::test_pass_after_retry_is_flaky_and_opens_no_jira_issue`                      |
+| A test that failed on every retry was classified as flaky instead of a regression                                                | `pipeline/test_retries.py::test_failure_on_every_retry_is_a_regression_not_flaky`                       |
+| "Possibly fixed" was announced on every pass after the threshold, not once                                                       | `pipeline/test_recovery.py::test_consecutive_passes_after_a_tracked_failure_report_possibly_fixed_once` |
+| A passing run dropped the failure-history window                                                                                 | `pipeline/test_recovery.py::test_history_keeps_the_last_five_outcomes`                                  |
+| The failure-mode sampler and model comparison CLIs crashed on SOC investigations                                                 | `evaluation/test_offline_evaluation_tools.py`                                                           |
+| Two instances starting on a fresh database raced on LangGraph's checkpoint schema setup                                          | `agents/test_single_agent.py`, in the coverage job (fresh database, instances started together)         |
+| Every dashboard view failed WCAG 2.1 AA colour contrast, and a scroll area was keyboard-unreachable                              | `tests/ui/specs/accessibility.spec.ts`                                                                  |
+| The n8n CI workflow classified and called Jira and Slack itself, then also forwarded the run: duplicate issues, no approval gate | `drift/test_n8n_workflows.py`, `system/test_n8n.py` (real n8n in CI)                                    |
 
 ## Design rules
 

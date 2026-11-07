@@ -71,7 +71,7 @@ One tool per layer, each in the language that fits it: **pytest** for everything
 through HTTP, PostgreSQL and the browser, never internal functions, so the same suites run against
 local Docker, CI or any environment reachable by URL.
 
-**331 tests**: 250 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
+**328 tests**: 247 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
 enrichment service, and 36 Playwright tests for the dashboard. Black-box tests reach **89.4% of
 the TypeScript backend's lines**, the SQS worker included.
 
@@ -108,8 +108,8 @@ flowchart TB
 | SOC          | pytest                                                | 36                | Splunk / Sentinel / Wazuh normalization, dedup and suppression, triage policy, response playbooks behind approval                                                                                             |
 | Agents · MCP | pytest + scriptable model stub                        | 45                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens, RAG over a fixture corpus with stub embeddings      |
 | Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                                                               |
-| Drift        | pytest                                                | 54                | Artefacts that must agree: n8n vs. API decisions, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                                                                            |
-| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 16                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle                                                                                                    |
+| Drift        | pytest                                                | 48                | Artefacts that must agree: n8n workflows stay front doors with no decisions of their own, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas                                    |
+| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 19                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle, real n8n                                                                                          |
 | UI           | Playwright TS                                         | 36                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                                                                |
 | Enrichment   | pytest + respx (inside `apps/enrichment-service`)     | 45                | The Python threat-intel service's own unit layer: IOC normalization and eligibility (private IPs never leave the network), TTL cache, providers (mocked with respx), the API and its golden response contract |
 | Coverage     | pytest → V8 → c8                                      | the backend suite | **89% of TypeScript lines** reached by black-box tests, the SQS worker included; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                                             |
@@ -126,7 +126,7 @@ Principles that keep it maintainable:
 - **Strict by default.** Unknown pytest markers fail the run; `ruff` and `mypy --strict` gate the
   test code itself.
 
-The suites found and pinned **eight real bugs** while they were being written, among them a flaky
+The suites found and pinned **nine real bugs** while they were being written, among them a flaky
 test opening a Jira issue, a test that failed on every retry being classified as flaky, and two
 service instances racing on LangGraph's checkpoint schema at startup. Details:
 [`tests/README.md`](tests/README.md).
@@ -141,6 +141,7 @@ service instances racing on LangGraph's checkpoint schema at startup. Details:
 | UI tests (Playwright)                                | Every dashboard view through page objects with API-seeded data and role fixtures; axe-core WCAG 2.1 AA on every view                                                            |
 | Python enrichment service                            | `ruff` + `mypy --strict` + `pytest`; a golden response contract is shared with the TypeScript consumer                                                                          |
 | **Shuffle SOAR playbook (open source, self-hosted)** | Imports a playbook through Shuffle's REST API and runs it on real Shuffle. Asserts Splunk alert → orchestrator → `true_positive` → ChatOps message                              |
+| n8n front doors (real n8n)                           | Both n8n workflows imported into real n8n and driven through their webhooks: the API decides, one Jira issue per failure, redelivery is idempotent                              |
 | **Zero-cost AWS demo (SQS worker on moto)**          | API → SQS → investigation worker → persisted result, with no AWS account and no cost                                                                                            |
 | Terraform validate and IaC security scan             | `terraform validate` + Checkov: any unskipped finding fails the build (each skip is documented inline with a reason)                                                            |
 | Docker build and smoke test                          | The full stack starts; API, proxy, action and idempotency smoke checks pass                                                                                                     |
