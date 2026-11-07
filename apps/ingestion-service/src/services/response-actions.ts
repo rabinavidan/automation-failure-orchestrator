@@ -7,6 +7,7 @@ import type {
   TriagePolicy,
 } from '@orchestrator/shared-types';
 import { addComment, createIssue, searchByLabel } from './jira-adapter';
+import { config } from '../config';
 
 export interface ActionRequest {
   action: ResponseActionType;
@@ -32,7 +33,7 @@ export function isReversible(action: ResponseActionType): boolean {
 }
 
 function actionsBaseUrl(): string {
-  return (process.env.SOC_ACTIONS_BASE_URL ?? 'http://localhost:3002').replace(/\/$/, '');
+  return config().SOC_ACTIONS_BASE_URL.replace(/\/$/, '');
 }
 
 // ---------------------------------------------------------------------------
@@ -53,13 +54,7 @@ const NEVER_BLOCK_V4 = [
 ];
 
 function protectedHosts(): Set<string> {
-  return new Set(
-    (process.env.SOC_PROTECTED_HOSTS ?? '')
-      .split(',')
-      .map((h) => h.trim())
-      .filter(Boolean)
-      .map(normalizeHost)
-  );
+  return new Set(config().SOC_PROTECTED_HOSTS.map(normalizeHost));
 }
 
 export function guardAction(
@@ -149,7 +144,7 @@ export async function executeAction(req: ActionRequest, deps: ActionDeps): Promi
       return `created ${key}`;
     }
     case 'slack.notify': {
-      const url = process.env.SLACK_WEBHOOK_URL;
+      const url = config().SLACK_WEBHOOK_URL;
       if (!url) throw new Error('SLACK_WEBHOOK_URL not configured');
       const text = `:rotating_light: *${triage.priority} ${triage.disposition}* ${alert.title}\nHost: ${hostOf(alert) ?? 'n/a'} | User: ${alert.user ?? 'n/a'} | Risk ${triage.riskScore}\n${triage.reasons[0] ?? ''}`;
       const response = await deps.fetch(url, {

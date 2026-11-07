@@ -6,12 +6,10 @@ import type {
   SecurityAlert,
 } from '@orchestrator/shared-types';
 import { query } from '../db/client';
-
-const DEFAULT_TIMEOUT_MS = 8000;
+import { config } from '../config';
 
 function timeoutMs(): number {
-  const raw = Number(process.env.ENRICHMENT_TIMEOUT_MS);
-  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TIMEOUT_MS;
+  return config().ENRICHMENT_TIMEOUT_MS;
 }
 
 /**
@@ -25,7 +23,8 @@ export async function requestEnrichment(
   fetchImpl: typeof fetch = fetch
 ): Promise<EnrichmentResponse> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (process.env.WEBHOOK_SECRET) headers['x-webhook-secret'] = process.env.WEBHOOK_SECRET;
+  const secret = config().WEBHOOK_SECRET;
+  if (secret) headers['x-webhook-secret'] = secret;
 
   const response = await fetchImpl(`${baseUrl.replace(/\/$/, '')}/enrich`, {
     method: 'POST',
@@ -51,7 +50,7 @@ export async function enrichIngestedAlert(
 ): Promise<{ outcome: AlertEnrichmentOutcome; response: EnrichmentResponse | null }> {
   if (status !== 'new') return { outcome: { status: 'not_applicable' }, response: null };
 
-  const baseUrl = process.env.ENRICHMENT_URL;
+  const baseUrl = config().ENRICHMENT_URL;
   if (!baseUrl) return { outcome: { status: 'disabled' }, response: null };
 
   let outcome: AlertEnrichmentOutcome;

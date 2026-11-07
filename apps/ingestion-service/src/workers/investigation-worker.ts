@@ -10,6 +10,7 @@ import type { Message } from '@aws-sdk/client-sqs';
 import { closePool } from '../db/client';
 import { loadInvestigationInput, runAlertInvestigation } from '../services/alert-investigation';
 import { parseInvestigationMessage } from '../services/investigation-queue';
+import { validateConfig } from '../config';
 
 /**
  * SQS consumer for advisory SOC investigations (ECS service `investigation-worker`).
@@ -128,7 +129,7 @@ export async function runWorker(options: {
 }
 
 if (require.main === module) {
-  const queueUrl = process.env.INVESTIGATION_QUEUE_URL;
+  const queueUrl = validateConfig().INVESTIGATION_QUEUE_URL;
   if (!queueUrl) {
     console.error('[Worker] INVESTIGATION_QUEUE_URL is required');
     process.exit(1);

@@ -16,6 +16,7 @@ import { searchRepositoryKnowledge } from './repository-knowledge';
 import type { AgentTelemetrySink } from './agent-telemetry';
 import { recordGuardrailOverride } from '../observability/telemetry';
 import { GUARDRAIL_REASONS, type GuardrailReason } from './guardrail-reasons';
+import { config } from '../config';
 
 export const MULTI_AGENT_GRAPH_VERSION = 'failure-supervisor-v1';
 
@@ -209,7 +210,7 @@ export function createMultiAgentInvestigationGraph(
       .filter(Boolean)
       .join(' ');
     let matches: Awaited<ReturnType<typeof searchRepositoryKnowledge>> = [];
-    if (process.env.RAG_ENABLED === 'true') {
+    if (config().RAG_ENABLED) {
       matches = await (options.knowledgeSearch ?? searchRepositoryKnowledge)(query, 4);
     }
     const sources = matches.map((match) => ({
@@ -248,10 +249,9 @@ export function createMultiAgentInvestigationGraph(
     return {
       reports: [...state.reports, report],
       sources,
-      toolsUsed:
-        process.env.RAG_ENABLED === 'true'
-          ? [...state.toolsUsed, 'search_repository_context']
-          : state.toolsUsed,
+      toolsUsed: config().RAG_ENABLED
+        ? [...state.toolsUsed, 'search_repository_context']
+        : state.toolsUsed,
     };
   };
 

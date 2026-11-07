@@ -16,8 +16,7 @@ import { sendSlackNotification } from './slack-adapter';
 import { investigateFailure } from './failure-investigation-agent';
 import { createApprovalRequest } from './approval-requests';
 import { inSpan, recordFailureClassified, recordRunProcessed } from '../observability/telemetry';
-
-const RECOVERY_THRESHOLD = parseInt(process.env.RECOVERY_PASS_THRESHOLD ?? '3', 10);
+import { config } from '../config';
 
 /**
  * The contract is one record per test with its final outcome. Producers that send one record
@@ -314,7 +313,7 @@ async function handlePassedTest(test: TestResult, payload: WebhookPayload): Prom
     );
 
     // Notify once, when the threshold is reached (not again on every later pass)
-    if (row.jira_issue_key && newConsecutivePasses === RECOVERY_THRESHOLD) {
+    if (row.jira_issue_key && newConsecutivePasses === config().RECOVERY_PASS_THRESHOLD) {
       await sendSlackNotification({
         classification: FailureClassification.PossiblyFixed,
         testTitle: test.title,

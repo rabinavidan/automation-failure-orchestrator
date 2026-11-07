@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import { Pool } from 'pg';
 import type { PoolConfig } from 'pg';
+import { config } from '../config';
 
 /**
  * DB_SSL=require enables TLS with full certificate verification. DB_SSL_CA_FILE points at
@@ -24,8 +25,8 @@ export function getPool(): Pool {
       // On AWS, RDS credentials arrive as standard PG* variables from Secrets Manager
       // (no connection string with an embedded password); locally DATABASE_URL is used.
       connectionString:
-        process.env.DATABASE_URL ??
-        (process.env.PGHOST
+        config().DATABASE_URL ??
+        (config().PGHOST
           ? undefined
           : 'postgresql://orchestrator:orchestrator@localhost:5432/orchestrator'),
       ssl: sslConfig(),

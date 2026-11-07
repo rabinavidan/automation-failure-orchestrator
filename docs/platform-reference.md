@@ -754,6 +754,13 @@ GitHub Actions performs linting, formatting checks, workspace builds, black-box 
 
 ## Configuration
 
+The ingestion service parses every variable it reads in one place,
+`apps/ingestion-service/src/config.ts`, and validates them when the server or worker starts. A
+value that does not parse (for example `AI_ENABLED=ture`, a non-numeric timeout or
+`INVESTIGATION_QUEUE=sqs` without a queue URL) stops the process with a message naming the
+variable; values that can carry credentials are named but not echoed. Flags accept only `true`
+or `false`. A drift test keeps `.env.example` in step with the schema.
+
 | Variable                           | Default                          | Purpose                                   |
 | ---------------------------------- | -------------------------------- | ----------------------------------------- |
 | `DATABASE_URL`                     | local PostgreSQL                 | Run and history storage                   |
