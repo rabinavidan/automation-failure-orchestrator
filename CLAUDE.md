@@ -18,6 +18,7 @@ packages/playwright-reporter/  Playwright reporter emitting the webhook contract
 packages/shared-types/    Zod schemas + shared TS types (@orchestrator/shared-types) — the contract everything else depends on
 packages/fingerprint-engine/  Deterministic normalization + SHA-256 failure identity (@orchestrator/fingerprint-engine)
 packages/failure-classifier/  Priority-ordered deterministic classification rules (@orchestrator/failure-classifier)
+packages/evaluation/       Offline evaluation CLIs (benchmark, failure-mode sampler, version comparison, LLM judge); imports the service's modules, never ships in its image
 database/migrations/      Numbered SQL migrations, applied in order at service startup
 n8n/workflows/            Importable visual-orchestration alternative to the direct /api/runs path
 scripts/                  demo:* scripts (npm run demo:<scenario>), the Ollama demo stub, Shuffle setup

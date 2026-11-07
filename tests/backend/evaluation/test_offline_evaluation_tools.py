@@ -42,7 +42,7 @@ def _cli(settings: Settings, script: str, *args: str) -> subprocess.CompletedPro
         "OLLAMA_MODEL": "demo-stub",
     }
     return subprocess.run(  # noqa: S603 - fixed command
-        [require("npm"), "run", script, "--workspace=apps/ingestion-service", "--", *args],
+        [require("npm"), "run", script, "--workspace=packages/evaluation", "--", *args],
         cwd=REPO_ROOT,
         env=env,
         capture_output=True,

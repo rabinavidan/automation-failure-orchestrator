@@ -1,8 +1,11 @@
 import type { AgentInvestigation } from '@orchestrator/shared-types';
-import { evaluateAgentInvestigation, type AgentEvaluationResult } from './agent-evaluation';
+import {
+  evaluateAgentInvestigation,
+  type AgentEvaluationResult,
+} from '@orchestrator/ingestion-service/services/agent-evaluation';
 import { judgeInvestigation, type JudgeResult } from './agent-judge';
 import { checkExplanationLanguage } from './explanation-language-quality';
-import type { InvestigationModel } from './failure-investigation-agent';
+import type { InvestigationModel } from '@orchestrator/ingestion-service/services/failure-investigation-agent';
 
 export type FailureMode =
   | 'schema_incomplete'

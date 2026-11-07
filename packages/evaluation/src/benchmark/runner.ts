@@ -5,17 +5,23 @@ import type {
   SocInvestigation,
   TriagePolicy,
 } from '@orchestrator/shared-types';
-import { evaluateAgentInvestigation } from '../services/agent-evaluation';
+import { evaluateAgentInvestigation } from '@orchestrator/ingestion-service/services/agent-evaluation';
 import {
   runFailureInvestigationGraph,
   type InvestigationContext,
   type InvestigationModel,
-} from '../services/failure-investigation-agent';
-import { createMultiAgentInvestigationGraph } from '../services/multi-agent-investigation';
-import type { ModelBackend } from '../services/runtime-capabilities';
-import { evaluateSocInvestigation, extractIndicators } from '../services/soc-agent-evaluation';
-import { runSocInvestigation } from '../services/soc-investigation';
-import { selectRunbooks, type Runbook } from '../services/soc-runbooks';
+} from '@orchestrator/ingestion-service/services/failure-investigation-agent';
+import { createMultiAgentInvestigationGraph } from '@orchestrator/ingestion-service/services/multi-agent-investigation';
+import type { ModelBackend } from '@orchestrator/ingestion-service/services/runtime-capabilities';
+import {
+  evaluateSocInvestigation,
+  extractIndicators,
+} from '@orchestrator/ingestion-service/services/soc-agent-evaluation';
+import { runSocInvestigation } from '@orchestrator/ingestion-service/services/soc-investigation';
+import {
+  selectRunbooks,
+  type Runbook,
+} from '@orchestrator/ingestion-service/services/soc-runbooks';
 import {
   buildCiInputs,
   buildSocInputs,

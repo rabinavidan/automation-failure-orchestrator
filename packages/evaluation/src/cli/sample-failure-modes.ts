@@ -5,14 +5,15 @@
  *
  * Usage: npm run sample:failure-modes --workspace=apps/ingestion-service [-- --limit=100]
  */
-import { Ollama } from 'ollama';
-import { closePool } from '../db/client';
-import { createDatabaseExecutionFetcher } from '../services/execution-fetcher';
+import { config } from '@orchestrator/ingestion-service/config';
+import { createOllamaClient } from '@orchestrator/ingestion-service/services/model-client';
+import { closePool } from '@orchestrator/ingestion-service/db/client';
+import { createDatabaseExecutionFetcher } from '../failure-modes/execution-fetcher';
 import {
   sampleProductionFailureModes,
   type FailureModeReport,
-} from '../services/failure-mode-taxonomy';
-import type { InvestigationModel } from '../services/failure-investigation-agent';
+} from '../failure-modes/failure-mode-taxonomy';
+import type { InvestigationModel } from '@orchestrator/ingestion-service/services/failure-investigation-agent';
 
 function parseLimit(): number {
   const arg = process.argv.find((value) => value.startsWith('--limit='));
@@ -20,18 +21,9 @@ function parseLimit(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
 }
 
+/** The judge model, from the same factory as the agents; none when AI is disabled. */
 function createJudgeClient(): InvestigationModel | undefined {
-  if (process.env.AI_ENABLED !== 'true') return undefined;
-  const host = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
-  const timeoutMs = Number.parseInt(process.env.OLLAMA_TIMEOUT_MS ?? '30000', 10);
-  return new Ollama({
-    host,
-    fetch: (input, init) => {
-      const timeoutSignal = AbortSignal.timeout(timeoutMs);
-      const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
-      return fetch(input, { ...init, signal });
-    },
-  });
+  return config().AI_ENABLED ? createOllamaClient().client : undefined;
 }
 
 function printReport(report: FailureModeReport): void {
@@ -56,10 +48,10 @@ async function main() {
   );
   const report = await sampleProductionFailureModes(createDatabaseExecutionFetcher(), {
     limit,
-    ragExpected: process.env.RAG_ENABLED === 'true',
-    multiAgentExpected: process.env.MULTI_AGENT_ENABLED === 'true',
+    ragExpected: config().RAG_ENABLED,
+    multiAgentExpected: config().MULTI_AGENT_ENABLED,
     judgeClient,
-    judgeModel: process.env.OLLAMA_MODEL ?? 'qwen3:4b',
+    judgeModel: config().OLLAMA_MODEL,
   });
   printReport(report);
   await closePool();

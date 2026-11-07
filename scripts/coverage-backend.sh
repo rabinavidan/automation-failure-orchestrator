@@ -126,10 +126,11 @@ npx c8 report \
   --reporter=text-summary --reporter=json-summary --reporter=html \
   --all --src=apps/ingestion-service/dist --src=packages/shared-types/dist \
   --src=packages/fingerprint-engine/dist --src=packages/failure-classifier/dist \
+  --src=packages/evaluation/src \
   --include='apps/ingestion-service/dist/**' --include='apps/ingestion-service/src/**' \
   --include='packages/shared-types/dist/**' --include='packages/fingerprint-engine/dist/**' \
-  --include='packages/failure-classifier/dist/**' \
-  --exclude='**/__tests__/**' --exclude='apps/ingestion-service/*/scripts/**' \
+  --include='packages/failure-classifier/dist/**' --include='packages/evaluation/src/**' \
+  --exclude='**/__tests__/**' --exclude='packages/evaluation/src/cli/**' \
   --check-coverage --lines "${COVERAGE_LINES:-80}" --branches "${COVERAGE_BRANCHES:-70}" ||
   status=$((status == 0 ? 1 : status))
 

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { AgentInvestigation } from '@orchestrator/shared-types';
-import type { InvestigationModel } from './failure-investigation-agent';
+import type { InvestigationModel } from '@orchestrator/ingestion-service/services/failure-investigation-agent';
 
 const JudgeVerdictSchema = z.object({
   groundedness: z.number().min(0).max(1),

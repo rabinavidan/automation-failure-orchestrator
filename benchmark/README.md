@@ -84,9 +84,9 @@ Quality and cost are reported separately.
   0..1. **It is not calibration.** Calibration needs labeled outcomes vs. stated confidence
   over many real-model runs, which this benchmark records (`outcomes.jsonl`) but does not yet
   analyse.
-- `agent-judge.ts` is an LLM judge with a fixed rubric: groundedness, root-cause quality and
-  explanation clarity (0..1 each), plus pass/fail and a rationale. Its agreement set
-  (`judge-labeled-set.ts`) has **6** examples. Judge scores are supporting evidence only and are
+- `packages/evaluation/src/failure-modes/agent-judge.ts` is an LLM judge with a fixed rubric:
+  groundedness, root-cause quality and explanation clarity (0..1 each), plus pass/fail and a
+  rationale. It has no labeled agreement set, so its scores are supporting evidence only and are
   not part of this benchmark's headline numbers.
 
 ## Results
