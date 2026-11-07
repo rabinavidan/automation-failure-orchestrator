@@ -102,9 +102,9 @@ schema (the same mechanism already used for inbound payloads).
 
 ### 5. Hand-written API documentation has drifted
 
-**Evidence.** `docs/api.md` (464 lines) documents none of `/api/approvals`, `/api/knowledge/*`,
+**Evidence.** `docs/reference/api.md` (464 lines) documents none of `/api/approvals`, `/api/knowledge/*`,
 `/api/benchmark/summary`, `/api/observability/summary`, `/api/alerts/metrics` or the MCP endpoint,
-all of which exist in `src/routes`. `docs/platform-reference.md` repeats part of the API surface
+all of which exist in `src/routes`. `docs/reference/platform-reference.md` repeats part of the API surface
 and misses `/api/responses` and `/api/approvals`.
 
 **Plan.** Generate an OpenAPI document from the Zod schemas of finding 4
@@ -187,7 +187,7 @@ steps cheaper.
 | 6    | Generated OpenAPI; retire `api.md`                         | 5        | route-coverage drift test                     | done   |
 | 7    | `packages/evaluation` workspace; one model-client factory  | 6        | evaluation layer unchanged; image smoke check | done   |
 | 8    | Dashboard split per view with routing                      | 7        | the 36 Playwright tests unchanged             | done   |
-| 9    | Documentation restructure                                  | 8        | link check                                    | to do  |
+| 9    | Documentation restructure                                  | 8        | link check                                    | done   |
 
 Steps 5 and 6 together: the agent investigation, the `POST /api/runs` response and the five read
 models the dashboard uses have Zod schemas, the dashboard imports them, and all 29 routes are in
@@ -206,6 +206,14 @@ command center no longer fetches Jira, Slack, knowledge and observability data i
 Views are addressed by the URL hash. The 36 existing Playwright tests pass unchanged; three new
 ones cover deep links and history, the unknown-route fallback, and per-view fetching (the first
 and last fail against the old monolith).
+
+Step 9: the documentation is in `docs/reference` (kept current), `docs/guides` and
+`docs/history` (not updated), indexed by `docs/README.md`. `architecture.md` merged into the
+platform reference, whose hand-written API table (13 of 29 routes) now points at the generated
+spec; the three demo documents became `docs/guides/demo.md`. Runbooks stay in `docs/runbooks`
+because the SOC agents load them at runtime. `drift/test_doc_links.py` checks that every relative
+link and anchor in the repository's Markdown resolves. This review moved to `docs/history`,
+since every step is done.
 
 Expected effect: about 2,000 lines leave the production service, the CI policy and configuration
 each have one source of truth, the n8n bypass of the approval gate closes, and the API contract

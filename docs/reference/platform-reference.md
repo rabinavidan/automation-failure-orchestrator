@@ -1,6 +1,6 @@
 # Platform reference — full architecture, API and operations
 
-> The detailed technical reference. For the short, interview-oriented overview start at the [README](../README.md).
+> The detailed technical reference. For the short, interview-oriented overview start at the [README](../../README.md).
 
 > A guarded, AI-assisted automation platform that turns noisy signals into evidence-backed actions. **Security track:** SIEM alerts (Splunk, Microsoft Sentinel, Wazuh) are deduplicated, enriched with threat intel, triaged by policy-as-code, investigated by advisory LLM agents, and answered by human-approved response playbooks. **Engineering track:** CI test failures get the same treatment. Deterministic rules own every side effect; the LLM only advises.
 
@@ -9,10 +9,10 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![LangGraph](https://img.shields.io/badge/Agents-LangGraph_+_Ollama-black)](https://langchain-ai.github.io/langgraphjs/)
 [![n8n](https://img.shields.io/badge/SOAR-n8n-EA4B71?logo=n8n&logoColor=white)](https://n8n.io/)
-[![AWS](https://img.shields.io/badge/AWS-Terraform_|_Fargate_|_WAF-FF9900?logo=amazonwebservices&logoColor=white)](../infra/terraform/README.md)
+[![AWS](https://img.shields.io/badge/AWS-Terraform_|_Fargate_|_WAF-FF9900?logo=amazonwebservices&logoColor=white)](../../infra/terraform/README.md)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 
-![SOC console: 24h alert KPIs (automation rate, time to triage), triage outcome mix, top ATT&CK techniques, and the containment approval queue with approve/execute and reject controls](screenshots/soc-console.png)
+![SOC console: 24h alert KPIs (automation rate, time to triage), triage outcome mix, top ATT&CK techniques, and the containment approval queue with approve/execute and reject controls](../screenshots/soc-console.png)
 
 ## SOC automation at a glance
 
@@ -49,7 +49,7 @@ flowchart LR
 | **Deduplicate** | Entity fingerprint (rule, host, user, IOCs with identity normalization); webhook retries and repeats collapse    | Race-safe, idempotent                                                        |
 | **Enrich**      | Python service queries AbuseIPDB, VirusTotal, GeoIP for **new** alerts only                                      | Internal IPs/identities never leave; fail-open; rate-limit aware             |
 | **Triage**      | false positive → duplicate → true positive → known benign → needs investigation; risk 0–100, P1–P4, MITRE ATT&CK | Explainable evidence trail; allowlists expire; invalid policy closes nothing |
-| **Investigate** | LangGraph supervisor + 3 specialists grounded in [runbooks](runbooks/)                                           | Advisory only; hallucinated-IOC evaluation gate; prompt-injection hardened   |
+| **Investigate** | LangGraph supervisor + 3 specialists grounded in [runbooks](../runbooks)                                         | Advisory only; hallucinated-IOC evaluation gate; prompt-injection hardened   |
 | **Respond**     | YAML playbooks: tickets + Slack now; block IP / isolate host / kill process after approval                       | Blast-radius guards, exactly-once decisions, rollback, append-only audit     |
 | **Deploy**      | Terraform for ECS Fargate, RDS, SQS worker, WAF, KMS, OIDC                                                       | Checkov-gated in CI                                                          |
 
@@ -65,15 +65,15 @@ docker compose -f docker-compose.yml -f docker-compose.aws-local.yml up --build 
 npm run demo:aws-local
 ```
 
-Hands-on SOAR lab (Shuffle, zero cost): [`docs/shuffle-soar-lab.md`](shuffle-soar-lab.md).
+Hands-on SOAR lab (Shuffle, zero cost): [`docs/guides/shuffle-soar-lab.md`](../guides/shuffle-soar-lab.md).
 
-Full design, milestones and safety properties: [`docs/soc-automation-roadmap.md`](soc-automation-roadmap.md) · interview walkthrough: [`docs/soc-interview-guide.md`](soc-interview-guide.md).
+Full design, milestones and safety properties: [`docs/reference/soc-automation-roadmap.md`](soc-automation-roadmap.md) · interview walkthrough: [`docs/guides/demo.md`](../guides/demo.md).
 
-![SOC alert detail: deterministic triage reasons and risk factors, threat-intel verdicts with internal entities kept private, the advisory AI investigation with cited runbook and passed evaluation, and executed response actions](screenshots/soc-alert-detail.png)
+![SOC alert detail: deterministic triage reasons and risk factors, threat-intel verdicts with internal entities kept private, the advisory AI investigation with cited runbook and passed evaluation, and executed response actions](../screenshots/soc-alert-detail.png)
 
 The rest of this README covers the shared platform and the original CI-failure track, which the SOC track reuses (contracts, fingerprinting, deterministic decisions, LangGraph agents, approvals, observability).
 
-![SignalOps dashboard: command center showing CI runs, failure signals, AI investigations, agent confidence, and live classification mix](screenshots/dashboard.png)
+![SignalOps dashboard: command center showing CI runs, failure signals, AI investigations, agent confidence, and live classification mix](../screenshots/dashboard.png)
 
 ## Skills demonstrated, at a glance
 
@@ -138,7 +138,7 @@ The result is a portfolio-grade example of **AI automation as a complete system*
 
 The dashboard's AI investigations view shows the supervisor's reconciled root cause alongside each specialist's independent report, confidence, and cited evidence:
 
-![AI investigations view: reconciled root cause, per-specialist confidence, and cited evidence for a real webhook-validation failure](screenshots/dashboard-investigations.png)
+![AI investigations view: reconciled root cause, per-specialist confidence, and cited evidence for a real webhook-validation failure](../screenshots/dashboard-investigations.png)
 
 The checkout failure scenario produced this real local-agent result:
 
@@ -225,7 +225,7 @@ This demonstrates both code-first orchestration and low-code workflow automation
 
 ## SOC automation track
 
-The same guarded pipeline handles **security alerts** (SIEM → dedup → enrichment → triage → advisory agents → human-approved response). Milestones and design live in [`docs/soc-automation-roadmap.md`](soc-automation-roadmap.md).
+The same guarded pipeline handles **security alerts** (SIEM → dedup → enrichment → triage → advisory agents → human-approved response). Milestones and design live in [`docs/reference/soc-automation-roadmap.md`](soc-automation-roadmap.md).
 
 What it includes:
 
@@ -237,12 +237,12 @@ What it includes:
 - **Python threat-intel enrichment service** (M2, `apps/enrichment-service`, FastAPI): AbuseIPDB, VirusTotal and GeoIP lookups for every **new** alert. Internal IPs and identities never leave the network, defanged IOCs are refanged, lookups are cached with single-flight to respect API rate limits, and every provider is timeout-isolated. Enrichment is fail-open, so a degraded intel provider never drops an alert. A golden contract file is verified by both pytest and the TypeScript Zod schema.
 
 - **SOC console** (M8): the SignalOps dashboard's SOC view shows 24h KPIs (automation rate, median/p95 time to triage, containment state), triage outcome mix, top ATT&CK techniques, an analyst queue sorted by priority and risk, a per-alert evidence drawer (triage reasons, intel, AI investigation and evaluation, actions), and approve / reject / roll back controls for containment. Backed by `GET /api/alerts/metrics`.
-- **Shuffle SOAR (open source, self-hosted)**: `docker compose -f docker-compose.yml -f docker-compose.shuffle.yml up --build -d && npm run shuffle:setup && npm run shuffle:run` imports a SOC playbook into Shuffle through its REST API and executes it (Splunk alert → orchestrator triage → ChatOps). Hands-on exercises: [`docs/shuffle-soar-lab.md`](shuffle-soar-lab.md).
+- **Shuffle SOAR (open source, self-hosted)**: `docker compose -f docker-compose.yml -f docker-compose.shuffle.yml up --build -d && npm run shuffle:setup && npm run shuffle:run` imports a SOC playbook into Shuffle through its REST API and executes it (Splunk alert → orchestrator triage → ChatOps). Hands-on exercises: [`docs/guides/shuffle-soar-lab.md`](../guides/shuffle-soar-lab.md).
 - **Zero-cost AWS demo**: `docker compose -f docker-compose.yml -f docker-compose.aws-local.yml up --build -d && npm run demo:aws-local` runs the SQS queue, dead-letter queue and investigation worker against moto (open-source AWS emulator) with no AWS account; CI runs it on every PR.
-- **AWS deployment** (M7): Terraform for ECS Fargate, RDS PostgreSQL (forced TLS), an SQS-backed investigation worker with a dead-letter queue, AWS WAF, KMS encryption, Secrets Manager and keyless GitHub OIDC deploys, gated in CI by `terraform validate` and a Checkov IaC security scan. See [`infra/terraform`](../infra/terraform/README.md).
+- **AWS deployment** (M7): Terraform for ECS Fargate, RDS PostgreSQL (forced TLS), an SQS-backed investigation worker with a dead-letter queue, AWS WAF, KMS encryption, Secrets Manager and keyless GitHub OIDC deploys, gated in CI by `terraform validate` and a Checkov IaC security scan. See [`infra/terraform`](../../infra/terraform/README.md).
 - **Multi-SIEM interoperability** (M6): native **Splunk**, **Microsoft Sentinel** and **Wazuh** alert payloads (`POST /api/alerts/:vendor`) normalize onto one contract and get the same triage and playbooks. An n8n SOC workflow (`/webhook/soc-alerts`) acts as the SOAR front door: it detects the SIEM, delegates every decision to the service, and posts ChatOps approval requests for pending containment.
 - **Response playbooks with human approval** (M5): YAML playbooks (policy-as-code) open fingerprint-correlated tickets and notify Slack immediately, while containment (block IP, isolate host, kill process via mock EDR/firewall APIs) waits for an analyst's decision. Blast-radius guards refuse to block private or allowlisted IPs or isolate protected hosts, re-checked at execution time; decisions are exactly-once, containment is reversible, and every step lands in an append-only audit trail.
-- **Advisory SOC agents** (M4): a LangGraph supervisor over triage-analyst, threat-intel and response-planner specialists, grounded in [incident-response runbooks](runbooks/) selected by ATT&CK technique. Code (not the model) requires human approval for containment or any disagreement with triage, and an evaluation gate flags hallucinated IOCs before they could reach a block list. See [SOC supervisor team](#soc-supervisor-team-security-alerts).
+- **Advisory SOC agents** (M4): a LangGraph supervisor over triage-analyst, threat-intel and response-planner specialists, grounded in [incident-response runbooks](../runbooks) selected by ATT&CK technique. Code (not the model) requires human approval for containment or any disagreement with triage, and an evaluation gate flags hallucinated IOCs before they could reach a block list. See [SOC supervisor team](#soc-supervisor-team-security-alerts).
 - **Deterministic SOC triage** (M3): a strict priority chain (false positive → duplicate → true positive → known benign → needs investigation) with an explainable evidence trail, a 0–100 risk score, P1–P4 priority, MITRE ATT&CK tactic mapping (inferred from the rule name when the SIEM gives none) and a recommended action. Allowlists and known-benign rules are **policy-as-code** (`config/soc-triage-policy.json`): every entry has an owner and an expiry date, and an invalid policy fails safe so nothing is auto-closed.
 
 ```bash
@@ -259,7 +259,7 @@ The Agentic AI layer is intentionally specialized and auditable. A custom LangGr
 
 The dashboard renders that checkpointed state directly — this is the actual LangGraph run for the investigation shown above, not a mocked diagram:
 
-![LangGraph execution timeline: agent:triage, agent:repository, and agent:action nodes each firing started/completed events with structured findings and confidence, followed by the supervisor node reconciling them into a final recommendation](screenshots/dashboard-langgraph-timeline.png)
+![LangGraph execution timeline: agent:triage, agent:repository, and agent:action nodes each firing started/completed events with structured findings and confidence, followed by the supervisor node reconciling them into a final recommendation](../screenshots/dashboard-langgraph-timeline.png)
 
 ### Supervisor team
 
@@ -297,7 +297,7 @@ Investigate one failed test, identify the most plausible root cause, and recomme
 
 The Knowledge RAG view exposes the same index the agent queries — chunk/source counts, embedding status, and ad hoc semantic search:
 
-![Knowledge RAG view: 128 indexed chunks from 50 allowlisted repository files, embedded with nomic-embed-text, with a semantic search box](screenshots/dashboard-knowledge-rag.png)
+![Knowledge RAG view: 128 indexed chunks from 50 allowlisted repository files, embedded with nomic-embed-text, with a semantic search box](../screenshots/dashboard-knowledge-rag.png)
 
 ### Structured decision contract
 
@@ -338,7 +338,7 @@ policy-owned classification
 
 The agent does not override deterministic classification. When it recommends `human_review`, LangGraph persists an interrupt before any Jira or Slack side effect. An operator can approve or reject from the dashboard; the API resumes the exact checkpoint using the same thread ID. This preserves deterministic policy while adding explicit human authority for ambiguous cases.
 
-![Approval queue view: two paused investigations awaiting human_review, each with the agent's recommendation, confidence, and Approve & resume / Reject controls](screenshots/dashboard-approvals.png)
+![Approval queue view: two paused investigations awaiting human_review, each with the agent's recommendation, confidence, and Approve & resume / Reject controls](../screenshots/dashboard-approvals.png)
 
 ### Observability and evaluation
 
@@ -349,7 +349,7 @@ Two complementary telemetry levels are persisted:
 
 `GET /api/observability/summary` exposes rolling 24-hour execution and per-node aggregates to the dashboard.
 
-![AI observability view: agent executions, model calls, total tokens, and average call latency, broken down by graph node](screenshots/dashboard-observability.png)
+![AI observability view: agent executions, model calls, total tokens, and average call latency, broken down by graph node](../screenshots/dashboard-observability.png)
 
 ### Evaluation suite: deterministic, LLM-as-judge, and production sampling
 
@@ -378,6 +378,8 @@ Rules run in an explicit priority order:
 |        4 | `flaky`              | Passed on a retry, or recent history oscillates                                      | Slack only           |
 |        5 | `new_regression`     | No earlier rule matched                                                              | Create Jira + Slack  |
 | Recovery | `possibly_fixed`     | Known failure passes the consecutive-run threshold                                   | Jira comment + Slack |
+
+The recovery threshold is `RECOVERY_PASS_THRESHOLD` consecutive passes (default 3) of a fingerprint linked to an open Jira issue. A duplicate delivery of the same `runId` is answered with `duplicateRun: true` and is not reprocessed.
 
 This hybrid design is deliberate: deterministic logic handles repeatable policy; AI handles ambiguous interpretation and explanation.
 
@@ -442,20 +444,24 @@ The first 12 fingerprint characters become a Jira label such as `automation-fing
 ```text
 automation-failure-orchestrator/
 |-- apps/
+|   |-- dashboard/               # React ops console; one folder per view in src/views/
 |   |-- enrichment-service/      # Python FastAPI threat-intel enrichment (SOC track)
-|   |-- ingestion-service/       # API, DB, policy actions, Ollama agent
-|   |-- mock-integrations/       # In-memory Jira and Slack-compatible APIs
-|   `-- (tests/ui)               # Playwright UI suite for the dashboard
+|   |-- ingestion-service/       # API, DB, policy actions, LangGraph agents, investigation worker
+|   `-- mock-integrations/       # In-memory Jira- and Slack-compatible APIs
 |-- packages/
-|   |-- failure-classifier/      # Deterministic classification rules
+|   |-- evaluation/              # Offline benchmark and evaluation CLIs (never in the image)
+|   |-- failure-classifier/      # Deterministic classification and SOC triage rules
 |   |-- fingerprint-engine/      # Normalization and SHA-256 identity
-|   `-- shared-types/            # Zod schemas and shared contracts
+|   |-- playwright-reporter/     # Emits the webhook contract from Playwright runs
+|   `-- shared-types/            # Zod schemas, read models and the API route registry
+|-- contracts/                   # Generated JSON Schemas and OpenAPI 3.1 (npm run contracts:export)
 |-- config/                      # SOC triage policy + response playbooks (policy-as-code)
 |-- infra/terraform/             # AWS deployment (ECS Fargate, RDS, SQS, WAF, KMS, OIDC)
 |-- database/migrations/         # PostgreSQL schema and indexes
-|-- n8n/workflows/               # Importable visual workflow
-|-- scripts/                     # Repeatable behavioral demos
-|-- docs/                        # Architecture, API, and scenarios
+|-- n8n/workflows/               # Thin front doors to the API (CI and SOC)
+|-- scripts/                     # Demo scenarios, the Ollama demo stub, coverage gate
+|-- tests/                       # pytest black-box suite (backend) and Playwright suite (ui)
+|-- docs/                        # reference/, guides/, history/, runbooks/ (see docs/README.md)
 |-- .github/workflows/           # CI, security, and release automation
 |-- SECURITY.md                  # Vulnerability reporting and security controls
 `-- docker-compose.yml           # Local multi-service environment
@@ -678,30 +684,11 @@ Change them outside local development.
 
 ### Ingestion service (`:3001`)
 
-| Method | Endpoint                                | Purpose                                    |
-| ------ | --------------------------------------- | ------------------------------------------ |
-| `GET`  | `/health`                               | Service and database readiness             |
-| `POST` | `/api/runs`                             | Validate and process a test run            |
-| `GET`  | `/api/runs`                             | Paginated run history                      |
-| `GET`  | `/api/runs/:runId`                      | Run and individual results                 |
-| `GET`  | `/api/failures`                         | Paginated failure aggregates               |
-| `GET`  | `/api/failures/:fingerprint`            | History and recent occurrences             |
-| `POST` | `/api/failures/:fingerprint/reclassify` | Human/manual correction                    |
-| `POST` | `/api/alerts/splunk`                    | Ingest a Splunk webhook alert              |
-| `POST` | `/api/alerts`                           | Ingest a normalized alert                  |
-| `GET`  | `/api/alerts`                           | Alerts (`?status=&disposition=&priority=`) |
-| `GET`  | `/api/alerts/triage-policy`             | Active triage policy (policy-as-code)      |
-| `GET`  | `/api/alerts/:alertId`                  | Full normalized alert                      |
-| `GET`  | `/api/alerts/fingerprints/:fingerprint` | Alert aggregate + occurrences              |
-
-`POST /api/runs` and `POST /api/alerts*` require:
-
-```text
-Content-Type: application/json
-x-webhook-secret: <WEBHOOK_SECRET>
-```
-
-Detailed examples are in [`docs/api.md`](api.md).
+The API is published as data: [`contracts/openapi.json`](../../contracts/openapi.json) (OpenAPI 3.1)
+is generated from the route registry in `packages/shared-types/src/api.ts`, with the Zod schemas
+of every request body and published response, and a drift test fails when a route in Express is
+missing from it. [`api.md`](api.md) covers authentication, the reviewer roles and a worked
+example; the enrichment service's API is described there too.
 
 ### Mock integration service (`:3002`)
 
@@ -842,11 +829,10 @@ This repository is designed to show more than framework familiarity:
 
 ## Documentation
 
-- [`docs/architecture.md`](architecture.md) - component and data-flow details
-- [`docs/api.md`](api.md) - API contracts and examples
-- [`docs/demo-scenarios.md`](demo-scenarios.md) - scenario walkthroughs
-- [`docs/soc-automation-roadmap.md`](soc-automation-roadmap.md) - SOC automation track milestones and design
-- [`n8n/credentials.example.md`](../n8n/credentials.example.md) - credential guidance
+The documentation index is [`docs/README.md`](../README.md): reference documents (this one, the
+API, action semantics, MCP evidence, observability, the SOC track), guides (the demo, the
+Shuffle SOAR lab) and project history. [`n8n/credentials.example.md`](../../n8n/credentials.example.md)
+has credential guidance.
 
 ## License and use
 

@@ -3,8 +3,8 @@
 ## Ingestion service (port 3001): generated OpenAPI
 
 The ingestion service's API is published as **OpenAPI 3.1** in
-[`contracts/openapi.json`](../contracts/openapi.json). It is generated from the route registry in
-[`packages/shared-types/src/api.ts`](../packages/shared-types/src/api.ts) and its Zod schemas, so
+[`contracts/openapi.json`](../../contracts/openapi.json). It is generated from the route registry in
+[`packages/shared-types/src/api.ts`](../../packages/shared-types/src/api.ts) and its Zod schemas, so
 it cannot drift from the code:
 
 - `npm run contracts:export` regenerates it (with the JSON Schemas in `contracts/json-schema`);
@@ -62,7 +62,7 @@ x-webhook-secret: <WEBHOOK_SECRET>
 ```
 
 Returns per-indicator provider results plus a summary. A full example is
-[`apps/enrichment-service/contract/enrich-response.example.json`](../apps/enrichment-service/contract/enrich-response.example.json)
+[`apps/enrichment-service/contract/enrich-response.example.json`](../../apps/enrichment-service/contract/enrich-response.example.json)
 (the golden contract file both test suites verify). Interactive OpenAPI docs: `http://localhost:3003/docs`.
 
 ### Health

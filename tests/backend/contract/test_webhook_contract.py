@@ -57,6 +57,6 @@ def test_schema_and_api_reject_the_same_invalid_payloads(
 
 
 def test_the_documented_example_run_satisfies_the_contract() -> None:
-    """docs/api.md posts tests/backend/fixtures/example-run.json: it must stay a valid run."""
+    """docs/reference/api.md posts tests/backend/fixtures/example-run.json: it must stay a valid run."""
     example = json.loads((REPO_ROOT / "tests/backend/fixtures/example-run.json").read_text())
     assert errors("webhook-payload", example) == []

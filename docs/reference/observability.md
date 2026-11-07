@@ -30,9 +30,9 @@ EXPECT_GENAI=true npm run demo:observability
 ```
 
 The stub is not inference: its latencies and token counts mean nothing. Model latency and cost
-for a real model are in the [benchmark](../benchmark/README.md).
+for a real model are in the [benchmark](../../benchmark/README.md).
 
-![SignalOps Grafana dashboard. The GenAI panels are fed by the demo stub.](screenshots/grafana-signalops-stub.png)
+![SignalOps Grafana dashboard. The GenAI panels are fed by the demo stub.](../screenshots/grafana-signalops-stub.png)
 
 _The GenAI panels in this screenshot are fed by the deterministic demo stub, not a real model._
 

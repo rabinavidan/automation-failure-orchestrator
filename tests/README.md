@@ -29,8 +29,9 @@ soc        SOC alert pipeline: /api/alerts, triage, response actions
 agents     advisory agents with scripted model replies (guardrails, fail-safe paths, approvals)
 mcp        MCP evidence server: scope tokens, read-only tools
 evaluation quality gates: benchmark regression vs. the committed baseline, agent output evaluators
-drift      artefacts that must agree: n8n workflows stay front doors, Azure vs. GitHub CI, playbooks,
-           runbooks and the triage policy vs. their schemas
+drift      artefacts that must agree: Markdown links and anchors resolve, OpenAPI vs. Express routes,
+           n8n workflows stay front doors, Azure vs. GitHub CI, playbooks, runbooks and the triage
+           policy vs. their schemas
 system     optional stacks: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle, n8n
 harness    self-tests of the test framework itself
 ```
