@@ -86,3 +86,26 @@ def test_the_contract_rejects_an_unknown_recommended_action() -> None:
         "model": "demo-stub",
     }
     assert errors("agent-investigation", investigation), "the exported schema should reject this"
+
+
+READ_MODELS = [
+    ("/api/runs?limit=50", "run-list"),
+    ("/api/failures?limit=50", "failure-list"),
+    ("/api/approvals", "approval-list"),
+    ("/api/knowledge/status", "knowledge-status"),
+    ("/api/observability/summary", "observability-summary"),
+]
+
+
+@pytest.mark.parametrize(("path", "schema"), READ_MODELS, ids=[s for _, s in READ_MODELS])
+def test_a_read_model_satisfies_its_published_schema(
+    ingestion_ai: IngestionClient, stub: OllamaStubClient, path: str, schema: str
+) -> None:
+    # Seed both an acted-on and a paused investigation, so the lists hold rows of every kind.
+    for risk in ("low", "high"):
+        stub.script(responses=agents.supervisor_run(risk=risk))
+        ingestion_ai.post_run(factories.run_payload([factories.result()]))
+
+    body = ingestion_ai.get(path).json()
+
+    assert errors(schema, body) == []

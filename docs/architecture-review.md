@@ -184,14 +184,15 @@ steps cheaper.
 | 3    | One action plan and executor for the CI track              | 2        | approval-parity pytest                        | done   |
 | 4    | Central Zod-validated configuration                        | 3        | invalid-config pytest, `.env.example` drift   | done   |
 | 5    | Response schemas in `shared-types`; dashboard imports them | 4        | read-model contract tests                     | done   |
-| 6    | Generated OpenAPI; retire `api.md`                         | 5        | route-coverage drift test                     | to do  |
+| 6    | Generated OpenAPI; retire `api.md`                         | 5        | route-coverage drift test                     | done   |
 | 7    | `packages/evaluation` workspace; one model-client factory  | 6        | evaluation layer unchanged; image smoke check | to do  |
 | 8    | Dashboard split per view with routing                      | 7        | the 36 Playwright tests unchanged             | to do  |
 | 9    | Documentation restructure                                  | 8        | link check                                    | to do  |
 
-Step 5 covers the agent investigation and the `POST /api/runs` response, and the dashboard
-imports `AgentInvestigation`. The GET endpoints' read models (database rows the dashboard still
-types locally) get their schemas with the OpenAPI work of step 6.
+Steps 5 and 6 together: the agent investigation, the `POST /api/runs` response and the five read
+models the dashboard uses have Zod schemas, the dashboard imports them, and all 29 routes are in
+the generated OpenAPI spec. Responses of the remaining GET endpoints (alerts, response actions,
+run and failure detail) are listed with their status codes; their schemas are future work.
 
 Expected effect: about 2,000 lines leave the production service, the CI policy and configuration
 each have one source of truth, the n8n bypass of the approval gate closes, and the API contract

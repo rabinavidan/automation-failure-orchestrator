@@ -6,6 +6,7 @@ the same rules for every producer: the Playwright reporter, n8n, CI scripts, oth
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -13,6 +14,7 @@ import pytest
 from support import factories
 from support.clients import IngestionClient
 from support.contracts import errors
+from support.settings import REPO_ROOT
 
 pytestmark = pytest.mark.contract
 
@@ -52,3 +54,9 @@ def test_schema_and_api_reject_the_same_invalid_payloads(
     response = ingestion.post_run(payload)
     assert response.status_code == 400
     assert response.json()["error"] == "Invalid payload"
+
+
+def test_the_documented_example_run_satisfies_the_contract() -> None:
+    """docs/api.md posts tests/backend/fixtures/example-run.json: it must stay a valid run."""
+    example = json.loads((REPO_ROOT / "tests/backend/fixtures/example-run.json").read_text())
+    assert errors("webhook-payload", example) == []

@@ -1,0 +1,260 @@
+{
+  "$id": "https://signalops.local/contracts/failure-list.schema.json",
+  "title": "failure-list",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "test_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "suite": {
+            "type": "string"
+          },
+          "run_count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fail_count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "pass_count": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "last_statuses": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["passed", "failed", "skipped"]
+            }
+          },
+          "consecutive_passes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "jira_issue_key": {
+            "type": ["string", "null"]
+          },
+          "last_seen_at": {
+            "type": "string"
+          },
+          "first_seen_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "known_bug",
+                  "new_regression",
+                  "flaky",
+                  "infrastructure",
+                  "automation_failure",
+                  "possibly_fixed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agent_investigation": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "suspectedRootCause": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "recommendedAction": {
+                    "type": "string",
+                    "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+                  },
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "explanation": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "toolsUsed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "sources": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "chunk": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "score": {
+                          "type": "number"
+                        }
+                      },
+                      "required": ["path", "chunk", "score"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "orchestration": {
+                    "type": "string",
+                    "enum": ["single_agent", "supervisor"]
+                  },
+                  "specialistReports": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "agent": {
+                          "type": "string"
+                        },
+                        "summary": {
+                          "type": "string"
+                        },
+                        "findings": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "confidence": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "proposedAction": {
+                          "type": "string",
+                          "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+                        },
+                        "risk": {
+                          "type": "string",
+                          "enum": ["low", "medium", "high"]
+                        }
+                      },
+                      "required": ["agent", "summary", "findings", "confidence"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "guardrailOverride": {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "string",
+                        "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+                      },
+                      "reason": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["from", "reason"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "suspectedRootCause",
+                  "evidence",
+                  "recommendedAction",
+                  "confidence",
+                  "explanation",
+                  "toolsUsed",
+                  "model"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "test_result_created_at": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": [
+          "id",
+          "fingerprint",
+          "test_id",
+          "title",
+          "suite",
+          "run_count",
+          "fail_count",
+          "pass_count",
+          "last_statuses",
+          "consecutive_passes",
+          "jira_issue_key",
+          "last_seen_at",
+          "first_seen_at",
+          "updated_at",
+          "classification",
+          "agent_investigation",
+          "test_result_created_at"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    },
+    "offset": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991
+    }
+  },
+  "required": ["failures", "total", "limit", "offset"],
+  "additionalProperties": false
+}
