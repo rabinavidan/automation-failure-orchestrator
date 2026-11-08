@@ -4,6 +4,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/dashboard/package.json ./apps/dashboard/
 RUN npm install --legacy-peer-deps
+# The lockfile carries no lightningcss platform binaries (npm optional-deps bug), so install
+# the musl one matching the locked lightningcss version explicitly.
+RUN npm install --no-save --legacy-peer-deps \
+    "lightningcss-linux-x64-musl@$(node -p "require('lightningcss/package.json').version")"
 COPY apps/dashboard ./apps/dashboard/
 RUN npm run build --workspace=@orchestrator/dashboard
 

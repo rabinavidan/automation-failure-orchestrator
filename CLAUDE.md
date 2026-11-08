@@ -34,7 +34,8 @@ npm run build                     # tsc --build across every workspace, if prese
 npm run lint                      # eslint . (root config; dashboard has its own oxlint)
 npm run format:check              # prettier --check .
 npm run test:unit                 # vitest run at the root (packages + ingestion-service; excludes apps/test-suite)
-npm run test:evaluations          # deterministic agent-evaluation + multi-agent-investigation suites only
+npm run test:evaluations          # deterministic evaluation suites only (CI + SOC agents, judge, failure-mode taxonomy, version comparison) — list in package.json
+npm run format                    # prettier --write .
 npm run quality                   # lint + format:check + build + test:unit + test:evaluations — the full local gate
 npm run test:smoke                # scripts/ci-smoke.mjs
 npm run test:python               # ruff + mypy + pytest for apps/enrichment-service (needs its venv: pip install -e '.[dev]')
@@ -67,7 +68,18 @@ bash scripts/setup-n8n.sh        # imports/activates the n8n workflow; needs Git
 curl -X POST http://localhost:3001/api/knowledge/reindex   # (re)build the RAG index when AI/RAG is enabled
 ```
 
-Portfolio demo scenarios (`npm run demo:new-regression`, `demo:known-bug`, `demo:flaky-test`, `demo:infrastructure-failure`, `demo:automation-failure`, `demo:recovered-bug`, `demo:duplicate-delivery`) post canned payloads against the running stack — start Docker Compose first.
+Portfolio demo scenarios (`npm run demo:<name>`; CI track: `new-regression`, `known-bug`, `flaky-test`, `infrastructure-failure`, `automation-failure`, `recovered-bug`, `duplicate-delivery`; SOC track: `soc-brute-force`, `soc-malware`, `soc-triage`, `soc-response`, `soc-multi-siem`) post canned payloads against the running stack — start Docker Compose first. `npm run demo:cleanup` resets demo data; `npm run ollama:stub` runs the deterministic Ollama stand-in.
+
+Benchmark (`benchmark/README.md`; results land in `benchmark/results/<timestamp>/`):
+
+```bash
+npm run benchmark                                                  # deterministic config only, no model needed
+npm run benchmark -- --configs=multi_agent --subset=smoke --reps=1 # quick real-model iteration
+npm run benchmark -- --configs=multi_agent --shard=2/6             # one parallel slice; combine with --merge=<dir>
+npm run benchmark:retrieval                                        # RAG Recall@k / MRR
+```
+
+Agent configs need `AI_ENABLED=true` and a real, reachable Ollama with `OLLAMA_MODEL` pulled — `assertRealModel` refuses the demo stub. The manual GitHub workflow `.github/workflows/benchmark.yml` runs the sharded version.
 
 ## Architecture notes worth knowing before editing
 
@@ -79,7 +91,7 @@ Portfolio demo scenarios (`npm run demo:new-regression`, `demo:known-bug`, `demo
 - **`run-processor.ts` is the orchestration spine**: idempotency check on `runId` -> persist run -> per-test fingerprint -> Jira lookup by fingerprint label -> failure history lookup -> `classify()` (deterministic, priority-ordered in `packages/failure-classifier/src/rules/`) -> `investigateFailure()` (LLM, advisory only) -> policy-gated Jira/Slack actions -> history update.
 - **Classification is a strict priority chain** (see the "Deterministic decision engine" table in `docs/platform-reference.md`): known_bug > infrastructure > automation_failure > flaky > new_regression, plus a recovery path. The LLM's `recommendedAction` never overrides this; it only adds evidence/explanation, except that `human_review` triggers a durable LangGraph interrupt requiring dashboard approval before any Jira/Slack call.
 - **SOC alert track** (`/api/alerts*`, see `docs/soc-automation-roadmap.md`): Splunk normalizer -> alert fingerprint + suppression (`alert-processor.ts`) -> Python enrichment for `new` alerts only, fail-open (`alert-enrichment.ts`, `apps/enrichment-service`) -> deterministic triage chain false_positive > duplicate > true_positive > benign_true_positive > needs_investigation (`packages/failure-classifier/src/alert-triage/`) driven by `config/soc-triage-policy.json` (Zod-validated; invalid policy falls back to empty = nothing auto-closed). The enrichment golden contract (`apps/enrichment-service/contract/`) is asserted by both pytest and vitest — regenerate it when the Python response shape changes. Advisory SOC agents (`soc-investigation.ts`, graph `soc-supervisor-v1`) run after the response for true_positive/needs_investigation only; code-owned `applyGuardrails()` sets `requiresHumanApproval`, and `soc-agent-evaluation.ts` fails on hallucinated IOCs. Runbooks live in `docs/runbooks/` with a `Techniques:` line used for deterministic selection. `agent_executions` rows belong to either a CI `run_id` or an `alert_id` (migration 012). Response playbooks (`config/playbooks/*.yaml`, `PlaybookSchema`) are executed by `response-engine.ts`: ticket/Slack steps run immediately, containment (`CONTAINMENT_ACTIONS`) must be `approval: required` (schema-enforced) and passes `guardAction()` both when planned and when executed; mock EDR/firewall endpoints are in `apps/mock-integrations`.
-- **Multi-agent investigation** (`services/multi-agent-investigation.ts`, `failure-investigation-agent.ts`) is a LangGraph supervisor over three specialists (triage, repository, action) — each has an explicit "forbidden responsibility" (see the table in `docs/platform-reference.md`). `MULTI_AGENT_ENABLED` toggles supervisor vs. single-agent mode; `AI_ENABLED=false` skips the LLM entirely and falls back to deterministic-only processing (this fallback also applies on schema-invalid output or Ollama timeout).
+- **Multi-agent investigation** (`services/multi-agent-investigation.ts`, `failure-investigation-agent.ts`) is a LangGraph supervisor over three specialists (triage, repository, action) — each has an explicit "forbidden responsibility" (see the table in `docs/platform-reference.md`). After the supervisor, code-owned `applyActionGuardrails()` forces `human_review` (recording `guardrailOverride`) when the action specialist rates risk high or itself proposes review; the model cannot bypass this, which mirrors the SOC `applyGuardrails()`. `MULTI_AGENT_ENABLED` toggles supervisor vs. single-agent mode; `AI_ENABLED=false` skips the LLM entirely and falls back to deterministic-only processing (this fallback also applies on schema-invalid output or Ollama timeout).
 - **Fingerprints are identity, not just dedup**: `SHA256(testId | service | errorName | normalizedMessage | endpoint)` after stripping UUIDs/timestamps/request IDs/hex IDs/temp paths/dynamic ports (`packages/fingerprint-engine/src/normalizer.ts`). The first 12 hex chars become the Jira label used for exact-match correlation — don't confuse this with `runId` idempotency, which is a separate check in `run-processor.ts`.
 - **Observability tables are append-only audit trails**: `agent_execution_events` (graph transitions/interrupts) and `agent_model_calls` (per-call model/tokens/latency) are written by `agent-execution-audit.ts` / `agent-telemetry.ts` and surfaced via `GET /api/observability/summary`. Evaluation gates (`services/agent-evaluation.ts`, covered by `npm run test:evaluations`) are deterministic code evaluators, not LLM judges.
 - **Migrations are numbered SQL files** in `database/migrations/`, applied in order by `db/migrations.ts` at startup — add new ones with the next sequential prefix, don't edit existing ones.
