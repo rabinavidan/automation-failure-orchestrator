@@ -18,7 +18,8 @@
     "paths": {
       "@orchestrator/shared-types": ["./packages/shared-types/src/index.ts"],
       "@orchestrator/fingerprint-engine": ["./packages/fingerprint-engine/src/index.ts"],
-      "@orchestrator/failure-classifier": ["./packages/failure-classifier/src/index.ts"]
+      "@orchestrator/failure-classifier": ["./packages/failure-classifier/src/index.ts"],
+      "@orchestrator/playwright-reporter": ["./packages/playwright-reporter/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "dist"]

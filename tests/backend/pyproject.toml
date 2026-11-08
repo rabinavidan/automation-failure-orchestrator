@@ -1,0 +1,60 @@
+[project]
+name = "signalops-backend-tests"
+version = "1.0.0"
+description = "Black-box backend test suite: contract, API, pipeline, SOC, agents and system checks"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.27,<1",
+  "jsonschema[format-nongpl]>=4.23,<5",
+  "openapi-spec-validator>=0.9,<0.10",
+  "psycopg[binary]>=3.2,<4",
+  "pytest>=8.3",
+  "pyyaml>=6,<7",
+]
+
+[project.optional-dependencies]
+dev = ["mypy>=1.11", "ruff>=0.6", "types-jsonschema", "types-PyYAML"]
+
+# Installs the dependencies only (`pip install "./tests/backend[dev]"`): this is a test suite, not
+# a library, so there is nothing to package.
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = []
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+  "smoke: fast health checks; run first, fail fast",
+  "contract: payloads vs. the JSON Schema exported from the Zod contracts",
+  "api: HTTP behaviour of one endpoint (auth, validation, status codes)",
+  "pipeline: CI failure pipeline end to end (/api/runs -> DB, Jira, Slack)",
+  "soc: SOC alert pipeline (/api/alerts, /api/responses)",
+  "agents: advisory agents against the scriptable Ollama stub",
+  "evaluation: deterministic quality gates (benchmark baseline, agent output evaluators)",
+  "mcp: MCP evidence server",
+  "drift: repository artefacts that must stay in sync",
+  "system: multi-service flows against the full Docker stack",
+  "harness: self-tests of this test framework",
+]
+xfail_strict = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "RUF", "PT", "SIM"]
+ignore = ["S101"] # assert is how pytest asserts
+
+[tool.ruff.lint.per-file-ignores]
+"**" = ["S105", "S106"] # demo secrets and tokens are fixtures, not credentials
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["."]
+exclude = ["build/", "fixtures/"]

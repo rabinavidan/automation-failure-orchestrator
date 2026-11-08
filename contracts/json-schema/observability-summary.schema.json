@@ -1,0 +1,153 @@
+{
+  "$id": "https://signalops.local/contracts/observability-summary.schema.json",
+  "title": "observability-summary",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "window": {
+      "type": "string"
+    },
+    "executions": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "completed": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "paused": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "avg_duration_ms": {
+          "type": "number"
+        }
+      },
+      "required": ["total", "completed", "failed", "paused", "avg_duration_ms"],
+      "additionalProperties": false
+    },
+    "modelCalls": {
+      "type": "object",
+      "properties": {
+        "calls": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "prompt_tokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "completion_tokens": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
+        "avg_call_duration_ms": {
+          "type": "number"
+        }
+      },
+      "required": ["calls", "prompt_tokens", "completion_tokens", "avg_call_duration_ms"],
+      "additionalProperties": false
+    },
+    "byNode": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "calls": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "avg_duration_ms": {
+            "type": "number"
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": ["node", "calls", "avg_duration_ms", "prompt_tokens", "completion_tokens"],
+        "additionalProperties": false
+      }
+    },
+    "recentCalls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "thread_id": {
+            "type": "string"
+          },
+          "node": {
+            "type": "string"
+          },
+          "prompt_version": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "thread_id",
+          "node",
+          "prompt_version",
+          "model",
+          "prompt_tokens",
+          "completion_tokens",
+          "duration_ms",
+          "created_at"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["window", "executions", "modelCalls", "byNode", "recentCalls"],
+  "additionalProperties": false
+}

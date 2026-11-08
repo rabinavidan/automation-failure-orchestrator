@@ -10,14 +10,68 @@ import type {
 import { generateFingerprint, fingerprintLabel } from '@orchestrator/fingerprint-engine';
 import { classify } from '@orchestrator/failure-classifier';
 import { query } from '../db/client';
-import { searchByLabel, createIssue, addComment } from './jira-adapter';
+import { searchByLabel, addComment } from './jira-adapter';
+import { executeFailureActions, planFailureActions } from './failure-actions';
 import { sendSlackNotification } from './slack-adapter';
 import { investigateFailure } from './failure-investigation-agent';
 import { createApprovalRequest } from './approval-requests';
+import { inSpan, recordFailureClassified, recordRunProcessed } from '../observability/telemetry';
+import { config } from '../config';
 
-const RECOVERY_THRESHOLD = parseInt(process.env.RECOVERY_PASS_THRESHOLD ?? '3', 10);
+/**
+ * The contract is one record per test with its final outcome. Producers that send one record
+ * per attempt (for example an older Playwright reporter) are collapsed here: the last attempt
+ * wins, `retry` becomes the number of retries used, and a failed attempt followed by a pass
+ * becomes a flaky pass that keeps the first failure's error for fingerprinting.
+ */
+export function collapseAttempts(tests: TestResult[]): TestResult[] {
+  const byTest = new Map<string, TestResult[]>();
+  for (const test of tests) {
+    const attempts = byTest.get(test.testId) ?? [];
+    attempts.push(test);
+    byTest.set(test.testId, attempts);
+  }
+  return [...byTest.values()].map((attempts) => {
+    if (attempts.length === 1) return attempts[0];
+    const ordered = [...attempts].sort((a, b) => a.retry - b.retry);
+    const final = ordered[ordered.length - 1];
+    const retry = Math.max(final.retry, ordered.length - 1);
+    const firstFailure = ordered.find((attempt) => attempt.status === 'failed');
+    if (final.status === 'passed' && firstFailure) {
+      return { ...final, retry, error: final.error ?? firstFailure.error };
+    }
+    return { ...final, retry };
+  });
+}
+
+/** Failed at least once, then passed on a retry within the same run. */
+export function isFlakyPass(test: TestResult): boolean {
+  return test.status === 'passed' && test.retry > 0;
+}
 
 export async function processRun(payload: WebhookPayload): Promise<ProcessingResult> {
+  return inSpan(
+    'signalops.process_run',
+    {
+      'signalops.run_id': payload.runId,
+      'signalops.repository': payload.repository,
+      'signalops.environment': payload.environment,
+      'signalops.tests': payload.tests.length,
+    },
+    async (span) => {
+      const result = await processRunUntraced(payload);
+      const duplicate = result.duplicateRun === true;
+      span.setAttributes({
+        'signalops.duplicate': duplicate,
+        'signalops.failures': result.failures.length,
+      });
+      recordRunProcessed(duplicate);
+      return result;
+    }
+  );
+}
+
+async function processRunUntraced(payload: WebhookPayload): Promise<ProcessingResult> {
   const { runId } = payload;
 
   // Check for duplicate run (idempotency)
@@ -60,14 +114,14 @@ export async function processRun(payload: WebhookPayload): Promise<ProcessingRes
   let processed = 0;
   let skipped = 0;
 
-  for (const test of payload.tests) {
+  for (const test of collapseAttempts(payload.tests)) {
     try {
       if (test.status === 'skipped') {
         skipped++;
         continue;
       }
 
-      await processTest(test, payload, failures);
+      await processTestTraced(test, payload, failures);
       processed++;
     } catch (err) {
       console.error(`[Processor] Error processing test ${test.testId}:`, err);
@@ -79,13 +133,44 @@ export async function processRun(payload: WebhookPayload): Promise<ProcessingRes
   return { runId, processed, skipped, failures };
 }
 
+/** One span per non-skipped test, tagged with the deterministic decision it produced. */
+async function processTestTraced(
+  test: TestResult,
+  payload: WebhookPayload,
+  failures: FailureSummary[]
+): Promise<void> {
+  await inSpan(
+    'signalops.process_test',
+    { 'signalops.test_id': test.testId, 'signalops.test_status': test.status },
+    async (span) => {
+      const before = failures.length;
+      await processTest(test, payload, failures);
+      const failure = failures.length > before ? failures[failures.length - 1] : undefined;
+      if (!failure) return;
+      const approvalPending = failure.approval?.status === 'pending';
+      span.setAttributes({
+        'signalops.fingerprint': failure.fingerprint.slice(0, 12),
+        'signalops.classification': failure.classification,
+        'signalops.agent.recommended_action':
+          failure.agentInvestigation?.recommendedAction ?? 'none',
+        'signalops.approval_pending': approvalPending,
+        ...(failure.jiraKey ? { 'signalops.jira_key': failure.jiraKey } : {}),
+      });
+      recordFailureClassified(failure.classification, approvalPending);
+    }
+  );
+}
+
 async function processTest(
   test: TestResult,
   payload: WebhookPayload,
   failures: FailureSummary[]
 ): Promise<void> {
+  // A flaky pass is a failure signal (no Jira issue), not a pass toward recovery.
+  const flakyPass = isFlakyPass(test);
+
   // For passed tests, check recovery
-  if (test.status === 'passed') {
+  if (test.status === 'passed' && !flakyPass) {
     await handlePassedTest(test, payload);
     await persistTestResult(test, payload.runId, null, null, null, undefined);
     return;
@@ -95,8 +180,8 @@ async function processTest(
   const fp = generateFingerprint({
     testId: test.testId,
     service: test.metadata?.service,
-    errorName: test.error?.name ?? 'Error',
-    errorMessage: test.error?.message ?? 'Unknown error',
+    errorName: test.error?.name ?? (flakyPass ? 'FlakyRetry' : 'Error'),
+    errorMessage: test.error?.message ?? (flakyPass ? 'passed on retry' : 'Unknown error'),
     endpoint: test.metadata?.endpoint,
   });
 
@@ -108,7 +193,8 @@ async function processTest(
   // Get failure history
   const history = await getFailureHistory(fp);
 
-  // Classify the failure
+  // Classify the failure. classify() returns flaky for a pass after a retry, whatever the
+  // history or Jira state, so a flaky pass never opens or updates an issue.
   const classification = classify({
     test,
     failureHistory: history ?? undefined,
@@ -116,15 +202,18 @@ async function processTest(
   });
 
   // The agent may gather evidence and recommend an action, but deterministic
-  // classification remains the policy guardrail for side effects.
-  const investigationOutcome = await investigateFailure({
-    test,
-    run: payload,
-    fingerprint: fp,
-    deterministicClassification: classification,
-    history,
-    existingIssue,
-  });
+  // classification remains the policy guardrail for side effects. A flaky pass needs no
+  // investigation: the test already passed.
+  const investigationOutcome: Awaited<ReturnType<typeof investigateFailure>> = flakyPass
+    ? {}
+    : await investigateFailure({
+        test,
+        run: payload,
+        fingerprint: fp,
+        deterministicClassification: classification,
+        history,
+        existingIssue,
+      });
   const agentInvestigation = investigationOutcome.investigation;
 
   if (investigationOutcome.approvalPending && investigationOutcome.threadId && agentInvestigation) {
@@ -135,7 +224,11 @@ async function processTest(
       context: { test, run: payload },
       investigation: agentInvestigation,
     });
-    await upsertFailureHistory(fp, test, classification);
+    await upsertFailureHistory(
+      fp,
+      flakyPass ? { ...test, status: 'failed' } : test,
+      classification
+    );
     await persistTestResult(test, payload.runId, fp, classification, null, agentInvestigation);
     failures.push({
       testId: test.testId,
@@ -149,70 +242,19 @@ async function processTest(
     return;
   }
 
-  let jiraKey: string | undefined;
-  let slackSent = false;
-
-  // Take action based on classification
-  switch (classification) {
-    case FailureClassification.NewRegression: {
-      jiraKey = (await handleNewRegression(test, payload, fp, label)) ?? undefined;
-      slackSent = await sendSlackNotification({
-        classification,
-        testTitle: test.title,
-        suite: test.suite,
-        fingerprint: fp,
-        jiraKey,
-        runId: payload.runId,
-        branch: payload.branch,
-        environment: payload.environment,
-        errorMessage: test.error?.message,
-        agentSummary: agentInvestigation?.explanation,
-        agentConfidence: agentInvestigation?.confidence,
-      });
-      break;
-    }
-
-    case FailureClassification.KnownBug: {
-      jiraKey = existingIssue?.key;
-      if (jiraKey) {
-        await handleKnownBug(test, payload, jiraKey, fp);
-      }
-      slackSent = await sendSlackNotification({
-        classification,
-        testTitle: test.title,
-        suite: test.suite,
-        fingerprint: fp,
-        jiraKey,
-        runId: payload.runId,
-        branch: payload.branch,
-        environment: payload.environment,
-        errorMessage: test.error?.message,
-        agentSummary: agentInvestigation?.explanation,
-        agentConfidence: agentInvestigation?.confidence,
-      });
-      break;
-    }
-
-    default: {
-      // Flaky, Infra, Automation — Slack only
-      slackSent = await sendSlackNotification({
-        classification,
-        testTitle: test.title,
-        suite: test.suite,
-        fingerprint: fp,
-        runId: payload.runId,
-        branch: payload.branch,
-        environment: payload.environment,
-        errorMessage: test.error?.message,
-        agentSummary: agentInvestigation?.explanation,
-        agentConfidence: agentInvestigation?.confidence,
-      });
-      break;
-    }
-  }
+  // The action policy lives in one place (failure-actions.ts), shared with the approval path.
+  const { jiraKey, slackSent } = await executeFailureActions(
+    planFailureActions(classification, existingIssue?.key),
+    { test, payload, fingerprint: fp, classification, agentInvestigation }
+  );
 
   // Update failure history
-  await upsertFailureHistory(fp, test, classification, jiraKey);
+  await upsertFailureHistory(
+    fp,
+    flakyPass ? { ...test, status: 'failed' } : test,
+    classification,
+    jiraKey
+  );
 
   // Persist test result
   await persistTestResult(
@@ -259,14 +301,19 @@ async function handlePassedTest(test: TestResult, payload: WebhookPayload): Prom
     await query(
       `UPDATE failure_history
        SET consecutive_passes = $1,
-           last_statuses = (last_statuses || $2::jsonb) - 0,
+           -- Keep the last 5 outcomes: drop the oldest only once the window is full
+           -- (unconditionally dropping it shrank the history on every pass).
+           last_statuses = CASE
+             WHEN jsonb_array_length(last_statuses) >= 5 THEN (last_statuses - 0) || $2::jsonb
+             ELSE last_statuses || $2::jsonb
+           END,
            last_seen_at = NOW()
        WHERE fingerprint = $3`,
       [newConsecutivePasses, JSON.stringify('passed'), row.fingerprint]
     );
 
-    // Notify if recovery threshold met
-    if (row.jira_issue_key && newConsecutivePasses >= RECOVERY_THRESHOLD) {
+    // Notify once, when the threshold is reached (not again on every later pass)
+    if (row.jira_issue_key && newConsecutivePasses === config().RECOVERY_PASS_THRESHOLD) {
       await sendSlackNotification({
         classification: FailureClassification.PossiblyFixed,
         testTitle: test.title,
@@ -285,62 +332,6 @@ async function handlePassedTest(test: TestResult, payload: WebhookPayload): Prom
   }
 
   void fp; // unused but computed for structure
-}
-
-async function handleNewRegression(
-  test: TestResult,
-  payload: WebhookPayload,
-  fingerprint: string,
-  label: string
-): Promise<string | null> {
-  const description = [
-    `*Automated Test Failure Report*`,
-    ``,
-    `*Test:* ${test.title}`,
-    `*Suite:* ${test.suite}`,
-    `*File:* ${test.file}`,
-    `*Branch:* ${payload.branch}`,
-    `*Environment:* ${payload.environment}`,
-    `*Run ID:* ${payload.runId}`,
-    `*Fingerprint:* \`${fingerprint}\``,
-    ``,
-    `*Error:*`,
-    `{code}`,
-    test.error?.message ?? 'Unknown error',
-    `{code}`,
-    ``,
-    `*Stack Trace:*`,
-    `{code}`,
-    test.error?.stack ?? 'No stack trace',
-    `{code}`,
-  ].join('\n');
-
-  return createIssue({
-    summary: `[AUTO] ${test.suite}: ${test.title}`,
-    description,
-    labels: [label, 'automated-test', `env-${payload.environment}`],
-    priority: test.metadata?.severity === 'critical' ? 'Critical' : 'Medium',
-  });
-}
-
-async function handleKnownBug(
-  test: TestResult,
-  payload: WebhookPayload,
-  jiraKey: string,
-  fingerprint: string
-): Promise<void> {
-  const comment = [
-    `*Test failure recurred*`,
-    ``,
-    `Run: ${payload.runId}`,
-    `Branch: ${payload.branch}`,
-    `Environment: ${payload.environment}`,
-    `Fingerprint: \`${fingerprint}\``,
-    ``,
-    `Error: ${test.error?.message ?? 'Unknown'}`,
-  ].join('\n');
-
-  await addComment(jiraKey, comment);
 }
 
 async function getFailureHistory(fingerprint: string): Promise<FailureHistory | null> {
@@ -454,32 +445,12 @@ export async function executeApprovedFailureActions(input: {
   classification: FailureClassification;
   agentInvestigation: AgentInvestigation;
 }): Promise<{ jiraKey?: string; slackSent: boolean }> {
-  const label = fingerprintLabel(input.fingerprint);
-  const existingIssue = await searchByLabel(label);
-  let jiraKey: string | undefined;
-  let slackSent = false;
-
-  if (input.classification === FailureClassification.NewRegression) {
-    jiraKey =
-      (await handleNewRegression(input.test, input.payload, input.fingerprint, label)) ?? undefined;
-  } else if (input.classification === FailureClassification.KnownBug) {
-    jiraKey = existingIssue?.key;
-    if (jiraKey) await handleKnownBug(input.test, input.payload, jiraKey, input.fingerprint);
-  }
-
-  slackSent = await sendSlackNotification({
-    classification: input.classification,
-    testTitle: input.test.title,
-    suite: input.test.suite,
-    fingerprint: input.fingerprint,
-    jiraKey,
-    runId: input.payload.runId,
-    branch: input.payload.branch,
-    environment: input.payload.environment,
-    errorMessage: input.test.error?.message,
-    agentSummary: input.agentInvestigation.explanation,
-    agentConfidence: input.agentInvestigation.confidence,
-  });
+  // Re-read the Jira state at approval time: an issue may have been opened since the pause.
+  const existingIssue = await searchByLabel(fingerprintLabel(input.fingerprint));
+  const { jiraKey, slackSent } = await executeFailureActions(
+    planFailureActions(input.classification, existingIssue?.key),
+    input
+  );
 
   if (jiraKey) {
     await query(`UPDATE failure_history SET jira_issue_key = $2 WHERE fingerprint = $1`, [

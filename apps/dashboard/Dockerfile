@@ -3,6 +3,7 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/dashboard/package.json ./apps/dashboard/
+COPY packages/shared-types/package.json ./packages/shared-types/
 RUN npm install --legacy-peer-deps
 # The lockfile carries no lightningcss platform binaries (npm optional-deps bug), so install
 # the musl one matching the locked lightningcss version explicitly.

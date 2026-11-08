@@ -1,6 +1,6 @@
 {
   "name": "signalops-investigation-benchmark",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "createdAt": "2026-10-31",
   "provenance": {
     "source": "synthetic",
@@ -338,7 +338,7 @@
       "family": "flaky-retry",
       "split": "dev",
       "ci": {
-        "status": "failed",
+        "status": "passed",
         "error": {
           "name": "AssertionError",
           "message": "Expected toast 'Saved' to be visible within 2000ms"
@@ -359,7 +359,7 @@
       "family": "flaky-retry",
       "split": "dev",
       "ci": {
-        "status": "failed",
+        "status": "passed",
         "error": {
           "name": "AssertionError",
           "message": "Expected notification count 3, received 2 (websocket update arrived late)"

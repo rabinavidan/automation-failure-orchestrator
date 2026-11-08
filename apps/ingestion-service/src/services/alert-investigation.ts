@@ -15,13 +15,14 @@ import {
   startAlertAgentExecution,
 } from './agent-execution-audit';
 import { createDatabaseTelemetrySink } from './agent-telemetry';
-import { createOllamaClient } from './failure-investigation-agent';
+import { createOllamaClient } from './model-client';
 import type { InvestigationModel } from './failure-investigation-agent';
 import { evaluateSocInvestigation } from './soc-agent-evaluation';
 import { SOC_GRAPH_VERSION, runSocInvestigation } from './soc-investigation';
 import { loadRunbooks, selectRunbooks } from './soc-runbooks';
 import { getInvestigationQueue } from './investigation-queue';
 import type { InvestigationQueue } from './investigation-queue';
+import { config } from '../config';
 
 /** LLM time is spent only where a human will act: confirmed threats and the analyst queue. */
 const INVESTIGATED_DISPOSITIONS = new Set(['true_positive', 'needs_investigation']);
@@ -55,7 +56,7 @@ export function scheduleAlertInvestigation(
   queue: InvestigationQueue | null = getInvestigationQueue()
 ): AlertInvestigationOutcome {
   if (!input) return { status: 'not_applicable' };
-  if (process.env.AI_ENABLED !== 'true') return { status: 'disabled' };
+  if (!config().AI_ENABLED) return { status: 'disabled' };
   if (!INVESTIGATED_DISPOSITIONS.has(input.triage.disposition)) {
     return { status: 'not_applicable' };
   }

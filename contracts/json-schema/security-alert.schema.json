@@ -1,0 +1,130 @@
+{
+  "$id": "https://signalops.local/contracts/security-alert.schema.json",
+  "title": "security-alert",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "alertId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "vendor": {
+          "type": "string",
+          "enum": ["splunk", "sentinel", "wazuh", "generic"]
+        },
+        "product": {
+          "type": "string"
+        },
+        "searchName": {
+          "type": "string"
+        },
+        "resultsLink": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "required": ["vendor"]
+    },
+    "ruleId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ruleName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["informational", "low", "medium", "high", "critical"]
+    },
+    "detectedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+    },
+    "host": {
+      "type": "string"
+    },
+    "user": {
+      "type": "string"
+    },
+    "indicators": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["ip", "domain", "url", "file_hash", "email", "user", "host", "process"]
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "enum": ["source", "destination", "target", "observed"]
+          }
+        },
+        "required": ["type", "value"]
+      }
+    },
+    "mitre": {
+      "type": "object",
+      "properties": {
+        "tactics": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "techniques": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^T\\d{4}(\\.\\d{3})?$"
+          }
+        }
+      }
+    },
+    "eventCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "raw": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "alertId",
+    "source",
+    "ruleId",
+    "ruleName",
+    "title",
+    "severity",
+    "detectedAt"
+  ]
+}

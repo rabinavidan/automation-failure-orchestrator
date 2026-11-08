@@ -1,0 +1,153 @@
+{
+  "$id": "https://signalops.local/contracts/enrichment-response.schema.json",
+  "title": "enrichment-response",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "alertId": {
+      "type": ["string", "null"]
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["mock", "live"]
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": ["malicious", "suspicious", "benign", "unknown"]
+        },
+        "maxScore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "malicious": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "suspicious": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "enriched": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "providerErrors": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "verdict",
+        "maxScore",
+        "malicious",
+        "suspicious",
+        "enriched",
+        "skipped",
+        "providerErrors"
+      ]
+    },
+    "enrichments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "indicator": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["ip", "domain", "url", "file_hash", "email", "user", "host", "process"]
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1
+              },
+              "role": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["source", "destination", "target", "observed"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["type", "value"]
+          },
+          "normalizedValue": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": ["malicious", "suspicious", "benign", "unknown"]
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "skippedReason": {
+            "type": ["string", "null"]
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provider": {
+                  "type": "string"
+                },
+                "verdict": {
+                  "type": "string",
+                  "enum": ["malicious", "suspicious", "benign", "unknown"]
+                },
+                "score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "summary": {
+                  "type": "string"
+                },
+                "details": {
+                  "default": {},
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "cached": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "error": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": ["provider", "verdict", "score", "summary"]
+            }
+          }
+        },
+        "required": ["indicator", "normalizedValue", "verdict", "score", "results"]
+      }
+    }
+  },
+  "required": ["mode", "summary", "enrichments"]
+}

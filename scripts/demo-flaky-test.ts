@@ -1,26 +1,27 @@
 /**
  * Demo: Flaky Test
- * Test with retry=1 — failed initially, eventually passed on retry.
- * Expected: classified as flaky, Slack notification only.
+ * A test that failed, then passed on retry: status 'passed' with retry=1 and the error of the
+ * failed attempt (the contract: one record per test, final outcome).
+ * Expected: classified as flaky, Slack notification only, no Jira issue.
  */
 import { sendRun, basePayload } from './demo-helpers';
 
 async function main() {
   console.log('=== Demo: Flaky Test ===');
-  console.log('Expected: Classified as flaky (retry > 0), Slack only\n');
+  console.log('Expected: Classified as flaky (passed on retry), Slack only\n');
 
   const payload = {
     ...basePayload(),
-    summary: { total: 2, passed: 1, failed: 1, skipped: 0 },
+    summary: { total: 2, passed: 2, failed: 0, skipped: 0 },
     tests: [
       {
         testId: 'tests/ui/cart.spec.ts::cart-count-update',
         title: 'cart count updates after adding item',
         suite: 'Cart UI',
         file: 'tests/ui/cart.spec.ts',
-        status: 'failed',
+        status: 'passed', // final outcome: it passed on the retry
         durationMs: 3200,
-        retry: 1, // This indicates it was retried — key flaky signal
+        retry: 1, // one retry was needed; the error below is from the failed first attempt
         error: {
           name: 'TimeoutError',
           message: 'Timeout 30000ms exceeded waiting for locator #cart-count to have text "3"',

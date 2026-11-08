@@ -1,0 +1,88 @@
+{
+  "$id": "https://signalops.local/contracts/wazuh-alert.schema.json",
+  "title": "wazuh-alert",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string"
+    },
+    "rule": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mitre": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "tactic": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "required": ["id", "level", "description"]
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "ip": {
+          "type": "string"
+        }
+      }
+    },
+    "data": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "syscheck": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": ["id", "rule"],
+  "additionalProperties": {}
+}

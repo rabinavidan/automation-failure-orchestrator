@@ -1,7 +1,7 @@
 {
   "meta": {
-    "commit": "2e05d89adb98dae4dfe6661c7c70ce8fa027966f",
-    "dataset": "signalops-investigation-benchmark@1.0.0",
+    "commit": "9df2f6283387aab507e965b28f41724dd910a562+dirty",
+    "dataset": "signalops-investigation-benchmark@1.1.0",
     "datasetCases": 35,
     "subset": "full",
     "humanValidatedLabels": false,
@@ -20,7 +20,7 @@
     "seed": "not set (Ollama sampling is not seeded by the graphs)",
     "caseTimeoutMs": 180000,
     "hardware": "linux 6.18.44-fc-v185, Intel(R) Xeon(R) Processor @ 2.10GHz x4, 16 GiB",
-    "generatedAt": "2026-10-31T08:16:07.366Z"
+    "generatedAt": "2026-11-02T11:16:37.081Z"
   },
   "summaries": [
     {

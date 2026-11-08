@@ -1,3 +1,5 @@
+// Must load first so outgoing HTTP and pg are instrumented (no-op unless OTEL_ENABLED=true).
+import { shutdownTelemetry } from '../observability/register';
 import {
   ChangeMessageVisibilityCommand,
   DeleteMessageCommand,
@@ -8,6 +10,7 @@ import type { Message } from '@aws-sdk/client-sqs';
 import { closePool } from '../db/client';
 import { loadInvestigationInput, runAlertInvestigation } from '../services/alert-investigation';
 import { parseInvestigationMessage } from '../services/investigation-queue';
+import { validateConfig } from '../config';
 
 /**
  * SQS consumer for advisory SOC investigations (ECS service `investigation-worker`).
@@ -73,7 +76,7 @@ export async function runWorker(options: {
   console.log('[Worker] consuming', options.queueUrl);
 
   while (!options.signal?.aborted) {
-    let messages: Message[] = [];
+    let messages: Message[];
     try {
       const received = await client.send(
         new ReceiveMessageCommand({
@@ -126,7 +129,7 @@ export async function runWorker(options: {
 }
 
 if (require.main === module) {
-  const queueUrl = process.env.INVESTIGATION_QUEUE_URL;
+  const queueUrl = validateConfig().INVESTIGATION_QUEUE_URL;
   if (!queueUrl) {
     console.error('[Worker] INVESTIGATION_QUEUE_URL is required');
     process.exit(1);
@@ -137,6 +140,7 @@ if (require.main === module) {
   process.on('SIGINT', () => controller.abort());
   runWorker({ queueUrl, signal: controller.signal })
     .then(() => closePool())
+    .then(() => shutdownTelemetry())
     .then(() => process.exit(0))
     .catch((err) => {
       console.error('[Worker] fatal:', err);

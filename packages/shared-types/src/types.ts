@@ -47,58 +47,76 @@ export enum FailureClassification {
   PossiblyFixed = 'possibly_fixed',
 }
 
-export interface ProcessingResult {
-  runId: string;
-  processed: number;
-  skipped: number;
-  failures: FailureSummary[];
-  duplicateRun?: boolean;
-}
+// ---------------------------------------------------------------------------
+// Agent investigation and processing results: schemas, so the same shape is validated where
+// the model answers, exported to JSON Schema for the API contract, and typed for the dashboard.
+// ---------------------------------------------------------------------------
 
-export interface FailureSummary {
-  testId: string;
-  title: string;
-  fingerprint: string;
-  classification: FailureClassification;
-  jiraKey?: string;
-  slackSent?: boolean;
-  agentInvestigation?: AgentInvestigation;
-  approval?: {
-    threadId: string;
-    status: 'pending' | 'approved' | 'rejected';
-  };
-}
+export const RecommendedActionSchema = z.enum([
+  'create_issue',
+  'update_issue',
+  'notify_only',
+  'human_review',
+]);
+export type RecommendedAction = z.infer<typeof RecommendedActionSchema>;
 
-export interface AgentInvestigation {
-  suspectedRootCause: string;
-  evidence: string[];
-  recommendedAction: 'create_issue' | 'update_issue' | 'notify_only' | 'human_review';
-  confidence: number;
-  explanation: string;
-  toolsUsed: string[];
-  model: string;
-  sources?: Array<{
-    path: string;
-    chunk: number;
-    score: number;
-  }>;
-  orchestration?: 'single_agent' | 'supervisor';
-  specialistReports?: AgentSpecialistReport[];
+/** What the model must answer with; both agent graphs validate their final reply against it. */
+export const AgentFindingSchema = z.object({
+  suspectedRootCause: z.string().min(1),
+  evidence: z.array(z.string()).max(8),
+  recommendedAction: RecommendedActionSchema,
+  confidence: z.number().min(0).max(1),
+  explanation: z.string().min(1),
+});
+export type AgentFinding = z.infer<typeof AgentFindingSchema>;
+
+export const AgentSpecialistReportSchema = z.object({
+  agent: z.string(),
+  summary: z.string(),
+  findings: z.array(z.string()),
+  confidence: z.number().min(0).max(1),
+  proposedAction: RecommendedActionSchema.optional(),
+  risk: z.enum(['low', 'medium', 'high']).optional(),
+});
+export type AgentSpecialistReport = z.infer<typeof AgentSpecialistReportSchema>;
+
+/** The advisory investigation as persisted and returned by the API. */
+export const AgentInvestigationSchema = AgentFindingSchema.extend({
+  toolsUsed: z.array(z.string()),
+  model: z.string(),
+  sources: z
+    .array(z.object({ path: z.string(), chunk: z.number().int(), score: z.number() }))
+    .optional(),
+  orchestration: z.enum(['single_agent', 'supervisor']).optional(),
+  specialistReports: z.array(AgentSpecialistReportSchema).optional(),
   /** Set when code-owned guardrails replaced the model's recommendation. */
-  guardrailOverride?: {
-    from: 'create_issue' | 'update_issue' | 'notify_only' | 'human_review';
-    reason: string;
-  };
-}
+  guardrailOverride: z.object({ from: RecommendedActionSchema, reason: z.string() }).optional(),
+});
+export type AgentInvestigation = z.infer<typeof AgentInvestigationSchema>;
 
-export interface AgentSpecialistReport {
-  agent: string;
-  summary: string;
-  findings: string[];
-  confidence: number;
-  proposedAction?: 'create_issue' | 'update_issue' | 'notify_only' | 'human_review';
-  risk?: 'low' | 'medium' | 'high';
-}
+export const FailureSummarySchema = z.object({
+  testId: z.string(),
+  title: z.string(),
+  fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
+  classification: z.enum(FailureClassification),
+  jiraKey: z.string().optional(),
+  slackSent: z.boolean().optional(),
+  agentInvestigation: AgentInvestigationSchema.optional(),
+  approval: z
+    .object({ threadId: z.string(), status: z.enum(['pending', 'approved', 'rejected']) })
+    .optional(),
+});
+export type FailureSummary = z.infer<typeof FailureSummarySchema>;
+
+/** The response of POST /api/runs. */
+export const ProcessingResultSchema = z.object({
+  runId: z.string(),
+  processed: z.number().int().min(0),
+  skipped: z.number().int().min(0),
+  failures: z.array(FailureSummarySchema),
+  duplicateRun: z.boolean().optional(),
+});
+export type ProcessingResult = z.infer<typeof ProcessingResultSchema>;
 
 export interface FingerprintInput {
   testId: string;

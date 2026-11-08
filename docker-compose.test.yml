@@ -1,0 +1,97 @@
+# Test stack: the core platform plus the scriptable Ollama stub that the backend suite controls.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.test.yml up --build -d \
+#     postgres mock-integrations enrichment-service ollama-stub ingestion-service ingestion-ai
+#   npm run test:backend
+#
+# The stub is not a model: tests script its replies through /__scenario.
+
+services:
+  ollama-stub:
+    image: node:24-alpine
+    container_name: orchestrator-ollama-stub
+    command: ['node', '/stub/ollama-demo-stub.mjs']
+    volumes:
+      - ./scripts/ollama-demo-stub.mjs:/stub/ollama-demo-stub.mjs:ro
+    ports:
+      - '11434:11434'
+    environment:
+      PORT: '11434'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:11434/ || exit 1']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Second API instance for the agents and MCP layers: advisory agents on (against the scripted
+  # stub), MCP evidence transport, same database and mocks. Starts after the first instance so
+  # database migrations run once.
+  ingestion-ai:
+    extends:
+      file: docker-compose.yml
+      service: ingestion-service
+    container_name: orchestrator-ingestion-ai
+    ports: !override
+      - '3011:3001'
+    environment:
+      AI_ENABLED: 'true'
+      MULTI_AGENT_ENABLED: 'true'
+      OLLAMA_HOST: http://ollama-stub:11434
+      OLLAMA_MODEL: demo-stub
+      OLLAMA_TIMEOUT_MS: '10000'
+      RAG_ENABLED: 'false'
+      EVIDENCE_TRANSPORT: mcp
+      MCP_SCOPE_SECRET: pytest-mcp-scope-secret-0001
+    depends_on:
+      ingestion-service:
+        condition: service_healthy
+      ollama-stub:
+        condition: service_healthy
+
+  # Third API instance: the single-agent tool-calling graph (failure-agent-v1) instead of the
+  # supervisor, for the agents layer. Same database, mocks and stub.
+  # RAG instance: agents on the stub, repository knowledge indexed from a fixture corpus with the
+  # stub's deterministic embeddings (tests/backend/agents/test_rag.py).
+  ingestion-rag:
+    extends:
+      file: docker-compose.yml
+      service: ingestion-service
+    container_name: orchestrator-ingestion-rag
+    ports: !override
+      - '3013:3001'
+    environment:
+      AI_ENABLED: 'true'
+      MULTI_AGENT_ENABLED: 'true'
+      OLLAMA_HOST: http://ollama-stub:11434
+      OLLAMA_MODEL: demo-stub
+      OLLAMA_EMBEDDING_MODEL: stub-embed
+      OLLAMA_TIMEOUT_MS: '10000'
+      RAG_ENABLED: 'true'
+      RAG_SOURCE_ROOT: /rag-corpus
+    volumes:
+      - ./tests/backend/fixtures/rag-corpus:/rag-corpus:ro
+    depends_on:
+      ingestion-service:
+        condition: service_healthy
+      ollama-stub:
+        condition: service_healthy
+
+  ingestion-single-agent:
+    extends:
+      file: docker-compose.yml
+      service: ingestion-service
+    container_name: orchestrator-ingestion-single-agent
+    ports: !override
+      - '3012:3001'
+    environment:
+      AI_ENABLED: 'true'
+      MULTI_AGENT_ENABLED: 'false'
+      OLLAMA_HOST: http://ollama-stub:11434
+      OLLAMA_MODEL: demo-stub
+      OLLAMA_TIMEOUT_MS: '10000'
+      RAG_ENABLED: 'false'
+    depends_on:
+      ingestion-service:
+        condition: service_healthy
+      ollama-stub:
+        condition: service_healthy

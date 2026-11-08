@@ -1,0 +1,84 @@
+{
+  "$id": "https://signalops.local/contracts/sentinel-alert.schema.json",
+  "title": "sentinel-alert",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "SystemAlertId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "AlertDisplayName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "AlertType": {
+      "type": "string"
+    },
+    "Severity": {
+      "type": "string"
+    },
+    "Description": {
+      "type": "string"
+    },
+    "ProductName": {
+      "type": "string"
+    },
+    "StartTimeUtc": {
+      "type": "string"
+    },
+    "TimeGenerated": {
+      "type": "string"
+    },
+    "Tactics": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "Techniques": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "Entities": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        }
+      ]
+    },
+    "AlertUri": {
+      "type": "string",
+      "format": "uri"
+    }
+  },
+  "required": ["SystemAlertId", "AlertDisplayName"],
+  "additionalProperties": {}
+}

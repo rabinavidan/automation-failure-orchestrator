@@ -1,0 +1,202 @@
+{
+  "$id": "https://signalops.local/contracts/webhook-payload.schema.json",
+  "title": "webhook-payload",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "commitSha": {
+      "type": "string"
+    },
+    "environment": {
+      "type": "string"
+    },
+    "triggeredBy": {
+      "type": "string"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "finishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+    },
+    "reportUrl": {
+      "type": "string",
+      "format": "uri"
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total": {
+          "type": "number"
+        },
+        "passed": {
+          "type": "number"
+        },
+        "failed": {
+          "type": "number"
+        },
+        "skipped": {
+          "type": "number"
+        }
+      },
+      "required": ["total", "passed", "failed", "skipped"]
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "testId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "suite": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["passed", "failed", "skipped"],
+            "description": "Final outcome of the test after all retries. Send one record per test."
+          },
+          "durationMs": {
+            "type": "number"
+          },
+          "retry": {
+            "default": 0,
+            "description": "Retries used before the final outcome. passed with retry > 0 means flaky (failed, then passed); failed with retry > 0 means it failed on every attempt.",
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "error": {
+            "description": "For a failed test, the final error; for a flaky pass, the error of the first failed attempt.",
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "stack": {
+                "type": "string"
+              },
+              "expected": {},
+              "actual": {}
+            },
+            "required": ["name", "message"]
+          },
+          "metadata": {
+            "type": "object",
+            "properties": {
+              "service": {
+                "type": "string"
+              },
+              "endpoint": {
+                "type": "string"
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "critical"]
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "artifacts": {
+            "type": "object",
+            "properties": {
+              "traceUrl": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "screenshotUrl": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "videoUrl": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "logsUrl": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "required": ["testId", "title", "suite", "file", "status", "durationMs"]
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "runId",
+    "repository",
+    "branch",
+    "commitSha",
+    "environment",
+    "triggeredBy",
+    "startedAt",
+    "finishedAt",
+    "summary",
+    "tests"
+  ]
+}

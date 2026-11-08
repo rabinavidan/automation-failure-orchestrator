@@ -1,0 +1,203 @@
+{
+  "$id": "https://signalops.local/contracts/approval-list.schema.json",
+  "title": "approval-list",
+  "description": "Generated from @orchestrator/shared-types. Do not edit: run npm run contracts:export.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "approvals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "thread_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "test_id": {
+            "type": "string"
+          },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "known_bug",
+              "new_regression",
+              "flaky",
+              "infrastructure",
+              "automation_failure",
+              "possibly_fixed"
+            ]
+          },
+          "requested_action": {
+            "type": "string",
+            "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "approved", "rejected"]
+          },
+          "investigation": {
+            "type": "object",
+            "properties": {
+              "suspectedRootCause": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "recommendedAction": {
+                "type": "string",
+                "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "explanation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "toolsUsed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "model": {
+                "type": "string"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "chunk": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "score": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["path", "chunk", "score"],
+                  "additionalProperties": false
+                }
+              },
+              "orchestration": {
+                "type": "string",
+                "enum": ["single_agent", "supervisor"]
+              },
+              "specialistReports": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "agent": {
+                      "type": "string"
+                    },
+                    "summary": {
+                      "type": "string"
+                    },
+                    "findings": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "proposedAction": {
+                      "type": "string",
+                      "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+                    },
+                    "risk": {
+                      "type": "string",
+                      "enum": ["low", "medium", "high"]
+                    }
+                  },
+                  "required": ["agent", "summary", "findings", "confidence"],
+                  "additionalProperties": false
+                }
+              },
+              "guardrailOverride": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "enum": ["create_issue", "update_issue", "notify_only", "human_review"]
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": ["from", "reason"],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "suspectedRootCause",
+              "evidence",
+              "recommendedAction",
+              "confidence",
+              "explanation",
+              "toolsUsed",
+              "model"
+            ],
+            "additionalProperties": false
+          },
+          "reviewer": {
+            "type": ["string", "null"]
+          },
+          "review_comment": {
+            "type": ["string", "null"]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "decided_at": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": [
+          "id",
+          "thread_id",
+          "run_id",
+          "fingerprint",
+          "test_id",
+          "classification",
+          "requested_action",
+          "status",
+          "investigation",
+          "reviewer",
+          "review_comment",
+          "created_at",
+          "decided_at"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["approvals"],
+  "additionalProperties": false
+}

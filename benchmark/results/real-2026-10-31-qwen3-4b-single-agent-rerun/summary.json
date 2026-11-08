@@ -1,0 +1,201 @@
+{
+  "meta": {
+    "commit": "9b0898c8ac489124f0cd5a060d0a102398aeb0e7",
+    "dataset": "signalops-investigation-benchmark@1.0.0",
+    "datasetCases": 35,
+    "subset": "full",
+    "mergedShards": 6,
+    "humanValidatedLabels": false,
+    "configs": [
+      "deterministic",
+      "single_agent"
+    ],
+    "repetitions": 3,
+    "model": "qwen3:4b",
+    "modelDigest": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+    "modelBackend": "real",
+    "graphVersions": {
+      "ci_single": "failure-agent-v1",
+      "ci_multi": "failure-supervisor-v1",
+      "soc": "soc-supervisor-v1"
+    },
+    "triagePolicyVersion": "2026.10.1",
+    "ragEnabled": false,
+    "seed": "not set (Ollama sampling is not seeded by the graphs)",
+    "caseTimeoutMs": 900000,
+    "hardware": "linux 7.0.0-1017-azure, AMD EPYC 7763 64-Core Processor x4, 16 GiB",
+    "generatedAt": "2026-10-31T19:04:54.357Z"
+  },
+  "summaries": [
+    {
+      "config": "deterministic",
+      "outcomes": 35,
+      "decision": {
+        "note": "Deterministic classification/triage; agents never override it, so it is identical across configurations.",
+        "byTrack": {
+          "ci": {
+            "n": 24,
+            "accuracy": 0.875,
+            "macroF1": 0.9082491582491583
+          },
+          "soc": {
+            "n": 11,
+            "accuracy": 1,
+            "macroF1": 1
+          }
+        },
+        "bySplit": {
+          "dev": {
+            "n": 19,
+            "accuracy": 1
+          },
+          "heldout": {
+            "n": 16,
+            "accuracy": 0.8125
+          }
+        },
+        "confusion": {
+          "ci": {
+            "infrastructure": {
+              "infrastructure": 5
+            },
+            "automation_failure": {
+              "automation_failure": 4
+            },
+            "new_regression": {
+              "new_regression": 4,
+              "infrastructure": 2,
+              "automation_failure": 1
+            },
+            "flaky": {
+              "flaky": 3
+            },
+            "known_bug": {
+              "known_bug": 4
+            },
+            "possibly_fixed": {
+              "possibly_fixed": 1
+            }
+          },
+          "soc": {
+            "true_positive": {
+              "true_positive": 4
+            },
+            "false_positive": {
+              "false_positive": 2
+            },
+            "benign_true_positive": {
+              "benign_true_positive": 2
+            },
+            "needs_investigation": {
+              "needs_investigation": 2
+            },
+            "duplicate": {
+              "duplicate": 1
+            }
+          }
+        }
+      },
+      "agent": null,
+      "cost": {
+        "latencyMsP50": 0,
+        "latencyMsP95": 1,
+        "modelCallsPerCase": 0,
+        "promptTokensPerCase": 0,
+        "completionTokensPerCase": 0
+      }
+    },
+    {
+      "config": "single_agent",
+      "outcomes": 105,
+      "decision": {
+        "note": "Deterministic classification/triage; agents never override it, so it is identical across configurations.",
+        "byTrack": {
+          "ci": {
+            "n": 24,
+            "accuracy": 0.875,
+            "macroF1": 0.9082491582491583
+          },
+          "soc": {
+            "n": 11,
+            "accuracy": 1,
+            "macroF1": 1
+          }
+        },
+        "bySplit": {
+          "dev": {
+            "n": 19,
+            "accuracy": 1
+          },
+          "heldout": {
+            "n": 16,
+            "accuracy": 0.8125
+          }
+        },
+        "confusion": {
+          "ci": {
+            "infrastructure": {
+              "infrastructure": 5
+            },
+            "automation_failure": {
+              "automation_failure": 4
+            },
+            "new_regression": {
+              "infrastructure": 2,
+              "new_regression": 4,
+              "automation_failure": 1
+            },
+            "known_bug": {
+              "known_bug": 4
+            },
+            "flaky": {
+              "flaky": 3
+            },
+            "possibly_fixed": {
+              "possibly_fixed": 1
+            }
+          },
+          "soc": {
+            "true_positive": {
+              "true_positive": 4
+            },
+            "needs_investigation": {
+              "needs_investigation": 2
+            },
+            "duplicate": {
+              "duplicate": 1
+            },
+            "false_positive": {
+              "false_positive": 2
+            },
+            "benign_true_positive": {
+              "benign_true_positive": 2
+            }
+          }
+        }
+      },
+      "agent": {
+        "applicable": 66,
+        "notApplicable": 39,
+        "failureRate": 0,
+        "failures": {},
+        "actionPolicyCompliance": 0.5303030303030303,
+        "abstentionOnAmbiguous": 0,
+        "abstentionOnClear": 0.19047619047619047,
+        "unsupportedClaimRate": 0.015151515151515152,
+        "citationValidity": null,
+        "requiredToolCoverage": 0.8181818181818182,
+        "forbiddenToolUse": 0,
+        "evaluatorPassRate": 0.9848484848484849,
+        "safetyViolations": 0
+      },
+      "cost": {
+        "latencyMsP50": 33611,
+        "latencyMsP95": 53514,
+        "modelCallsPerCase": 1,
+        "promptTokensPerCase": 526.5,
+        "completionTokensPerCase": 242.8939393939394
+      }
+    }
+  ]
+}

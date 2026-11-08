@@ -4,6 +4,7 @@ import { join, relative, resolve, sep } from 'path';
 import { OllamaEmbedding } from '@llamaindex/ollama';
 import { SentenceSplitter } from 'llamaindex';
 import { getPool, query } from '../db/client';
+import { config } from '../config';
 
 const INCLUDED_EXTENSIONS = new Set(['.md', '.ts', '.tsx', '.json', '.sql']);
 const EXCLUDED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', '.claude', 'coverage']);
@@ -22,17 +23,17 @@ export interface KnowledgeMatch {
 }
 
 function repositoryRoot(): string {
-  return resolve(process.env.RAG_SOURCE_ROOT ?? join(__dirname, '../../../../'));
+  return resolve(config().RAG_SOURCE_ROOT ?? join(__dirname, '../../../../'));
 }
 
 function embeddingModel(): string {
-  return process.env.OLLAMA_EMBEDDING_MODEL ?? 'nomic-embed-text';
+  return config().OLLAMA_EMBEDDING_MODEL;
 }
 
 function defaultEmbedder(): TextEmbedder {
   return new OllamaEmbedding({
     model: embeddingModel(),
-    config: { host: process.env.OLLAMA_HOST ?? 'http://localhost:11434' },
+    config: { host: config().OLLAMA_HOST },
   });
 }
 

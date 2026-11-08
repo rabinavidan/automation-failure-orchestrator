@@ -1,0 +1,20 @@
+# Reusable steps: pinned Node, cached npm download cache, clean install.
+parameters:
+  - name: nodeVersion
+    type: string
+    default: '24'
+
+steps:
+  - task: NodeTool@0
+    displayName: Use Node ${{ parameters.nodeVersion }}
+    inputs:
+      versionSpec: ${{ parameters.nodeVersion }}
+  - task: Cache@2
+    displayName: Cache npm downloads
+    inputs:
+      key: 'npm | "$(Agent.OS)" | package-lock.json'
+      restoreKeys: |
+        npm | "$(Agent.OS)"
+      path: $(npm_config_cache)
+  - script: npm ci
+    displayName: npm ci

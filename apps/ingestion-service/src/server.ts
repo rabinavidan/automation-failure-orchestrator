@@ -1,15 +1,19 @@
+// Must load first so HTTP, Express and pg are instrumented (no-op unless OTEL_ENABLED=true).
+import { shutdownTelemetry } from './observability/register';
 import app from './app';
 import { runMigrations } from './db/migrations';
 import { closePool } from './db/client';
 import { setupAgentCheckpointer } from './db/agent-checkpointer';
+import { config, validateConfig } from './config';
 
-const PORT = parseInt(process.env.PORT ?? '3001', 10);
+// Fail fast, naming every invalid variable, before migrations or traffic.
+const { PORT, SHUTDOWN_GRACE_MS } = validateConfig();
 
 async function main(): Promise<void> {
   // Run DB migrations before accepting traffic
   try {
     await runMigrations();
-    if (process.env.AI_ENABLED === 'true') await setupAgentCheckpointer();
+    if (config().AI_ENABLED) await setupAgentCheckpointer();
   } catch (err) {
     console.warn('[Server] Could not run migrations (DB may not be available):', err);
   }
@@ -26,8 +30,17 @@ async function main(): Promise<void> {
     console.log(`[Server] ${signal} received, shutting down...`);
     server.close(async () => {
       await closePool();
+      await shutdownTelemetry();
       process.exit(0);
     });
+    // server.close() waits for every open connection; idle keep-alive sockets (proxies, pooled
+    // clients) would hold it until the orchestrator's stop timeout and a SIGKILL that skips the
+    // cleanup above. Close idle sockets now, and force an exit if in-flight requests overrun.
+    server.closeIdleConnections();
+    setTimeout(() => {
+      console.warn('[Server] Shutdown timed out; forcing exit');
+      process.exit(1);
+    }, SHUTDOWN_GRACE_MS).unref();
   };
 
   process.on('SIGTERM', () => void shutdown('SIGTERM'));

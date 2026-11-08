@@ -11,15 +11,14 @@ import {
   isInterrupted,
 } from '@langchain/langgraph';
 import type { BaseCheckpointSaver } from '@langchain/langgraph';
-import { Ollama } from 'ollama';
 import type { Message, Tool, ToolCall } from 'ollama';
-import { z } from 'zod';
 import type {
   AgentInvestigation,
   FailureHistory,
   TestResult,
   WebhookPayload,
 } from '@orchestrator/shared-types';
+import { AgentFindingSchema } from '@orchestrator/shared-types';
 import type { JiraIssue } from './jira-adapter';
 import { getAgentCheckpointer } from '../db/agent-checkpointer';
 import {
@@ -37,6 +36,8 @@ import {
   resumeMultiAgentInvestigation,
 } from './multi-agent-investigation';
 import { createDatabaseTelemetrySink } from './agent-telemetry';
+import { config } from '../config';
+import { createOllamaClient } from './model-client';
 
 const MAX_REASONING_STEPS = 4;
 
@@ -50,7 +51,7 @@ async function openEvidenceProvider(
   threadId: string,
   audit: AgentAuditSink
 ): Promise<EvidenceProvider | { unavailable: string } | undefined> {
-  if (process.env.EVIDENCE_TRANSPORT !== 'mcp') return undefined;
+  if (config().EVIDENCE_TRANSPORT !== 'mcp') return undefined;
   const secret = mcpScopeSecret();
   const reason = (detail: string) => `MCP evidence unavailable: ${detail}`;
   if (!secret) {
@@ -70,7 +71,7 @@ async function openEvidenceProvider(
     },
     secret
   );
-  const url = process.env.MCP_EVIDENCE_URL ?? `http://localhost:${process.env.PORT ?? '3001'}/mcp`;
+  const url = config().MCP_EVIDENCE_URL ?? `http://localhost:${config().PORT}/mcp`;
   try {
     const provider = await createMcpEvidenceProvider({
       scope: { runId: context.run.runId, fingerprint: context.fingerprint },
@@ -108,13 +109,8 @@ function describeEvidenceError(error: unknown): string {
   return `evidence unavailable: ${error instanceof Error ? error.message : 'lookup failed'}`;
 }
 
-const InvestigationSchema = z.object({
-  suspectedRootCause: z.string().min(1),
-  evidence: z.array(z.string()).max(8),
-  recommendedAction: z.enum(['create_issue', 'update_issue', 'notify_only', 'human_review']),
-  confidence: z.number().min(0).max(1),
-  explanation: z.string().min(1),
-});
+// The model's final answer: the same schema the API contract exports (shared-types).
+const InvestigationSchema = AgentFindingSchema;
 
 export interface InvestigationContext {
   test: TestResult;
@@ -285,10 +281,7 @@ export function createFailureInvestigationGraph(
     await recordSingleAgentCall(options, 'reason', state.model, reasonStarted, response);
     const calls = response.message.tool_calls ?? [];
     if (calls.length === 0) {
-      if (
-        process.env.RAG_ENABLED === 'true' &&
-        !state.toolsUsed.includes('search_repository_context')
-      ) {
+      if (config().RAG_ENABLED && !state.toolsUsed.includes('search_repository_context')) {
         const query = [
           state.context.test.title,
           state.context.test.file,
@@ -372,8 +365,7 @@ export function createFailureInvestigationGraph(
               }))
             : (state.context.existingIssue ?? { found: false });
       } else if (name === 'search_repository_context') {
-        if (process.env.RAG_ENABLED !== 'true')
-          result = { available: false, reason: 'RAG is disabled' };
+        if (!config().RAG_ENABLED) result = { available: false, reason: 'RAG is disabled' };
         else if (evidence && 'unavailable' in evidence)
           result = { available: false, reason: evidence.unavailable };
         else {
@@ -554,26 +546,10 @@ export async function runFailureInvestigationGraph(
   return finalState.result;
 }
 
-/** Ollama client with a per-request timeout (OLLAMA_TIMEOUT_MS); shared by the CI and SOC agents. */
-export function createOllamaClient(): { client: Ollama; model: string } {
-  const model = process.env.OLLAMA_MODEL ?? 'qwen3:4b';
-  const host = process.env.OLLAMA_HOST ?? 'http://localhost:11434';
-  const timeoutMs = Number.parseInt(process.env.OLLAMA_TIMEOUT_MS ?? '30000', 10);
-  const client = new Ollama({
-    host,
-    fetch: (input, init) => {
-      const timeoutSignal = AbortSignal.timeout(timeoutMs);
-      const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
-      return fetch(input, { ...init, signal });
-    },
-  });
-  return { client, model };
-}
-
 export async function investigateFailure(
   context: InvestigationContext
 ): Promise<FailureInvestigationOutcome> {
-  if (process.env.AI_ENABLED !== 'true') return {};
+  if (!config().AI_ENABLED) return {};
   const { client, model } = createOllamaClient();
   const threadId = `${context.run.runId}:${context.fingerprint}`;
   let evidence: EvidenceProvider | { unavailable: string } | undefined;
@@ -585,12 +561,11 @@ export async function investigateFailure(
       fingerprint: context.fingerprint,
       testId: context.test.testId,
       model,
-      orchestration: process.env.MULTI_AGENT_ENABLED === 'true' ? 'supervisor' : 'single_agent',
-      graphVersion:
-        process.env.MULTI_AGENT_ENABLED === 'true' ? 'failure-supervisor-v1' : 'failure-agent-v1',
+      orchestration: config().MULTI_AGENT_ENABLED ? 'supervisor' : 'single_agent',
+      graphVersion: config().MULTI_AGENT_ENABLED ? 'failure-supervisor-v1' : 'failure-agent-v1',
       modelBackend: await currentModelBackend(),
     });
-    const useMultiAgent = process.env.MULTI_AGENT_ENABLED === 'true';
+    const useMultiAgent = config().MULTI_AGENT_ENABLED;
     const audit = createDatabaseAuditSink(threadId);
     evidence = await openEvidenceProvider(context, threadId, audit);
     const graphOptions = {

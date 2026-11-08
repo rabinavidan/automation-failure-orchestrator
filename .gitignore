@@ -55,3 +55,8 @@ __pycache__/
 # Benchmark runs are local artifacts; only curated baselines are committed
 benchmark/results/*
 !benchmark/results/baseline-*/
+
+# Backend test suite (pytest) build and report output
+tests/backend/build/
+tests/backend/test-results/
+*.egg-info/

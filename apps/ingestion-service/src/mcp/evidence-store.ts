@@ -3,6 +3,7 @@ import { fingerprintLabel } from '@orchestrator/fingerprint-engine';
 import { query } from '../db/client';
 import { searchByLabel, type JiraIssue } from '../services/jira-adapter';
 import { searchRepositoryKnowledge, type KnowledgeMatch } from '../services/repository-knowledge';
+import { config } from '../config';
 
 /** Read-only evidence lookups. Every method is already scoped by the caller (the MCP server). */
 export interface EvidenceStore {
@@ -57,7 +58,7 @@ export function createDatabaseEvidenceStore(): EvidenceStore {
       return searchByLabel(fingerprintLabel(fingerprint));
     },
     async searchRepository(searchText, topK) {
-      if (process.env.RAG_ENABLED !== 'true') return null;
+      if (!config().RAG_ENABLED) return null;
       return searchRepositoryKnowledge(searchText, topK);
     },
   };

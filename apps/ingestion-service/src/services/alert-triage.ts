@@ -10,6 +10,8 @@ import type {
 } from '@orchestrator/shared-types';
 import { triageAlert } from '@orchestrator/failure-classifier';
 import { query } from '../db/client';
+import { recordAlertTriaged } from '../observability/telemetry';
+import { config } from '../config';
 
 const DEFAULT_POLICY_PATH = join(__dirname, '../../../../config/soc-triage-policy.json');
 
@@ -26,7 +28,7 @@ export const EMPTY_POLICY: TriagePolicy = {
 let cached: { policy: TriagePolicy; source: string; error?: string } | null = null;
 
 export function loadTriagePolicy(
-  path: string = process.env.SOC_TRIAGE_POLICY_PATH ?? DEFAULT_POLICY_PATH
+  path: string = config().SOC_TRIAGE_POLICY_PATH ?? DEFAULT_POLICY_PATH
 ): { policy: TriagePolicy; source: string; error?: string } {
   try {
     const parsed = TriagePolicySchema.safeParse(JSON.parse(readFileSync(path, 'utf-8')));
@@ -71,6 +73,8 @@ export async function triageIngestedAlert(
     occurrenceCount: result.occurrenceCount,
     policy,
   });
+
+  recordAlertTriaged(triage.disposition, alert.source.vendor);
 
   try {
     await query(

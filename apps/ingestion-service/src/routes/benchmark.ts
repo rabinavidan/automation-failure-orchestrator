@@ -1,12 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { Router } from 'express';
+import { config } from '../config';
 
 const router = Router();
 
 function resultsDir(): string {
   return resolve(
-    process.env.BENCHMARK_RESULTS_DIR ?? join(__dirname, '../../../../benchmark/results')
+    config().BENCHMARK_RESULTS_DIR ?? join(__dirname, '../../../../benchmark/results')
   );
 }
 

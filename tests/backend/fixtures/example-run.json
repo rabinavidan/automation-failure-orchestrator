@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0.0",
+  "runId": "2f1d6b0a-5c3e-4d8b-9f7a-1e2d3c4b5a69",
+  "repository": "acme/shop",
+  "branch": "main",
+  "commitSha": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+  "environment": "staging",
+  "triggeredBy": "docs-example",
+  "startedAt": "2026-11-07T09:00:00.000Z",
+  "finishedAt": "2026-11-07T09:00:30.000Z",
+  "summary": { "total": 1, "passed": 0, "failed": 1, "skipped": 0 },
+  "tests": [
+    {
+      "testId": "tests/api/orders.spec.ts::create-order",
+      "title": "create order returns 201",
+      "suite": "Orders API",
+      "file": "tests/api/orders.spec.ts",
+      "status": "failed",
+      "durationMs": 812,
+      "retry": 0,
+      "error": { "name": "AssertionError", "message": "Expected 201, received 500" },
+      "metadata": { "service": "orders-service", "endpoint": "/api/orders", "severity": "high" }
+    }
+  ]
+}
