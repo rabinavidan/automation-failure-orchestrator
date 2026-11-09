@@ -5,10 +5,10 @@ COPY package.json package-lock.json ./
 COPY apps/dashboard/package.json ./apps/dashboard/
 COPY packages/shared-types/package.json ./packages/shared-types/
 RUN npm install --legacy-peer-deps
-# The lockfile carries no lightningcss platform binaries (npm optional-deps bug), so install
-# the musl one matching the locked lightningcss version explicitly.
-RUN npm install --no-save --legacy-peer-deps \
-    "lightningcss-linux-x64-musl@$(node -p "require('lightningcss/package.json').version")"
+# The dashboard imports its API types from the shared contract package (types only).
+COPY tsconfig.json ./
+COPY packages/shared-types ./packages/shared-types/
+RUN npm run build --workspace=@orchestrator/shared-types
 COPY apps/dashboard ./apps/dashboard/
 RUN npm run build --workspace=@orchestrator/dashboard
 

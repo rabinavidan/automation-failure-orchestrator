@@ -196,7 +196,7 @@ run and failure detail) are listed with their status codes; their schemas are fu
 
 Step 7: the benchmark, the failure-mode sampler, version comparison and the LLM judge (about
 1,800 lines) moved to `packages/evaluation`, which imports the service's modules through a path
-alias and is type-checked but never built into the image; `scripts/check-image-contents.sh` asserts
+alias and is type-checked but never built into the image; `system/test_service_image.py` (pytest) asserts
 that in the container smoke job. `services/model-client.ts` is the one Ollama client factory (it
 replaced two copies in the CLIs and one in the agent).
 

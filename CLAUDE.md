@@ -36,11 +36,11 @@ npm install                       # installs all workspaces
 npm run build                     # tsc --build across every workspace, if present
 npm run lint                      # eslint . (root config; dashboard has its own oxlint)
 npm run format:check              # prettier --check .
-npm run test:unit                 # vitest run at the root (packages + ingestion-service; excludes apps/test-suite)
-npm run test:evaluations          # deterministic evaluation suites only (CI + SOC agents, judge, failure-mode taxonomy, version comparison) — list in package.json
 npm run format                    # prettier --write .
-npm run quality                   # lint + format:check + build + test:unit + test:evaluations — the full local gate
-npm run test:smoke                # scripts/ci-smoke.mjs
+npm run quality                   # lint + format:check + build + typecheck of tests/ui (static gate, no stack needed)
+npm run test:backend              # pytest suite (tests/backend) against a running stack
+npm run test:smoke                # pytest -m smoke
+npm run test:system               # pytest -m system (dashboard proxy, image contents, observability, AWS-local, Shuffle, n8n)
 npm run test:python               # ruff + mypy + pytest for apps/enrichment-service (needs its venv: pip install -e '.[dev]')
 npm run deps:check-overrides      # which npm overrides (pinned patched transitive deps) upstream has made unnecessary; weekly in CI
 ```
@@ -71,7 +71,7 @@ curl -X POST http://localhost:3001/api/knowledge/reindex   # (re)build the RAG i
 
 Portfolio demo scenarios (`npm run demo:<name>`; CI track: `new-regression`, `known-bug`, `flaky-test`, `infrastructure-failure`, `automation-failure`, `recovered-bug`, `duplicate-delivery`; SOC track: `soc-brute-force`, `soc-malware`, `soc-triage`, `soc-response`, `soc-multi-siem`) post canned payloads against the running stack — start Docker Compose first. `npm run demo:cleanup` resets demo data; `npm run ollama:stub` runs the deterministic Ollama stand-in.
 
-Benchmark (`benchmark/README.md`; results land in `benchmark/results/<timestamp>/`):
+Benchmark (`benchmark/README.md`; the CLIs live in `packages/evaluation`; results land in `benchmark/results/<timestamp>/`):
 
 ```bash
 npm run benchmark                                                  # deterministic config only, no model needed
