@@ -13,9 +13,9 @@
     "@orchestrator/shared-types": "*"
   },
   "peerDependencies": {
-    "@playwright/test": ">=1.47"
+    "@playwright/test": "^1.65.0"
   },
   "devDependencies": {
-    "typescript": "^5.5.0"
+    "typescript": "^7.0.2"
   }
 }
