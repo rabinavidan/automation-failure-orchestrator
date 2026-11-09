@@ -39,8 +39,8 @@ harness    self-tests of the test framework itself
 Run a layer with `pytest -m <marker>`. Markers are strict: an unknown marker fails the run.
 
 `system` tests skip when their stack is not running, so one command works everywhere. A CI job
-that starts a stack declares it in `REQUIRE_STACKS` (`dashboard`, `observability`, `aws-local`,
-`shuffle`, `n8n`), which turns an unreachable stack into a failure instead of a silent skip.
+that starts a stack declares it in `REQUIRE_STACKS` (`dashboard`, `image`, `observability`,
+`aws-local`, `shuffle`, `n8n`), which turns an unreachable stack into a failure instead of a silent skip.
 
 ## Coverage
 

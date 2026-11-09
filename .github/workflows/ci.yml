@@ -228,12 +228,10 @@ jobs:
         env:
           AI_ENABLED: 'false'
           RAG_ENABLED: 'false'
-      - name: Smoke and system checks (API health, dashboard same-origin proxy)
+      - name: Smoke and system checks (API health, dashboard same-origin proxy, image contents)
         env:
-          REQUIRE_STACKS: dashboard
+          REQUIRE_STACKS: dashboard,image
         run: npm run test:smoke && npm run test:system
-      - name: Service image ships no offline evaluation tooling
-        run: bash scripts/check-image-contents.sh
       - name: Capture container diagnostics
         if: failure()
         run: docker compose logs --no-color --tail=300

@@ -71,7 +71,7 @@ One tool per layer, each in the language that fits it: **pytest** for everything
 through HTTP, PostgreSQL and the browser, never internal functions, so the same suites run against
 local Docker, CI or any environment reachable by URL.
 
-**399 tests**: 315 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
+**406 tests**: 322 black-box pytest tests for the backend, 45 pytest unit tests inside the Python
 enrichment service, and 39 Playwright tests for the dashboard. Black-box tests reach **89.4% of
 the TypeScript backend's lines**, the SQS worker included.
 
@@ -109,7 +109,7 @@ flowchart TB
 | Agents · MCP | pytest + scriptable model stub                        | 49                | Supervisor and single-agent graphs with scripted model replies: guardrails, tool budgets, fail-safe fallbacks, durable human approvals, MCP scope tokens, RAG over a fixture corpus with stub embeddings                                                                         |
 | Evaluation   | pytest                                                | 12                | Benchmark regression against the committed baseline; deterministic output evaluators (incl. the hallucinated-IOC gate); offline evaluation CLIs                                                                                                                                  |
 | Drift        | pytest                                                | 92                | Artefacts that must agree: every relative link and anchor in the Markdown, the generated OpenAPI spec vs. the registered routes, n8n workflows stay front doors with no decisions of their own, Azure vs. GitHub CI, playbooks, runbooks and the triage policy vs. their schemas |
-| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 19                | Optional stacks, each in its own CI job: dashboard proxy, OpenTelemetry/Grafana, AWS-local (moto), Shuffle, real n8n                                                                                                                                                             |
+| System       | pytest (`REQUIRE_STACKS` turns a skip into a failure) | 26                | Optional stacks, each in its own CI job: dashboard proxy, service image contents, OpenTelemetry/Grafana, AWS-local (moto), Shuffle, real n8n                                                                                                                                     |
 | UI           | Playwright TS                                         | 39                | Every dashboard view through page objects, with API-seeded data, role fixtures and axe-core WCAG 2.1 AA checks                                                                                                                                                                   |
 | Enrichment   | pytest + respx (inside `apps/enrichment-service`)     | 45                | The Python threat-intel service's own unit layer: IOC normalization and eligibility (private IPs never leave the network), TTL cache, providers (mocked with respx), the API and its golden response contract                                                                    |
 | Coverage     | pytest → V8 → c8                                      | the backend suite | **89% of TypeScript lines** reached by black-box tests, the SQS worker included; modules no test loads count as 0%; the gate fails below 80% lines / 70% branches                                                                                                                |
