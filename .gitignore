@@ -60,3 +60,6 @@ benchmark/results/*
 tests/backend/build/
 tests/backend/test-results/
 *.egg-info/
+
+# Local PowerShell cache accidentally created in the repo root
+Microsoft/
